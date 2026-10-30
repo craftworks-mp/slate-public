@@ -3,7 +3,6 @@
   const PAGES = { bets: 'BETS', results: 'RESULTS' };
   const SUBTITLES = { game: 'GAME', player: 'PLAYER', team: 'TEAM', standings: 'STANDINGS' };
   const FILTERS = ['All', 'NFL', 'NBA', 'NHL'];
-  const WEEK = 9; // placeholder until real schedule data lands
   const PAIRS = {
     nfl: [['KC', 'BUF'], ['SF', 'DAL'], ['PHI', 'GB'], ['BAL', 'CIN']],
     nba: [['BOS', 'NYK'], ['LAL', 'DEN'], ['MIA', 'PHI'], ['GSW', 'PHX']],
@@ -17,7 +16,7 @@
   const TABS = [['bets', 'Bets'], ['game', 'Game'], ['away', 'AWAY'], ['home', 'HOME']];
 
   const state = {
-    dayOffset: { nfl: 0, nba: 0, nhl: 0 },
+    sel: { nfl: null, nba: null, nhl: null }, // selected date per sport (null = default), kept in memory
     gameTab: 'bets',
     filter: 'All',
   };
@@ -26,10 +25,6 @@
   const $ = (id) => document.getElementById(id);
   const view = $('view');
 
-  const dateFmt = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York', weekday: 'short', month: 'short', day: 'numeric',
-  });
-
   // Noon UTC of today's New York calendar date, shifted by n days (DST-safe).
   function baseDate(n) {
     const p = Object.fromEntries(
@@ -37,14 +32,14 @@
         .formatToParts(new Date()).map((x) => [x.type, x.value]));
     return new Date(Date.UTC(+p.year, +p.month - 1, +p.day + n, 12));
   }
-  const shortFmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' });
-  const shortDate = (n) => shortFmt.format(baseDate(n));
-  function dateLabel(n) {
-    if (n === -1) return 'Yesterday';
-    if (n === 0) return 'Today';
-    if (n === 1) return 'Tomorrow';
-    return dateFmt.format(baseDate(n)).replace(',', '');
-  }
+  // YYYY-MM-DD strings (ET calendar dates) -> labels, formatted as UTC noon so no zone shifts the day
+  const dnoon = (d) => new Date(d + 'T12:00:00Z');
+  const fmtU = (o) => new Intl.DateTimeFormat('en-US', Object.assign({ timeZone: 'UTC' }, o));
+  const F_DOW = fmtU({ weekday: 'short' }), F_MD = fmtU({ month: 'short', day: 'numeric' }), F_MON = fmtU({ month: 'long' }), F_LONG = fmtU({ weekday: 'short', month: 'short', day: 'numeric' });
+  const dowOf = (d) => F_DOW.format(dnoon(d)).toUpperCase();
+  const mdOf = (d) => F_MD.format(dnoon(d)).toUpperCase();
+  const monthOf = (d) => F_MON.format(dnoon(d)).toUpperCase();
+  const longOf = (d) => F_LONG.format(dnoon(d)).replace(',', '');
 
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -103,8 +98,7 @@
 
 
   // ---- data layer ----
-  const LIVE = { nba: 1, nhl: 1 };
-  const store = { days: {}, meta: {}, idx: null, idxDone: false };
+  const store = { days: {}, meta: {}, sched: {}, idx: null, idxDone: false };
   const MINUS = '−';
   const ver = () => (store.idx && store.idx.updated ? '?v=' + encodeURIComponent(store.idx.updated) : '');
   async function getJSON(url, opts) {
@@ -139,6 +133,78 @@
     }, () => { e.st = 'err'; }).then(rerender);
     return e;
   }
+  // Season schedule (data/schedule/<sp>.json via the public tree). 'none' = not published for this sport.
+  function ensureSched(sp) {
+    if (store.sched[sp]) return store.sched[sp];
+    const e = store.sched[sp] = { st: 'loading' };
+    indexP.then(() => {
+      const s = store.idx && store.idx.sports && store.idx.sports[sp];
+      if (store.idx && !(s && s.schedule)) return { nf: true };
+      return getJSON('../schedule/' + sp + '.json' + ver());
+    }).then((r) => {
+      if (r.nf || !r.data) { e.st = 'none'; return; }
+      e.st = 'ok'; e.data = prepSched(sp, r.data);
+    }, () => { e.st = 'err'; }).then(rerender);
+    return e;
+  }
+  // normalize schedule games to the shape of days-file games, and index them by date / team / id
+  function prepSched(sp, raw) {
+    const games = (raw.games || []).map((g) => ({
+      gid: String(g.id), away: g.a, home: g.h, kickoff: g.t, d: g.d, tv: g.tv !== false, status: g.st,
+      final: g.st === 'final' && typeof g.sa === 'number' && typeof g.sh === 'number' ? { away: g.sa, home: g.sh } : null,
+      ot: g.ot || '', bc: g.bc || [], sched: true,
+    }));
+    const byDate = {}, byTeam = {}, byId = {};
+    games.forEach((g) => {
+      (byDate[g.d] = byDate[g.d] || []).push(g);
+      byId[g.gid] = g;
+      [g.away, g.home].forEach((c) => (byTeam[c] = byTeam[c] || []).push(g));
+    });
+    return { games, byDate, byTeam, byId, weeks: raw.weeks || [], byes: raw.byes || {}, raw };
+  }
+  const schedData = (sp) => { const e = store.sched[sp]; return e && e.st === 'ok' ? e.data : null; };
+  // W-L (NHL W-L-OTL, NFL W-L-T) from schedule finals strictly before `date`
+  function recOf(sp, code, date) {
+    const sd = schedData(sp);
+    if (!sd) return null;
+    let w = 0, l = 0, o = 0, t = 0;
+    (sd.byTeam[code] || []).forEach((g) => {
+      if (g.status !== 'final' || !g.final || g.d >= date) return;
+      const mine = g.final[g.away === code ? 'away' : 'home'], other = g.final[g.away === code ? 'home' : 'away'];
+      if (mine > other) w++;
+      else if (mine < other) { if (sp === 'nhl' && g.ot) o++; else l++; } else t++;
+    });
+    return w + '-' + l + (sp === 'nhl' ? '-' + o : '') + (sp === 'nfl' && t ? '-' + t : '');
+  }
+  const etDay = (iso) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso));
+  // record shown on cards/headers: schedule-based (matches every day), days-file W-L only if the schedule is missing
+  function recFor(sp, g, side) {
+    const date = g.d || (g.kickoff ? etDay(g.kickoff) : null);
+    return (date && recOf(sp, g[side], date)) || (g.rec && g.rec[side]) || null;
+  }
+  function schedGames(sp, date) {
+    const sd = schedData(sp);
+    return ((sd && sd.byDate[date]) || []).map((g) => Object.assign({}, g, { rec: { away: recOf(sp, g.away, date), home: recOf(sp, g.home, date) } }));
+  }
+  function gameDays(sp) {
+    const out = new Set(), sd = schedData(sp);
+    if (sd) Object.keys(sd.byDate).forEach((d) => out.add(d));
+    const list = store.idx && store.idx.sports && store.idx.sports[sp] && store.idx.sports[sp].days;
+    if (Array.isArray(list)) list.forEach((d) => out.add(d));
+    return out;
+  }
+  // selected day: remembered pick, else today if it has games, else the most recent game day before today
+  function selDate(sp) {
+    if (state.sel[sp]) return state.sel[sp];
+    const days = [...gameDays(sp)].sort(), t = ymd(0);
+    if (days.includes(t)) return t;
+    const before = days.filter((d) => d < t);
+    return before.length ? before[before.length - 1] : (days.find((d) => d > t) || t);
+  }
+  const weekOf = (sp, date) => {
+    const sd = schedData(sp);
+    return sd ? sd.weeks.find((w) => w.start <= date && date <= w.end) : null;
+  };
   const tinfo = (sp, code) => {
     const m = store.meta[sp];
     return (m && m.data && m.data[code]) || {};
@@ -167,14 +233,19 @@
         if (g) return { g, day: e.data.games, date: e.date };
       }
     }
+    const sd = schedData(sp), sg = sd && sd.byId[id];
+    if (sg) {
+      const day = schedGames(sp, sg.d);
+      return { g: day.find((x) => x.gid === id), day, date: sg.d };
+    }
     return null;
   }
   // true while a game lookup could still succeed
   function lookupPending(sp) {
-    const dates = [ymd(state.dayOffset[sp])];
+    const dates = [selDate(sp)];
     const list = store.idx && store.idx.sports && store.idx.sports[sp] && store.idx.sports[sp].days;
     if (Array.isArray(list)) dates.push(...list.slice(-7).reverse());
-    let pending = !store.idxDone;
+    let pending = !store.idxDone || ensureSched(sp).st === 'loading';
     new Set(dates).forEach((d) => { if (ensureDay(sp, d).st === 'loading') pending = true; });
     return pending;
   }
@@ -197,57 +268,51 @@
 
   // ---- views ----
   function sportRoot(sport) {
-    const o = state.dayOffset[sport];
-    const pill = (n, label) => {
-      const sub = shortDate(n);
-      return `<button data-off="${n}" class="${o === n ? 'on' : ''}" aria-pressed="${o === n}"><span class="d">${n === 0 ? 'Today' : label}</span><span class="s">${esc(sub)}</span></button>`;
-    };
-    const sample = (tag) => PAIRS[sport].map(([aw, hm], i) => {
-      const inner = `<span class="teams">
-        <span class="tline">${badge(aw)}${bar('w55')}<span class="rec">—</span></span>
-        <span class="tline">${badge(hm)}${bar('w70')}<span class="rec">—</span></span>
-      </span>
-      <span class="tcol" aria-hidden="true">${bar('w85')}${bar('w55')}</span>`;
-      return tag === 'a' ? `<a class="grow" href="#${sport}/game/${gid(i)}" aria-label="Sample game ${esc(aw)} at ${esc(hm)}">${inner}</a>` : `<div class="grow" aria-hidden="true">${inner}</div>`;
-    }).join('');
-    let label = '', list;
-    if (!LIVE[sport]) {
-      label = `<span class="lbl preview-lbl">Week ${WEEK} Preview</span><p class="note">NFL arrives with the NFL build step.</p>`;
-      list = `<div class="glist">${sample('a')}</div>`;
-    } else list = liveList(sport, o);
-    return `<div class="dates">
-        <button class="arrow" data-shift="-1" aria-label="Previous day">&#8249;</button>
-        <div class="pills ${sport}">${pill(-1, 'Yesterday')}${pill(0, 'Today')}${pill(1, 'Tomorrow')}</div>
-        <button class="arrow" data-shift="1" aria-label="Next day">&#8250;</button>
-      </div>
-      <div class="sechead"><h2>Games</h2><a class="textlink" href="#${sport}/standings">Standings &#8250;</a></div>
-      ${label}${list}`;
+    const m = ensureMeta(sport), sc = ensureSched(sport);
+    const head = `<div class="sechead"><h2>Games</h2><a class="textlink" href="#${sport}/standings">Standings &#8250;</a></div>`;
+    if (!store.idxDone || sc.st === 'loading') return `<div class="dates" aria-hidden="true"><div class="pills">${'<button disabled><span class="d">&nbsp;</span><span class="s">&nbsp;</span></button>'.repeat(5)}</div></div>${head}${skList(sport)}`;
+    const sel = selDate(sport), today = ymd(0), end = ymd(sport === 'nfl' ? 7 : 2);
+    const days = new Set([...gameDays(sport)].filter((d) => d <= end));
+    days.add(sel);
+    const pill = (d) => `<button data-day="${d}" class="${d === sel ? 'on' : ''}" aria-pressed="${d === sel}"><span class="d">${d === today ? 'TODAY' : dowOf(d)}</span><span class="s">${mdOf(d)}</span></button>`;
+    const wk = sport === 'nfl' ? weekOf(sport, sel) : null;
+    const label = wk ? `<span class="lbl wk-lbl">WEEK ${wk.w}</span>` : '';
+    return `<div class="dates"><div class="pills ${sport}" aria-label="Game days">${[...days].sort().map(pill).join('')}</div></div>
+      ${head}${label}${dayList(sport, sel, m)}`;
   }
 
-  function liveList(sport, o) {
-    const sk = () => `<div class="glist">${PAIRS[sport].map(([aw, hm]) => `<div class="grow" aria-hidden="true"><span class="teams">
+  const skList = (sport) => `<div class="glist">${PAIRS[sport].map(([aw, hm]) => `<div class="grow" aria-hidden="true"><span class="teams">
         <span class="tline">${badge(aw)}${bar('w55')}<span class="rec">—</span></span>
         <span class="tline">${badge(hm)}${bar('w70')}<span class="rec">—</span></span></span>
         <span class="tcol">${bar('w85')}${bar('w55')}</span></div>`).join('')}</div>`;
-    const date = ymd(o), d = ensureDay(sport, date), m = ensureMeta(sport);
-    if (d.st === 'loading' || m.st === 'loading') return sk();
-    if (d.st === '404') return `<div class="card empty"><h2>No slate for ${esc(dateFmt.format(baseDate(o)))}</h2><p>Nothing has been published for this day yet.</p></div>`;
+
+  function dayList(sport, date, m) {
+    const d = ensureDay(sport, date);
+    if (d.st === 'loading' || m.st === 'loading') return skList(sport);
     if (d.st === 'err') return `<div class="card empty"><h2>Couldn’t load games</h2><p>Check your connection and try again.</p><button class="pillbtn retry" data-retry="${esc(sport + '/' + date)}">Retry</button></div>`;
-    const games = (d.data && d.data.games) || [];
-    if (!games.length) return `<div class="card empty"><h2>No slate for ${esc(dateFmt.format(baseDate(o)))}</h2><p>No games on this day.</p></div>`;
-    return `<div class="glist">${games.map((g) => gameCard(sport, g)).join('')}</div>`;
+    const games = d.st === 'ok' ? ((d.data && d.data.games) || []) : [];
+    if (games.length) return `<div class="glist">${games.map((g) => gameCard(sport, g)).join('')}</div>`;
+    const sg = schedGames(sport, date);
+    if (sg.length) return `<div class="glist">${sg.map((g) => gameCard(sport, g)).join('')}</div>`;
+    return `<div class="card empty"><h2>No games ${esc(longOf(date))}</h2><p>${store.sched[sport].st === 'err' ? 'The schedule could not be loaded.' : 'Nothing scheduled for this day.'}</p></div>`;
   }
 
+  const ktxt = (g) => (g.tv === false ? 'TBD' : fmtTime(g.kickoff));
   function sideCol(g) {
-    const parts = lineParts(g);
-    const top = g.status === 'final' ? '<span class="lbl">Final</span>'
-      : g.status === 'pending' ? '<span class="lbl amber">Final pending</span>'
-        : `<span class="ktime">${esc(fmtTime(g.kickoff))}</span>`;
-    return `${top}${parts.map((p) => `<span class="kline">${p}</span>`).join('')}`;
+    const parts = lineParts(g), st = g.status || 'scheduled';
+    let top;
+    if (st === 'final') top = `<span class="lbl">Final${g.ot ? '/' + esc(g.ot) : ''}</span>`;
+    else if (st === 'pending') top = '<span class="lbl amber">Final pending</span>';
+    else if (st === 'live') top = '<span class="lbl amber">Live</span>';
+    else if (st === 'post') top = '<span class="lbl">Postponed</span>';
+    else if (st === 'scheduled') top = `<span class="ktime">${esc(ktxt(g))}</span>`;
+    else top = `<span class="lbl">${esc(st)}</span>`;
+    const bc = st === 'scheduled' && g.bc && g.bc[0] ? `<span class="kline">${esc(g.bc[0])}</span>` : '';
+    return `${top}${bc}${parts.map((p) => `<span class="kline">${p}</span>`).join('')}`;
   }
   function teamRow(sport, g, side) {
     const code = g[side] || '—', t = tinfo(sport, code);
-    const rec = g.rec && g.rec[side];
+    const rec = recFor(sport, g, side);
     let score = '';
     if (g.status === 'final' && g.final) {
       const mine = g.final[side], other = g.final[side === 'away' ? 'home' : 'away'];
@@ -256,43 +321,18 @@
     return `<span class="tline">${tbadge(sport, code, '', '', true)}<span class="rec">${esc(rec || '—')}</span><span class="tn">${esc(t.short || '')}</span>${score}</span>`;
   }
   function gameCard(sport, g) {
-    const b = g.bets || {}, n = b.n || 0;
-    const chips = n ? `<span class="bchips">${b['S+'] > 0 ? `<span class="bchip acc">${esc(b['S+'])} S+</span>` : ''}${b.A > 0 ? `<span class="bchip blue">${esc(b.A)} A</span>` : ''}<span class="bmuted">${esc(n)} bets</span></span>` : '';
-    return `<a class="gcard" href="#${sport}/game/${encodeURIComponent(g.gid)}" aria-label="${esc(g.away)} at ${esc(g.home)}">
+    const b = g.bets || {}, n = b.n || 0, sp = b['S+'] || 0;
+    const rated = sp + (b.A || 0) + (b.B || 0);
+    const bline = n ? `<span class="bline">${esc(n)} bets${rated ? ` · ${esc(rated)} rated` : ''}</span>` : '';
+    const acc = sp > 0 ? `<span class="acc-badge" role="img" aria-label="S+ value in this game">★ S+</span>` : '';
+    return `<a class="gcard${acc ? ' has-acc' : ''}" href="#${sport}/game/${encodeURIComponent(g.gid)}" aria-label="${esc(g.away)} at ${esc(g.home)}">${acc}
       <span class="gc-main"><span class="teams">${teamRow(sport, g, 'away')}${teamRow(sport, g, 'home')}</span>
-      <span class="gc-side">${sideCol(g)}</span></span>${chips}</a>`;
+      <span class="gc-side">${sideCol(g)}</span></span>${bline}</a>`;
   }
-  const gid = (i) => (i === 0 ? 'sample' : 'sample' + (i + 1));
-  const gidx = (id) => { const m = /^sample(\d)$/.exec(id); return m ? Math.min(3, Math.max(0, +m[1] - 1)) : 0; };
 
   function standings(sport) {
     return `<div class="pagehead">${backBtn}<h2>${SPORTS[sport]} Standings</h2></div>
       ${empty('Standings', 'Standings', 'Standings land with the data step.', 0)}`;
-  }
-
-  function sampleGameView(sport, id) {
-    const i = gidx(id), [aw, hm] = PAIRS[sport][i];
-    const chips = PAIRS[sport].map(([a, h], j) => `<a class="chip ${j === i ? 'on' : ''}" href="#${sport}/game/${gid(j)}" ${j === i ? 'aria-current="true"' : ''}>${a} @ ${h}<small>\u2014:\u2014</small></a>`).join('');
-    const tab = state.gameTab;
-    let body;
-    if (tab === 'bets') body = empty('Bets', 'Bets', 'Props and lines open with the slate data.', 0);
-    else if (tab === 'game') {
-      const row = (l, r) => `<div><div class="cmp-top"><span class="v">\u2014</span><span class="lab"><span class="bar"></span></span><span class="v">\u2014</span></div>
-        <div class="split"><i style="flex:${l}"></i><i style="flex:${r}"></i></div></div>`;
-      body = `<div class="card cmp" aria-hidden="true">${row(55, 45)}${row(40, 60)}${row(50, 50)}</div>`;
-    } else {
-      const code = tab === 'away' ? aw : hm;
-      body = `<div class="plist">${[0, 1, 2, 3].map((n) => `<a class="prow" href="#${sport}/player/sample" aria-label="Sample player ${n + 1}, ${esc(code)}">
-        <span class="ini" aria-hidden="true">\u2014</span><span class="bars">${bar(n % 2 ? 'w55' : 'w70')}${bar(n % 2 ? 'w40' : 'w55')}</span><span class="bar st"></span></a>`).join('')}</div>`;
-    }
-    return `<div class="pagehead">${backBtn}<div class="chips" aria-label="Other sample games">${chips}</div></div>
-      <div class="ghead">
-        <div class="gteam">${badge(aw, 'l', `#${sport}/team/${aw}`)}<span class="rec">\u2014</span></div>
-        <div class="gcenter"><span class="big">\u2014:\u2014</span>${bar('w70')}</div>
-        <div class="gteam">${badge(hm, 'l', `#${sport}/team/${hm}`)}<span class="rec">\u2014</span></div>
-      </div>
-      <div class="subtabs">${segmented(TABS.map(([k, l]) => [k, k === 'away' ? aw : k === 'home' ? hm : l]), tab, 'data-sub')}</div>
-      ${body}`;
   }
 
   function liveGameView(sport, id) {
@@ -309,7 +349,7 @@
     }
     if (store.meta[sport].st === 'loading') return `<div class="pagehead">${backBtn}</div>${rowsGeneric(3)}`;
     const g = f.g, aw = g.away || '—', hm = g.home || '—';
-    const chips = f.day.map((x) => `<a class="chip ${x.gid === g.gid ? 'on' : ''}" href="#${sport}/game/${encodeURIComponent(x.gid)}" ${x.gid === g.gid ? 'aria-current="true"' : ''}>${esc(x.away)} @ ${esc(x.home)}<small>${esc(fmtTime(x.kickoff))}</small></a>`).join('');
+    const chips = f.day.map((x) => `<a class="chip ${x.gid === g.gid ? 'on' : ''}" href="#${sport}/game/${encodeURIComponent(x.gid)}" ${x.gid === g.gid ? 'aria-current="true"' : ''}>${esc(x.away)} @ ${esc(x.home)}<small>${esc(ktxt(x))}</small></a>`).join('');
     const tab = state.gameTab;
     let body;
     if (tab === 'bets') body = empty('Bets', 'Bets', 'Props and lines open with the slate data.', 0);
@@ -324,17 +364,18 @@
     }
     const fin = g.status === 'final' && g.final;
     const center = fin
-      ? `<span class="big fin">${esc(g.final.away)}<i>–</i>${esc(g.final.home)}</span><span class="lbl">Final</span>`
-      : `<span class="big">${esc(fmtTime(g.kickoff))}</span>${g.status === 'pending' ? '<span class="lbl amber">Final pending</span>' : ''}`;
+      ? `<span class="big fin">${esc(g.final.away)}<i>–</i>${esc(g.final.home)}</span><span class="lbl">Final${g.ot ? '/' + esc(g.ot) : ''}</span>`
+      : g.status === 'post' ? '<span class="big">—</span><span class="lbl">Postponed</span>'
+        : `<span class="big">${esc(ktxt(g))}</span>${g.status === 'pending' ? '<span class="lbl amber">Final pending</span>' : g.status === 'live' ? '<span class="lbl amber">Live</span>' : ''}${g.status === 'scheduled' && g.bc && g.bc[0] ? `<span class="kline">${esc(g.bc[0])}</span>` : ''}`;
     const lp = lineParts(g).map((p) => `<span class="kline">${p}</span>`).join('');
     const team = (code, side) => `<div class="gteam">${tbadge(sport, code, 'l', `#${sport}/team/${encodeURIComponent(code)}`, false)}
-      <span class="rec">${esc((g.rec && g.rec[side]) || '—')}</span><span class="tn">${esc(tinfo(sport, code).short || '')}</span></div>`;
+      <span class="rec">${esc(recFor(sport, g, side) || '—')}</span><span class="tn">${esc(tinfo(sport, code).short || '')}</span></div>`;
     return `<div class="pagehead">${backBtn}<div class="chips" aria-label="Games this day">${chips}</div></div>
       <div class="ghead">${team(aw, 'away')}<div class="gcenter">${center}${lp}</div>${team(hm, 'home')}</div>
       <div class="subtabs">${segmented(TABS.map(([k, l]) => [k, k === 'away' ? aw : k === 'home' ? hm : l]), tab, 'data-sub')}</div>
       ${body}`;
   }
-  const gameView = (sport, id) => (LIVE[sport] ? liveGameView(sport, id) : sampleGameView(sport, id));
+  const gameView = liveGameView;
 
   function playerView(sport) {
     const labs = STAT_LABELS[sport];
@@ -351,13 +392,48 @@
 
   function teamView(sport, code) {
     ensureMeta(sport);
+    const sc = ensureSched(sport);
     const t = tinfo(sport, code);
+    const rec = recOf(sport, code, '9999-12-31');
+    const sub = rec ? `<span class="trec">${esc(rec)}</span>` : bar('w40');
     const hero = t.name
-      ? `${tbadge(sport, code, 'xl', '', true)}<span class="bars"><h2 class="tname-xl">${esc(t.name)}</h2>${bar('w40')}</span>`
-      : `${badge(code, 'xl')}<span class="bars">${bar('w70')}${bar('w40')}</span>`;
+      ? `${tbadge(sport, code, 'xl', '', true)}<span class="bars"><h2 class="tname-xl">${esc(t.name)}</h2>${sub}</span>`
+      : `${badge(code, 'xl')}<span class="bars">${bar('w70')}${rec ? sub : bar('w40')}</span>`;
     return `<div class="pagehead">${backBtn}</div>
       <div class="phero">${hero}</div>
-      ${sec('Splits')}${rowsGeneric(2)}${sec('Roster')}${rowsGeneric(2)}${sec('Schedule')}${rowsGeneric(2)}`;
+      ${sec('Splits')}${rowsGeneric(2)}${sec('Roster')}${rowsGeneric(2)}${sec('Schedule')}${teamSchedule(sport, code, sc)}`;
+  }
+
+  function teamSchedule(sport, code, sc) {
+    if (sc.st === 'loading') return rowsGeneric(3);
+    const sd = schedData(sport);
+    if (!sd) return `<div class="card empty"><p>${sc.st === 'err' ? 'The schedule could not be loaded.' : 'No schedule published yet.'}</p></div>`;
+    const games = sd.byTeam[code] || [];
+    if (!games.length) return `<div class="card empty"><p>No games found for ${esc(code)}.</p></div>`;
+    const items = games.map((g) => ({ k: g.kickoff, d: g.d, g }));
+    const bye = sd.byes[code], bw = bye && sd.weeks.find((w) => w.w === bye);
+    if (bw) items.push({ k: bw.start + 'T00:00Z', d: bw.start, bye: bye });
+    items.sort((x, y) => (x.k < y.k ? -1 : x.k > y.k ? 1 : 0));
+    const next = games.find((g) => g.status !== 'final' && g.status !== 'post');
+    let month = '', out = '';
+    items.forEach((it) => {
+      const m = monthOf(it.d);
+      if (m !== month) { month = m; out += `<div class="mh">${m}</div>`; }
+      if (it.bye) { out += `<div class="srow bye"><span class="sd">WEEK ${esc(it.bye)}</span><span class="sv"></span><span class="sr">BYE</span></div>`; return; }
+      const g = it.g, home = g.home === code, opp = home ? g.away : g.home;
+      let r;
+      if (g.status === 'final' && g.final) {
+        const mine = g.final[home ? 'home' : 'away'], oth = g.final[home ? 'away' : 'home'];
+        const res = mine > oth ? 'W' : mine < oth ? (sport === 'nhl' && g.ot ? 'OTL' : 'L') : 'T';
+        r = `<b class="wl ${mine > oth ? 'w' : mine < oth ? 'l' : ''}">${res}</b> ${esc(mine)}–${esc(oth)}${g.ot && res !== 'OTL' ? ` <small>${esc(g.ot)}</small>` : ''}`;
+      } else if (g.status === 'post') r = 'Postponed';
+      else if (g.status === 'live') r = '<span class="amber">LIVE</span>';
+      else if (g.status === 'scheduled') r = esc(ktxt(g));
+      else r = esc(g.status.toUpperCase());
+      out += `<a class="srow${g === next ? ' next' : ''}" ${g === next ? 'data-next ' : ''}href="#${sport}/day/${g.d}"><span class="sd">${dowOf(g.d)} ${mdOf(g.d)}</span>
+        <span class="sv"><span class="vs">${home ? 'vs' : '@'}</span>${tbadge(sport, opp, 's', '', true)}<span class="oc">${esc(opp)}</span></span><span class="sr">${r}</span></a>`;
+    });
+    return `<div class="sched" aria-label="${esc(code)} schedule">${out}</div>`;
   }
 
   function parse() {
@@ -366,7 +442,8 @@
     if (PAGES[r]) return { key: r, page: r };
     const sport = SPORTS[r] ? r : 'nba';
     const kind = SUBTITLES[p[1]] ? p[1] : 'root';
-    let id = kind === 'game' ? (LIVE[sport] ? (/^[A-Za-z0-9_-]{1,40}$/.test(p[2] || '') ? p[2] : '') : /^sample\d?$/.test(p[2]) ? p[2] : 'sample') : kind === 'player' ? 'sample' : '';
+    if (p[1] === 'day' && /^\d{4}-\d{2}-\d{2}$/.test(p[2] || '')) return { key: sport + '/day', sport, kind: 'day', id: p[2] };
+    let id = kind === 'game' ? (/^[A-Za-z0-9_-]{1,40}$/.test(p[2] || '') ? p[2] : '') : kind === 'player' ? 'sample' : '';
     if (kind === 'team') id = /^[A-Za-z0-9]{1,4}$/.test(p[2] || '') ? p[2].toUpperCase() : '\u2014';
     if (kind === 'game' && !id) return { key: sport, sport, kind: 'root', id: '' };
     return { key: [sport, kind, id].filter(Boolean).join('/'), sport, kind, id };
@@ -397,6 +474,10 @@
     else if (c.kind === 'team') view.innerHTML = teamView(c.sport, c.id);
     else view.innerHTML = sportRoot(c.sport);
 
+    const pl = view.querySelector('.pills'), po = pl && pl.querySelector('.on');
+    if (po) pl.scrollLeft = Math.max(0, po.offsetLeft - (pl.clientWidth - po.offsetWidth) / 2);
+    const sch = view.querySelector('.sched'), nx = sch && sch.querySelector('[data-next]');
+    if (nx) sch.scrollTop = Math.max(0, nx.offsetTop - 56);
     const on = view.querySelector('.chips .on');
     if (on) on.parentNode.scrollLeft = Math.max(0, on.offsetLeft - 8);
     if (changed) {
@@ -414,8 +495,7 @@
     if (d.back !== undefined) return goBack();
     if (d.retry) { delete store.days[d.retry]; const m = store.meta[sportOf()]; if (m && m.st === 'err') delete store.meta[sportOf()]; render(); return; }
     if (d.sub) state.gameTab = d.sub;
-    else if (d.off !== undefined) state.dayOffset[sportOf()] = +d.off;
-    else if (d.shift) state.dayOffset[sportOf()] += +d.shift;
+    else if (d.day) state.sel[sportOf()] = d.day;
     else if (d.filter) state.filter = d.filter;
     else return;
     render();
@@ -424,7 +504,6 @@
   // Track in-app history so the back button can use real browser back when possible.
   const stack = [location.hash];
   function parentHash() {
-    if ((cur.kind === 'player' || cur.kind === 'team') && !LIVE[cur.sport]) return `#${cur.sport}/game/sample`;
     return `#${cur.sport || 'nba'}`;
   }
   function goBack() {
@@ -433,6 +512,14 @@
 
   function route() {
     cur = parse();
+    if (cur.kind === 'day') {
+      // link to a day: select it, then show the sport page at its plain URL (history entry replaced, not added)
+      state.sel[cur.sport] = cur.id;
+      const h = '#' + cur.sport;
+      history.replaceState(null, '', h);
+      stack[stack.length - 1] = h;
+      cur = { key: cur.sport, sport: cur.sport, kind: 'root', id: '' };
+    }
     render();
   }
   window.addEventListener('hashchange', (e) => {

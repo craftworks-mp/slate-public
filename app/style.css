@@ -6,6 +6,9 @@
   --f-m:"JetBrains Mono",ui-monospace,Menlo,monospace;
   --nav-h:64px;--maxw:640px;--gut:16px;
   --ease:cubic-bezier(.2,.8,.2,1);
+  /* grade + signal tokens (used by the accolade now; bet views later) */
+  --g-splus:#ffc95a;--g-a:#3ee6a0;--g-b:#2dd4bf;--g-c:#8ea6c4;--g-d:#ff9b4a;--g-f:#ff7a70;
+  --pos:#3ee6a0;--neg:#ff7a70;--pos-hi:#7dffc8;--neg-hi:#ffa39b;
 }
 *{box-sizing:border-box}
 html{background:var(--bg);color-scheme:dark}
@@ -43,18 +46,16 @@ svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .seg button.on{color:var(--ink)}
 .seg button:active{transform:scale(.96)}
 
-/* date strip */
-.dates{display:flex;align-items:center;gap:4px;margin:14px 0 16px}
-.dates .arrow{position:relative;width:36px;height:36px;flex:none;display:grid;place-items:center;margin:0 4px;border-radius:50%;border:1px solid var(--line);color:var(--muted);font-size:20px;line-height:1;transition:transform .18s,color .18s,border-color .18s}
-.dates .arrow::after{content:"";position:absolute;inset:-4px}
-.dates .arrow:active{transform:scale(.94);color:var(--ink)}
-.pills{display:flex;flex:1;gap:6px;min-width:0}
-.pills button{flex:1;min-width:0;min-height:44px;padding:4px 2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:999px;background:var(--card2);color:var(--muted);transition:background .18s,color .18s,transform .18s}
+/* date strip: horizontally scrolling pills, game days only */
+.dates{margin:14px calc(-1 * var(--gut)) 16px}
+.pills{position:relative;display:flex;gap:6px;overflow-x:auto;padding:2px var(--gut);scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+.pills::-webkit-scrollbar{display:none}
+.pills button{flex:none;min-width:62px;min-height:44px;padding:4px 12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:999px;background:var(--card2);color:var(--muted);transition:background .18s,color .18s,transform .18s}
 .pills button:active{transform:scale(.94)}
-.pills .d{font:700 11px/1 var(--f-b);letter-spacing:.03em;text-transform:uppercase;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pills button:disabled{opacity:.5;cursor:default}
+.pills .d{font:700 11px/1 var(--f-b);letter-spacing:.03em;text-transform:uppercase;white-space:nowrap}
 .pills .s{font:500 11px/1 var(--f-m);text-transform:uppercase;opacity:.85;white-space:nowrap}
 .pills button.on{background:var(--accent);color:#05261a}
-@media (max-width:359px){.dates{gap:0}.dates .arrow{margin:0 2px}.pills{gap:3px}.pills button{padding:4px 0}.pills .d{font-size:9.5px;letter-spacing:0}.pills .s{font-size:10px}}
 
 /* cards + empty states */
 .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px 16px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
@@ -116,9 +117,7 @@ svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .sechead h2{margin:0;font:700 22px/1 var(--f-d);letter-spacing:.06em;text-transform:uppercase}
 .textlink{position:relative;display:inline-flex;align-items:center;min-height:44px;padding:0 2px;font:600 14px/1 var(--f-b);color:var(--accent);text-decoration:none;white-space:nowrap}
 .textlink:active{opacity:.7}
-.preview-lbl{display:block;margin:0 0 8px}
-.pills.nfl .s{letter-spacing:-.02em}
-@media (max-width:359px){.pills.nfl .s{font-size:9px}}
+.wk-lbl{display:block;margin:0 0 8px}
 
 .glist,.plist{display:flex;flex-direction:column;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.25)}
 .grow{display:flex;align-items:stretch;min-height:96px;background:var(--card);color:inherit;text-decoration:none;transition:background .18s}
@@ -194,7 +193,6 @@ svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .tb img{width:28px;height:28px;object-fit:contain;display:block}
 .tb.l img{width:40px;height:40px}
 .tb.xl img{width:52px;height:52px}
-.note{margin:0 0 8px;font-size:12px;color:var(--muted)}
 .gcard{display:block;padding:12px;background:var(--card);color:inherit;text-decoration:none;transition:background .18s}
 .gcard:active{background:var(--card2)}
 .gc-main{display:flex;align-items:center;gap:12px}
@@ -208,11 +206,14 @@ svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .ktime{font:600 15px/1 var(--f-m);color:var(--ink);white-space:nowrap}
 .kline{font:500 11px/1.2 var(--f-m);color:var(--muted);white-space:nowrap}
 .lbl.amber{color:var(--amber)}
-.bchips{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:10px}
-.bchip{padding:4px 8px;border-radius:999px;font:700 11px/1 var(--f-b);letter-spacing:.03em}
-.bchip.acc{background:var(--accent-bg);color:var(--accent)}
-.bchip.blue{background:rgba(124,195,255,.14);background:color-mix(in srgb,var(--blue) 14%,transparent);color:var(--blue)}
-.bmuted{font:500 11px/1 var(--f-b);color:var(--muted)}
+/* bets summary line + S+ accolade */
+.bline{display:block;margin-top:10px;font:500 11px/1 var(--f-b);color:var(--muted)}
+.gcard{position:relative}
+.acc-badge{position:absolute;top:8px;right:10px;z-index:1;overflow:hidden;display:inline-flex;align-items:center;padding:3px 8px 2px;border-radius:999px;background:linear-gradient(135deg,#ffe08a,#ffb020);color:#2e2000;font:700 12px/1.1 var(--f-d);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;box-shadow:0 0 18px rgba(255,201,90,.45)}
+.acc-badge::after{content:"";position:absolute;top:0;bottom:0;left:0;width:40%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.65),transparent);transform:translateX(-120%) skewX(-18deg);animation:sheen 3.6s ease-in-out infinite}
+@keyframes sheen{0%,55%{transform:translateX(-120%) skewX(-18deg)}100%{transform:translateX(320%) skewX(-18deg)}}
+.has-acc .gc-side{margin-top:22px}
+@media (prefers-reduced-motion:reduce){.acc-badge::after{animation:none;display:none}}
 .pillbtn.retry{width:auto;min-width:120px;padding:0 24px;margin-top:16px;color:var(--ink);cursor:pointer}
 .gteam .rec{margin-left:0}
 .gteam .tn{max-width:100px}
@@ -221,3 +222,48 @@ svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .gcenter .kline{text-align:center}
 .tname-xl{margin:0;font:700 26px/1.05 var(--f-d);letter-spacing:.04em;text-transform:uppercase}
 .empty .pillbtn{display:inline-block}
+
+/* ---- team schedule ---- */
+.trec{font:700 24px/1 var(--f-d);letter-spacing:.04em;color:var(--muted)}
+.tb.s{width:22px;height:22px;font-size:9px;letter-spacing:0}
+.tb.s img{width:16px;height:16px}
+.sched{position:relative;max-height:420px;overflow-y:auto;overscroll-behavior:contain;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.mh{position:sticky;top:0;z-index:1;padding:9px 12px 8px;background:var(--card2);border-bottom:1px solid var(--line);font:600 10.5px/1 var(--f-b);letter-spacing:.08em;color:var(--muted)}
+.srow{display:flex;align-items:center;gap:10px;min-height:48px;padding:6px 12px;border-bottom:1px solid var(--line);color:inherit;text-decoration:none;transition:background .18s}
+a.srow:active{background:var(--card2)}
+.sched>:last-child{border-bottom:0}
+.sd{flex:none;width:92px;font:500 12px/1 var(--f-m);color:var(--muted);white-space:nowrap}
+.sv{flex:1;min-width:0;display:flex;align-items:center;gap:8px}
+.vs{flex:none;width:22px;font:500 12px/1 var(--f-m);color:var(--faint);text-align:center}
+.oc{font:700 15px/1 var(--f-d);letter-spacing:.04em}
+.sr{flex:none;font:500 13px/1.2 var(--f-m);color:var(--ink);text-align:right;white-space:nowrap}
+.sr small{color:var(--muted);font-size:10px}
+.sr .amber{color:var(--amber)}
+.wl{font-weight:600;color:var(--muted)}
+.wl.w{color:var(--pos)}.wl.l{color:var(--neg)}
+.srow.next{background:rgba(62,230,160,.06)}
+.srow.bye .sd,.srow.bye .sr{color:var(--faint)}
+.srow.bye{min-height:40px}
+
+/* ---- grade + EV utilities (no views use these yet) ---- */
+.grade-badge{--gc:var(--muted);display:inline-flex;align-items:center;justify-content:center;min-width:28px;padding:3px 8px 2px;border-radius:999px;background:rgba(142,166,196,.14);background:color-mix(in srgb,var(--gc) 14%,transparent);color:var(--gc);font:700 13px/1.1 var(--f-d);letter-spacing:.06em}
+.grade-badge[data-g="S+"]{--gc:var(--g-splus);box-shadow:0 0 12px rgba(255,201,90,.35)}
+.grade-badge[data-g="A"]{--gc:var(--g-a)}
+.grade-badge[data-g="B"]{--gc:var(--g-b)}
+.grade-badge[data-g="C"]{--gc:var(--g-c)}
+.grade-badge[data-g="D"]{--gc:var(--g-d)}
+.grade-badge[data-g="F"]{--gc:var(--g-f)}
+.ev{font:700 14px/1 var(--f-m)}
+.ev.p2{color:var(--pos)}
+.ev.p5{color:var(--pos-hi);text-shadow:0 0 10px rgba(62,230,160,.55)}
+.ev.n{color:var(--muted)}
+.ev.m2{color:var(--neg)}
+.ev.m5{color:var(--neg-hi);text-shadow:0 0 10px rgba(255,122,112,.55)}
+.gap,.ev.gap{opacity:.55}
+.tag-top,.tag-bot{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;font:700 10.5px/1 var(--f-b);letter-spacing:.06em;text-transform:uppercase}
+.tag-top{background:rgba(62,230,160,.14);color:var(--pos)}
+.tag-bot{background:rgba(255,122,112,.14);color:var(--neg)}
+.pro,.con{display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:1.35;color:var(--ink)}
+.pro::before,.con::before{flex:none;width:16px;font-weight:700;text-align:center}
+.pro::before{content:"\2713";color:var(--pos)}
+.con::before{content:"\2715";color:var(--neg)}
