@@ -188,3 +188,36 @@ svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .search-field:focus-within{border-color:var(--accent)}
 .cancel{min-height:44px;padding:0 6px;font:600 14px/1 var(--f-b);color:var(--accent)}
 .search-hint{margin-top:40px;text-align:center;font-size:14px;color:var(--muted)}
+
+/* ---- live games ---- */
+.tb.live{--tc:var(--grey);background:color-mix(in srgb,var(--tc) 38%,var(--card));border-color:color-mix(in srgb,var(--tc) 55%,var(--line))}
+.tb img{width:28px;height:28px;object-fit:contain;display:block}
+.tb.l img{width:40px;height:40px}
+.tb.xl img{width:52px;height:52px}
+.note{margin:0 0 8px;font-size:12px;color:var(--muted)}
+.gcard{display:block;padding:12px;background:var(--card);color:inherit;text-decoration:none;transition:background .18s}
+.gcard:active{background:var(--card2)}
+.gc-main{display:flex;align-items:center;gap:12px}
+.gc-main .teams{padding:0;gap:10px}
+.gc-main .tline{gap:10px}
+.gc-main .rec{margin-left:0;min-width:2.6ch}
+.tn{font:400 12px/1.2 var(--f-b);color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.score{margin-left:auto;font:700 26px/1 var(--f-d);letter-spacing:.03em;padding-left:8px}
+.score.w{color:var(--ink)}.score.l{color:var(--muted);font-weight:500}
+.gc-side{flex:none;max-width:38%;display:flex;flex-direction:column;align-items:flex-end;gap:5px;text-align:right}
+.ktime{font:600 15px/1 var(--f-m);color:var(--ink);white-space:nowrap}
+.kline{font:500 11px/1.2 var(--f-m);color:var(--muted);white-space:nowrap}
+.lbl.amber{color:var(--amber)}
+.bchips{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:10px}
+.bchip{padding:4px 8px;border-radius:999px;font:700 11px/1 var(--f-b);letter-spacing:.03em}
+.bchip.acc{background:var(--accent-bg);color:var(--accent)}
+.bchip.blue{background:rgba(124,195,255,.14);background:color-mix(in srgb,var(--blue) 14%,transparent);color:var(--blue)}
+.bmuted{font:500 11px/1 var(--f-b);color:var(--muted)}
+.pillbtn.retry{width:auto;min-width:120px;padding:0 24px;margin-top:16px;color:var(--ink);cursor:pointer}
+.gteam .rec{margin-left:0}
+.gteam .tn{max-width:100px}
+.gcenter .big.fin i{font-style:normal;margin:0 6px;color:var(--faint)}
+.gcenter .big{color:var(--ink)}
+.gcenter .kline{text-align:center}
+.tname-xl{margin:0;font:700 26px/1.05 var(--f-d);letter-spacing:.04em;text-transform:uppercase}
+.empty .pillbtn{display:inline-block}

@@ -101,6 +101,100 @@
   window.addEventListener('resize', () => placeHl(false));
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => placeHl(false));
 
+
+  // ---- data layer ----
+  const LIVE = { nba: 1, nhl: 1 };
+  const store = { days: {}, meta: {}, idx: null, idxDone: false };
+  const MINUS = '−';
+  const ver = () => (store.idx && store.idx.updated ? '?v=' + encodeURIComponent(store.idx.updated) : '');
+  async function getJSON(url, opts) {
+    const r = await fetch(url, opts);
+    if (r.status === 404) return { nf: true };
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return { data: await r.json() };
+  }
+  const indexP = getJSON('../index.json', { cache: 'no-store' })
+    .then((r) => { store.idx = r.data || null; }, () => { store.idx = null; })
+    .then(() => { store.idxDone = true; });
+  const rerender = () => { if (typeof render === 'function' && cur) render(); };
+  function ensureMeta(sp) {
+    if (store.meta[sp]) return store.meta[sp];
+    const e = store.meta[sp] = { st: 'loading' };
+    indexP.then(() => getJSON('../meta/' + sp + '.json' + ver())).then((r) => {
+      e.st = r.data ? 'ok' : 'err'; e.data = r.data || {};
+    }, () => { e.st = 'err'; e.data = {}; }).then(rerender);
+    return e;
+  }
+  const ymd = (n) => baseDate(n).toISOString().slice(0, 10);
+  function ensureDay(sp, date) {
+    const k = sp + '/' + date;
+    if (store.days[k]) return store.days[k];
+    const e = store.days[k] = { st: 'loading', sp, date };
+    indexP.then(() => {
+      const list = store.idx && store.idx.sports && store.idx.sports[sp] && store.idx.sports[sp].days;
+      if (Array.isArray(list) && !list.includes(date)) return { nf: true };
+      return getJSON('../days/' + sp + '/' + date + '.json' + ver());
+    }).then((r) => {
+      if (r.nf) e.st = '404'; else { e.st = 'ok'; e.data = r.data || {}; }
+    }, () => { e.st = 'err'; }).then(rerender);
+    return e;
+  }
+  const tinfo = (sp, code) => {
+    const m = store.meta[sp];
+    return (m && m.data && m.data[code]) || {};
+  };
+  const timeFmt = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
+  const fmtTime = (iso) => {
+    const d = new Date(iso);
+    return isNaN(d) ? '—' : timeFmt.format(d).replace(/[  ]/g, ' ');
+  };
+  const numStr = (v) => (typeof v === 'number' && isFinite(v) ? String(v) : null);
+  function lineParts(g) {
+    const ln = g.line || {}, out = [];
+    const sp = numStr(ln.spread), tot = numStr(ln.total);
+    if (sp !== null) {
+      if (ln.spread === 0) out.push('PK');
+      else if (ln.fav) out.push(esc(ln.fav) + ' ' + MINUS + esc(sp));
+    }
+    if (tot !== null) out.push('O/U ' + esc(tot));
+    return out;
+  }
+  function findGame(sp, id) {
+    for (const k in store.days) {
+      const e = store.days[k];
+      if (e.sp === sp && e.st === 'ok') {
+        const g = ((e.data || {}).games || []).find((x) => x.gid === id);
+        if (g) return { g, day: e.data.games, date: e.date };
+      }
+    }
+    return null;
+  }
+  // true while a game lookup could still succeed
+  function lookupPending(sp) {
+    const dates = [ymd(state.dayOffset[sp])];
+    const list = store.idx && store.idx.sports && store.idx.sports[sp] && store.idx.sports[sp].days;
+    if (Array.isArray(list)) dates.push(...list.slice(-7).reverse());
+    let pending = !store.idxDone;
+    new Set(dates).forEach((d) => { if (ensureDay(sp, d).st === 'loading') pending = true; });
+    return pending;
+  }
+
+  // team badge: live = colored with logo; otherwise muted grey (code text fallback)
+  function tbadge(sp, code, cls, href, live) {
+    const t = tinfo(sp, code);
+    const col = /^#[0-9a-f]{6}$/i.test(t.color || '') ? t.color : '';
+    const inner = t.logo ? `<img src="${esc(t.logo)}" alt="${esc(code)}" loading="lazy" decoding="async">` : esc(code);
+    const c = `tb ${cls || ''} ${live ? 'live' : ''}`;
+    const st = live && col ? ` style="--tc:${col}"` : '';
+    return href
+      ? `<a class="${c}"${st} href="${href}" aria-label="${esc(code)} team page">${inner}</a>`
+      : `<span class="${c}"${st}>${inner}</span>`;
+  }
+  view.addEventListener('error', (e) => {
+    const im = e.target;
+    if (im && im.tagName === 'IMG' && im.closest('.tb')) im.replaceWith(document.createTextNode(im.alt || ''));
+  }, true);
+
   // ---- views ----
   function sportRoot(sport) {
     const o = state.dayOffset[sport];
@@ -108,20 +202,65 @@
       const sub = shortDate(n);
       return `<button data-off="${n}" class="${o === n ? 'on' : ''}" aria-pressed="${o === n}"><span class="d">${n === 0 ? 'Today' : label}</span><span class="s">${esc(sub)}</span></button>`;
     };
-    const cards = PAIRS[sport].map(([aw, hm], i) => `<a class="grow" href="#${sport}/game/${gid(i)}" aria-label="Sample game ${esc(aw)} at ${esc(hm)}">
-      <span class="teams">
-        <span class="tline">${badge(aw)}${bar('w55')}<span class="rec">\u2014</span></span>
-        <span class="tline">${badge(hm)}${bar('w70')}<span class="rec">\u2014</span></span>
+    const sample = (tag) => PAIRS[sport].map(([aw, hm], i) => {
+      const inner = `<span class="teams">
+        <span class="tline">${badge(aw)}${bar('w55')}<span class="rec">—</span></span>
+        <span class="tline">${badge(hm)}${bar('w70')}<span class="rec">—</span></span>
       </span>
-      <span class="tcol" aria-hidden="true">${bar('w85')}${bar('w55')}</span></a>`).join('');
+      <span class="tcol" aria-hidden="true">${bar('w85')}${bar('w55')}</span>`;
+      return tag === 'a' ? `<a class="grow" href="#${sport}/game/${gid(i)}" aria-label="Sample game ${esc(aw)} at ${esc(hm)}">${inner}</a>` : `<div class="grow" aria-hidden="true">${inner}</div>`;
+    }).join('');
+    let label = '', list;
+    if (!LIVE[sport]) {
+      label = `<span class="lbl preview-lbl">Week ${WEEK} Preview</span><p class="note">NFL arrives with the NFL build step.</p>`;
+      list = `<div class="glist">${sample('a')}</div>`;
+    } else list = liveList(sport, o);
     return `<div class="dates">
         <button class="arrow" data-shift="-1" aria-label="Previous day">&#8249;</button>
         <div class="pills ${sport}">${pill(-1, 'Yesterday')}${pill(0, 'Today')}${pill(1, 'Tomorrow')}</div>
         <button class="arrow" data-shift="1" aria-label="Next day">&#8250;</button>
       </div>
       <div class="sechead"><h2>Games</h2><a class="textlink" href="#${sport}/standings">Standings &#8250;</a></div>
-      <span class="lbl preview-lbl">${sport === 'nfl' ? `Week ${WEEK} Preview` : 'Preview'}</span>
-      <div class="glist">${cards}</div>`;
+      ${label}${list}`;
+  }
+
+  function liveList(sport, o) {
+    const sk = () => `<div class="glist">${PAIRS[sport].map(([aw, hm]) => `<div class="grow" aria-hidden="true"><span class="teams">
+        <span class="tline">${badge(aw)}${bar('w55')}<span class="rec">—</span></span>
+        <span class="tline">${badge(hm)}${bar('w70')}<span class="rec">—</span></span></span>
+        <span class="tcol">${bar('w85')}${bar('w55')}</span></div>`).join('')}</div>`;
+    const date = ymd(o), d = ensureDay(sport, date), m = ensureMeta(sport);
+    if (d.st === 'loading' || m.st === 'loading') return sk();
+    if (d.st === '404') return `<div class="card empty"><h2>No slate for ${esc(dateFmt.format(baseDate(o)))}</h2><p>Nothing has been published for this day yet.</p></div>`;
+    if (d.st === 'err') return `<div class="card empty"><h2>Couldn’t load games</h2><p>Check your connection and try again.</p><button class="pillbtn retry" data-retry="${esc(sport + '/' + date)}">Retry</button></div>`;
+    const games = (d.data && d.data.games) || [];
+    if (!games.length) return `<div class="card empty"><h2>No slate for ${esc(dateFmt.format(baseDate(o)))}</h2><p>No games on this day.</p></div>`;
+    return `<div class="glist">${games.map((g) => gameCard(sport, g)).join('')}</div>`;
+  }
+
+  function sideCol(g) {
+    const parts = lineParts(g);
+    const top = g.status === 'final' ? '<span class="lbl">Final</span>'
+      : g.status === 'pending' ? '<span class="lbl amber">Final pending</span>'
+        : `<span class="ktime">${esc(fmtTime(g.kickoff))}</span>`;
+    return `${top}${parts.map((p) => `<span class="kline">${p}</span>`).join('')}`;
+  }
+  function teamRow(sport, g, side) {
+    const code = g[side] || '—', t = tinfo(sport, code);
+    const rec = g.rec && g.rec[side];
+    let score = '';
+    if (g.status === 'final' && g.final) {
+      const mine = g.final[side], other = g.final[side === 'away' ? 'home' : 'away'];
+      score = `<span class="score ${mine > other ? 'w' : 'l'}">${esc(mine)}</span>`;
+    }
+    return `<span class="tline">${tbadge(sport, code, '', '', true)}<span class="rec">${esc(rec || '—')}</span><span class="tn">${esc(t.short || '')}</span>${score}</span>`;
+  }
+  function gameCard(sport, g) {
+    const b = g.bets || {}, n = b.n || 0;
+    const chips = n ? `<span class="bchips">${b['S+'] > 0 ? `<span class="bchip acc">${esc(b['S+'])} S+</span>` : ''}${b.A > 0 ? `<span class="bchip blue">${esc(b.A)} A</span>` : ''}<span class="bmuted">${esc(n)} bets</span></span>` : '';
+    return `<a class="gcard" href="#${sport}/game/${encodeURIComponent(g.gid)}" aria-label="${esc(g.away)} at ${esc(g.home)}">
+      <span class="gc-main"><span class="teams">${teamRow(sport, g, 'away')}${teamRow(sport, g, 'home')}</span>
+      <span class="gc-side">${sideCol(g)}</span></span>${chips}</a>`;
   }
   const gid = (i) => (i === 0 ? 'sample' : 'sample' + (i + 1));
   const gidx = (id) => { const m = /^sample(\d)$/.exec(id); return m ? Math.min(3, Math.max(0, +m[1] - 1)) : 0; };
@@ -131,7 +270,7 @@
       ${empty('Standings', 'Standings', 'Standings land with the data step.', 0)}`;
   }
 
-  function gameView(sport, id) {
+  function sampleGameView(sport, id) {
     const i = gidx(id), [aw, hm] = PAIRS[sport][i];
     const chips = PAIRS[sport].map(([a, h], j) => `<a class="chip ${j === i ? 'on' : ''}" href="#${sport}/game/${gid(j)}" ${j === i ? 'aria-current="true"' : ''}>${a} @ ${h}<small>\u2014:\u2014</small></a>`).join('');
     const tab = state.gameTab;
@@ -156,6 +295,47 @@
       ${body}`;
   }
 
+  function liveGameView(sport, id) {
+    ensureMeta(sport);
+    const f = findGame(sport, id);
+    if (!f) {
+      if (lookupPending(sport) || store.meta[sport].st === 'loading') {
+        return `<div class="pagehead">${backBtn}</div>${rowsGeneric(3)}`;
+      }
+      history.replaceState(null, '', '#' + sport);
+      stack[stack.length - 1] = '#' + sport;
+      cur = parse();
+      return sportRoot(sport);
+    }
+    if (store.meta[sport].st === 'loading') return `<div class="pagehead">${backBtn}</div>${rowsGeneric(3)}`;
+    const g = f.g, aw = g.away || '—', hm = g.home || '—';
+    const chips = f.day.map((x) => `<a class="chip ${x.gid === g.gid ? 'on' : ''}" href="#${sport}/game/${encodeURIComponent(x.gid)}" ${x.gid === g.gid ? 'aria-current="true"' : ''}>${esc(x.away)} @ ${esc(x.home)}<small>${esc(fmtTime(x.kickoff))}</small></a>`).join('');
+    const tab = state.gameTab;
+    let body;
+    if (tab === 'bets') body = empty('Bets', 'Bets', 'Props and lines open with the slate data.', 0);
+    else if (tab === 'game') {
+      const row = (l, r) => `<div><div class="cmp-top"><span class="v">—</span><span class="lab"><span class="bar"></span></span><span class="v">—</span></div>
+        <div class="split"><i style="flex:${l}"></i><i style="flex:${r}"></i></div></div>`;
+      body = `<div class="card cmp" aria-hidden="true">${row(55, 45)}${row(40, 60)}${row(50, 50)}</div>`;
+    } else {
+      const code = tab === 'away' ? aw : hm;
+      body = `<div class="plist">${[0, 1, 2, 3].map((n) => `<div class="prow" aria-hidden="true">
+        <span class="ini">—</span><span class="bars">${bar(n % 2 ? 'w55' : 'w70')}${bar(n % 2 ? 'w40' : 'w55')}</span><span class="bar st"></span></div>`).join('')}</div>`;
+    }
+    const fin = g.status === 'final' && g.final;
+    const center = fin
+      ? `<span class="big fin">${esc(g.final.away)}<i>–</i>${esc(g.final.home)}</span><span class="lbl">Final</span>`
+      : `<span class="big">${esc(fmtTime(g.kickoff))}</span>${g.status === 'pending' ? '<span class="lbl amber">Final pending</span>' : ''}`;
+    const lp = lineParts(g).map((p) => `<span class="kline">${p}</span>`).join('');
+    const team = (code, side) => `<div class="gteam">${tbadge(sport, code, 'l', `#${sport}/team/${encodeURIComponent(code)}`, false)}
+      <span class="rec">${esc((g.rec && g.rec[side]) || '—')}</span><span class="tn">${esc(tinfo(sport, code).short || '')}</span></div>`;
+    return `<div class="pagehead">${backBtn}<div class="chips" aria-label="Games this day">${chips}</div></div>
+      <div class="ghead">${team(aw, 'away')}<div class="gcenter">${center}${lp}</div>${team(hm, 'home')}</div>
+      <div class="subtabs">${segmented(TABS.map(([k, l]) => [k, k === 'away' ? aw : k === 'home' ? hm : l]), tab, 'data-sub')}</div>
+      ${body}`;
+  }
+  const gameView = (sport, id) => (LIVE[sport] ? liveGameView(sport, id) : sampleGameView(sport, id));
+
   function playerView(sport) {
     const labs = STAT_LABELS[sport];
     const cells = labs.map((l) => `<div><div class="lbl">${esc(l)}</div><div class="num">\u2014</div></div>`).join('');
@@ -169,9 +349,14 @@
       ${sec('Game log')}${rowsGeneric(3)}`;
   }
 
-  function teamView(code) {
+  function teamView(sport, code) {
+    ensureMeta(sport);
+    const t = tinfo(sport, code);
+    const hero = t.name
+      ? `${tbadge(sport, code, 'xl', '', true)}<span class="bars"><h2 class="tname-xl">${esc(t.name)}</h2>${bar('w40')}</span>`
+      : `${badge(code, 'xl')}<span class="bars">${bar('w70')}${bar('w40')}</span>`;
     return `<div class="pagehead">${backBtn}</div>
-      <div class="phero">${badge(code, 'xl')}<span class="bars">${bar('w70')}${bar('w40')}</span></div>
+      <div class="phero">${hero}</div>
       ${sec('Splits')}${rowsGeneric(2)}${sec('Roster')}${rowsGeneric(2)}${sec('Schedule')}${rowsGeneric(2)}`;
   }
 
@@ -181,8 +366,9 @@
     if (PAGES[r]) return { key: r, page: r };
     const sport = SPORTS[r] ? r : 'nba';
     const kind = SUBTITLES[p[1]] ? p[1] : 'root';
-    let id = kind === 'game' ? (/^sample\d?$/.test(p[2]) ? p[2] : 'sample') : kind === 'player' ? 'sample' : '';
+    let id = kind === 'game' ? (LIVE[sport] ? (/^[A-Za-z0-9_-]{1,40}$/.test(p[2] || '') ? p[2] : '') : /^sample\d?$/.test(p[2]) ? p[2] : 'sample') : kind === 'player' ? 'sample' : '';
     if (kind === 'team') id = /^[A-Za-z0-9]{1,4}$/.test(p[2] || '') ? p[2].toUpperCase() : '\u2014';
+    if (kind === 'game' && !id) return { key: sport, sport, kind: 'root', id: '' };
     return { key: [sport, kind, id].filter(Boolean).join('/'), sport, kind, id };
   }
 
@@ -208,7 +394,7 @@
     } else if (c.kind === 'standings') view.innerHTML = standings(c.sport);
     else if (c.kind === 'game') view.innerHTML = gameView(c.sport, c.id);
     else if (c.kind === 'player') view.innerHTML = playerView(c.sport);
-    else if (c.kind === 'team') view.innerHTML = teamView(c.id);
+    else if (c.kind === 'team') view.innerHTML = teamView(c.sport, c.id);
     else view.innerHTML = sportRoot(c.sport);
 
     const on = view.querySelector('.chips .on');
@@ -226,6 +412,7 @@
     if (!b) return;
     const d = b.dataset;
     if (d.back !== undefined) return goBack();
+    if (d.retry) { delete store.days[d.retry]; const m = store.meta[sportOf()]; if (m && m.st === 'err') delete store.meta[sportOf()]; render(); return; }
     if (d.sub) state.gameTab = d.sub;
     else if (d.off !== undefined) state.dayOffset[sportOf()] = +d.off;
     else if (d.shift) state.dayOffset[sportOf()] += +d.shift;
@@ -237,7 +424,7 @@
   // Track in-app history so the back button can use real browser back when possible.
   const stack = [location.hash];
   function parentHash() {
-    if (cur.kind === 'player' || cur.kind === 'team') return `#${cur.sport}/game/sample`;
+    if ((cur.kind === 'player' || cur.kind === 'team') && !LIVE[cur.sport]) return `#${cur.sport}/game/sample`;
     return `#${cur.sport || 'nba'}`;
   }
   function goBack() {
