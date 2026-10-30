@@ -19,6 +19,8 @@
     sel: { nfl: null, nba: null, nhl: null }, // selected date per sport (null = default), kept in memory
     gameTab: 'bets',
     filter: 'All',
+    betSort: 'ev', // game Bets tab sort: ev | grade | player
+    betOpen: {}, // expanded bet rows (bet id -> true), kept in memory
   };
   let cur = { key: '', sport: null, kind: 'root', id: '' };
 
@@ -77,7 +79,8 @@
       const hl = seg.querySelector('.seg-hl');
       const on = seg.querySelector('button.on');
       if (!hl || !on) return;
-      const kind = seg.querySelector('button').dataset.sub !== undefined ? 'sub' : 'filter';
+      const b0 = seg.querySelector('button').dataset;
+      const kind = b0.sub !== undefined ? 'sub' : b0.sort !== undefined ? 'sort' : 'filter';
       const x = on.offsetLeft, w = on.offsetWidth;
       const prev = lastHl[kind];
       lastHl[kind] = { x, w };
@@ -98,7 +101,7 @@
 
 
   // ---- data layer ----
-  const store = { days: {}, meta: {}, sched: {}, idx: null, idxDone: false };
+  const store = { days: {}, meta: {}, sched: {}, slates: {}, idx: null, idxDone: false };
   const MINUS = '−';
   const ver = () => (store.idx && store.idx.updated ? '?v=' + encodeURIComponent(store.idx.updated) : '');
   async function getJSON(url, opts) {
@@ -129,6 +132,16 @@
       if (Array.isArray(list) && !list.includes(date)) return { nf: true };
       return getJSON('../days/' + sp + '/' + date + '.json' + ver());
     }).then((r) => {
+      if (r.nf) e.st = '404'; else { e.st = 'ok'; e.data = r.data || {}; }
+    }, () => { e.st = 'err'; }).then(rerender);
+    return e;
+  }
+  // Public slate (props/bets) for one sport + day: ../slates/<sp>/<date>.json
+  function ensureSlate(sp, date) {
+    const k = sp + '/' + date;
+    if (store.slates[k]) return store.slates[k];
+    const e = store.slates[k] = { st: 'loading', sp, date };
+    indexP.then(() => getJSON('../slates/' + sp + '/' + date + '.json' + ver())).then((r) => {
       if (r.nf) e.st = '404'; else { e.st = 'ok'; e.data = r.data || {}; }
     }, () => { e.st = 'err'; }).then(rerender);
     return e;
@@ -352,7 +365,8 @@
     const chips = f.day.map((x) => `<a class="chip ${x.gid === g.gid ? 'on' : ''}" href="#${sport}/game/${encodeURIComponent(x.gid)}" ${x.gid === g.gid ? 'aria-current="true"' : ''}>${esc(x.away)} @ ${esc(x.home)}<small>${esc(ktxt(x))}</small></a>`).join('');
     const tab = state.gameTab;
     let body;
-    if (tab === 'bets') body = empty('Bets', 'Bets', 'Props and lines open with the slate data.', 0);
+    state.betGid = g.gid;
+    if (tab === 'bets') body = betsTab(sport, f.date);
     else if (tab === 'game') {
       const row = (l, r) => `<div><div class="cmp-top"><span class="v">—</span><span class="lab"><span class="bar"></span></span><span class="v">—</span></div>
         <div class="split"><i style="flex:${l}"></i><i style="flex:${r}"></i></div></div>`;
@@ -374,6 +388,61 @@
       <div class="ghead">${team(aw, 'away')}<div class="gcenter">${center}${lp}</div>${team(hm, 'home')}</div>
       <div class="subtabs">${segmented(TABS.map(([k, l]) => [k, k === 'away' ? aw : k === 'home' ? hm : l]), tab, 'data-sub')}</div>
       ${body}`;
+  }
+  // ---- game Bets tab: projections list ----
+  const BET_STAT = { pts: 'PTS', reb: 'REB', ast: 'AST', tpm: '3PM', pra: 'PRA', pr: 'P+R', pa: 'P+A', ra: 'R+A', sog: 'SOG', g: 'G', a: 'A' };
+  const GRADE_ORDER = ['S+', 'A', 'B', 'C', 'D', 'F'];
+  const SORTS = [['ev', 'EV'], ['grade', 'Grade'], ['player', 'Player']];
+  const isNum = (v) => typeof v === 'number' && isFinite(v);
+  const sgn = (v, dp) => { // signed fixed string off the rounded value, real minus
+    const t = Math.abs(v).toFixed(dp);
+    return (+t === 0 ? '' : v > 0 ? '+' : MINUS) + t;
+  };
+  const fmtOdds = (o) => (isNum(o) ? (o > 0 ? '+' : o < 0 ? MINUS : '') + Math.abs(Math.round(o)) : '—');
+  const evCls = (ev) => (ev > 5 ? 'p5' : ev >= 2 ? 'p2' : ev > -2 ? 'n' : ev >= -5 ? 'm2' : 'm5');
+  function betRows(slate, gid) {
+    const players = slate.players || {};
+    return Object.entries(slate.bets || {}).map(([id, b]) => {
+      if (!b || b.type !== 'prop' || b.gid !== gid) return null;
+      const ph = b.close || b.open;
+      if (!ph || !isNum(ph.ev) || !isNum(ph.line) || !isNum(ph.proj)) return null;
+      const p = players[b.pid] || {};
+      return { id, b, ph, tag: b.close ? 'close' : 'open', name: p.name || String(b.pid), inj: p.inj || '' };
+    }).filter(Boolean);
+  }
+  function sortBets(rows, how) {
+    const gr = (r) => { const i = GRADE_ORDER.indexOf(r.ph.grade); return i < 0 ? 99 : i; };
+    const byEv = (x, y) => y.ph.ev - x.ph.ev;
+    const cmp = how === 'grade' ? (x, y) => gr(x) - gr(y) || byEv(x, y)
+      : how === 'player' ? (x, y) => (x.name < y.name ? -1 : x.name > y.name ? 1 : 0) || byEv(x, y)
+        : byEv;
+    return rows.slice().sort(cmp);
+  }
+  function betRow(r) {
+    const { b, ph } = r, open = !!state.betOpen[r.id];
+    const gap = ph.proj - ph.line, pct = ph.line ? gap / ph.line * 100 : null;
+    const c = evCls(ph.ev);
+    const g = GRADE_ORDER.includes(ph.grade) ? ph.grade : '';
+    const pros = (ph.pros || []).map((t) => `<div class="pro">${esc(t)}</div>`).join('');
+    const cons = (ph.cons || []).map((t) => `<div class="con">${esc(t)}</div>`).join('');
+    const ctx = pros || cons ? `<div class="bet-ctx"><div class="lbl">Context</div>${pros}${cons}</div>` : '<div class="bet-ctx"><div class="lbl">Context</div><div class="bet-none">No notes on this prop.</div></div>';
+    return `<div class="bet-wrap${open ? ' open' : ''}"><button class="bet" data-bet="${esc(r.id)}" aria-expanded="${open}">
+      <span class="bet-l"><span class="bet-name"><b>${esc(r.name)}</b>${r.inj ? `<i class="inj">${esc(r.inj)}</i>` : ''}</span>
+        <span class="bet-sub">${esc(BET_STAT[b.stat] || String(b.stat).toUpperCase())} ${b.side === 'u' ? 'U' : 'O'} ${esc(ph.line)} · ${fmtOdds(ph.odds)}</span></span>
+      <span class="bet-m"><span class="bet-proj">Proj ${ph.proj.toFixed(1)}</span>
+        <span class="ev gap ${c}">${sgn(gap, 1)}${pct === null ? '' : ` (${sgn(pct, 0)}%)`}</span></span>
+      <span class="bet-r"><span class="ev bet-ev ${c}">${sgn(ph.ev, 1)}%</span>
+        <span class="bet-meta">${g ? `<span class="grade-badge" data-g="${g}">${g}</span>` : ''}<small>${r.tag}</small></span></span>
+    </button>${open ? ctx : ''}</div>`;
+  }
+  function betsTab(sport, date) {
+    const e = ensureSlate(sport, date);
+    if (e.st === 'loading') return skRows(4);
+    if (e.st === 'err') return `<div class="card empty"><h2>Couldn’t load props</h2><p>Check your connection and try again.</p><button class="pillbtn retry" data-retry-slate="${esc(sport + '/' + date)}">Retry</button></div>`;
+    const rows = e.st === 'ok' ? betRows(e.data || {}, state.betGid) : [];
+    if (!rows.length) return empty('Bets', 'No props for this game yet', 'Props show up here once the slate is published.', 0);
+    return `<div class="bets-head"><span class="bets-n">${rows.length} ${rows.length === 1 ? 'prop' : 'props'}</span>${segmented(SORTS, state.betSort, 'data-sort', 'sortseg')}</div>
+      <div class="betlist">${sortBets(rows, state.betSort).map(betRow).join('')}</div>`;
   }
   const gameView = liveGameView;
 
@@ -494,7 +563,10 @@
     const d = b.dataset;
     if (d.back !== undefined) return goBack();
     if (d.retry) { delete store.days[d.retry]; const m = store.meta[sportOf()]; if (m && m.st === 'err') delete store.meta[sportOf()]; render(); return; }
-    if (d.sub) state.gameTab = d.sub;
+    if (d.retrySlate) { delete store.slates[d.retrySlate]; render(); return; }
+    if (d.bet) { if (state.betOpen[d.bet]) delete state.betOpen[d.bet]; else state.betOpen[d.bet] = true; }
+    else if (d.sort) state.betSort = d.sort;
+    else if (d.sub) state.gameTab = d.sub;
     else if (d.day) state.sel[sportOf()] = d.day;
     else if (d.filter) state.filter = d.filter;
     else return;

@@ -267,3 +267,29 @@ a.srow:active{background:var(--card2)}
 .pro::before,.con::before{flex:none;width:16px;font-weight:700;text-align:center}
 .pro::before{content:"\2713";color:var(--pos)}
 .con::before{content:"\2715";color:var(--neg)}
+
+/* ---- game Bets tab ---- */
+.bets-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px}
+.bets-n{font:600 12px/1 var(--f-m);color:var(--muted);white-space:nowrap}
+.sortseg{width:210px;max-width:68%;flex:none}
+.sortseg button{font-size:12px}
+.betlist{display:flex;flex-direction:column;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.bet-wrap{background:var(--card)}
+.bet{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;width:100%;min-height:64px;padding:10px 12px;text-align:left;transition:background .18s}
+.bet:active,.bet-wrap.open .bet{background:var(--card2)}
+.bet-l,.bet-m,.bet-r{display:flex;flex-direction:column;gap:5px;min-width:0}
+.bet-m{align-items:flex-end;text-align:right}
+.bet-r{align-items:flex-end;min-width:58px}
+.bet-name{display:flex;align-items:center;gap:6px;min-width:0}
+.bet-name b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:700 14px/1.2 var(--f-b)}
+.inj{flex:none;font:700 10px/1 var(--f-b);font-style:normal;letter-spacing:.04em;padding:2px 5px;border-radius:999px;background:rgba(255,201,90,.16);color:var(--amber)}
+.bet-sub{font:500 11px/1.2 var(--f-m);color:var(--muted);white-space:nowrap}
+.bet-proj{font:500 11px/1.2 var(--f-m);color:var(--ink);white-space:nowrap}
+.bet-m .ev.gap{font-size:11px;font-weight:600;opacity:.5;white-space:nowrap}
+.bet-ev{font-size:19px;letter-spacing:-.01em}
+.bet-meta{display:flex;align-items:center;gap:5px}
+.bet-meta .grade-badge{font-size:12px;min-width:24px}
+.bet-meta small{font:500 9px/1 var(--f-m);color:var(--faint);text-transform:uppercase;letter-spacing:.04em}
+.bet-ctx{display:flex;flex-direction:column;gap:7px;padding:4px 12px 12px;background:var(--card2)}
+.bet-none{font-size:13px;color:var(--faint)}
+@media (max-width:340px){.bet{gap:6px;padding:10px}.bet-ev{font-size:17px}.sortseg{width:190px}}
