@@ -105,7 +105,7 @@
   function sportRoot(sport) {
     const o = state.dayOffset[sport];
     const pill = (n, label) => {
-      const sub = sport === 'nfl' ? `W${WEEK} \u00b7 ${shortDate(n)}` : shortDate(n);
+      const sub = shortDate(n);
       return `<button data-off="${n}" class="${o === n ? 'on' : ''}" aria-pressed="${o === n}"><span class="d">${n === 0 ? 'Today' : label}</span><span class="s">${esc(sub)}</span></button>`;
     };
     const cards = PAIRS[sport].map(([aw, hm], i) => `<a class="grow" href="#${sport}/game/${gid(i)}" aria-label="Sample game ${esc(aw)} at ${esc(hm)}">
@@ -120,7 +120,7 @@
         <button class="arrow" data-shift="1" aria-label="Next day">&#8250;</button>
       </div>
       <div class="sechead"><h2>Games</h2><a class="textlink" href="#${sport}/standings">Standings &#8250;</a></div>
-      <span class="lbl preview-lbl">Preview</span>
+      <span class="lbl preview-lbl">${sport === 'nfl' ? `Week ${WEEK} Preview` : 'Preview'}</span>
       <div class="glist">${cards}</div>`;
   }
   const gid = (i) => (i === 0 ? 'sample' : 'sample' + (i + 1));
