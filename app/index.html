@@ -24,8 +24,8 @@
     <h1 id="title">NBA</h1>
   </div>
   <div class="actions">
-    <button class="icon-btn" disabled aria-label="Profile (coming later)">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>
+    <button class="icon-btn" id="search-btn" aria-label="Search">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
     </button>
     <button class="icon-btn" id="gear" aria-label="Settings">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
@@ -43,6 +43,14 @@
   <a href="#results" data-route="results"><svg viewBox="0 0 24 24"><path d="M4 20V4M4 20h16M8 16v-4M12 16V8M16 16v-6"/></svg><span>Results</span></a>
 </nav>
 
+<div class="search" id="search" role="dialog" aria-modal="true" aria-label="Search" hidden>
+  <form class="search-bar" id="search-form" autocomplete="off">
+    <label class="search-field"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <input id="search-input" type="search" placeholder="Search teams and players" autofocus enterkeyhint="search" aria-label="Search teams and players"></label>
+    <button type="button" class="cancel" id="search-cancel">Cancel</button>
+  </form>
+  <p class="search-hint">Search goes live with the data step.</p>
+</div>
 <div class="backdrop" id="backdrop" hidden></div>
 <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden>
   <div class="grab" aria-hidden="true"></div>
