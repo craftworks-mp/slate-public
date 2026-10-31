@@ -23,6 +23,7 @@
     betF: { ga: false, side: '', mkt: '', both: false }, // game Bets tab filters, kept across games
     betOpen: {}, // expanded bet rows (bet id -> true), kept in memory
     cmpSplit: 'season', // game Game tab comparison: season | l5 | ha
+    chartStat: {}, // player page chart stat ('<sport>/<pid>' -> stat key)
     infoOpen: {}, // open definition notes ('<sport>/<key>' -> true)
   };
   let cur = { key: '', sport: null, kind: 'root', id: '' };
@@ -453,6 +454,28 @@
       <div class="proj-score"><span class="pc">${esc(g.away)}</span><b>${p.away.toFixed(dp)}</b><i>–</i><b>${p.home.toFixed(dp)}</b><span class="pc">${esc(g.home)}</span></div>${rows}</div>`;
   }
   const fmtStat = (v, kind) => (isNum(v) ? (kind === 'pct' ? (v * 100).toFixed(1) + '%' : v.toFixed(1)) : '—');
+  // team bar colors for the comparison: readable on the dark card, distinct from each other
+  const hexRgb = (h) => { const m = /^#?([0-9a-f]{6})$/i.exec(String(h || '')); return m ? [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16)) : null; };
+  const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+  const cdist = (a, b) => Math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2);
+  const lighten = (c, t) => c.map((v) => Math.round(v + (255 - v) * t));
+  const rgbStr = (c) => `rgb(${c.join(',')})`;
+  function teamTone(m) { // primary, or alt when the primary is too dark; lightened if still dark
+    const p = hexRgb(m && m.color), a = hexRgb(m && m.alt);
+    let c = p && lum(p) >= 0.07 ? p : a && lum(a) >= 0.07 && lum(a) < 0.9 ? a : p || a;
+    if (c && lum(c) < 0.07) c = lighten(c, 0.45);
+    return c;
+  }
+  function cmpColors(sport, g) {
+    const md = store.meta[sport] && store.meta[sport].st === 'ok' ? (store.meta[sport].data || {}) : {};
+    let ca = teamTone(md[g.away]), ch = teamTone(md[g.home]);
+    const NEUTRAL = [142, 166, 156];
+    if (ca && ch && cdist(ca, ch) < 90) { // clash: away tries its other color, else neutral
+      const alt = hexRgb(md[g.away] && md[g.away].alt);
+      ca = alt && lum(alt) >= 0.07 && lum(alt) < 0.9 && cdist(alt, ch) >= 90 ? alt : NEUTRAL;
+    }
+    return [rgbStr(ca || NEUTRAL), rgbStr(ch || NEUTRAL)];
+  }
   function cmpCard(sport, g) {
     const te = ensureTeams(sport);
     if (te.st === 'loading') return sec('Team comparison') + skRows(3);
@@ -472,12 +495,14 @@
         if (ta === th) { ba = bh = false; }
       }
       return `<div><div class="cmp-top"><span class="v${ba ? ' best' : ''}">${fmtStat(a, kind)}</span><span class="lab">${esc(label)}${infoBtn(sport, k, defs)}</span><span class="v${bh ? ' best' : ''}">${fmtStat(h, kind)}</span></div>
-        ${infoNote(sport, k, defs)}<div class="split"><i style="flex:${share}"></i><i style="flex:${1 - share}"></i></div></div>`;
+        ${infoNote(sport, k, defs)}<div class="split tc"><i class="${ba ? 'lead' : ''}" style="flex:${share}"></i><i class="${bh ? 'lead' : ''}" style="flex:${1 - share}"></i></div></div>`;
     });
     if (!rows.length) return sec('Team comparison') + '<div class="card empty"><h2>No team stats yet</h2><p>This split has no games played.</p></div>';
     const gp = (o) => (isNum(o.gp) ? o.gp : '—');
+    ensureMeta(sport);
+    const cc = cmpColors(sport, g);
     return `${sec('Team comparison')}<div class="cmp-head">${segmented(CMP_SPLITS, state.cmpSplit, 'data-cmp', 'cmpseg')}</div>
-      <div class="card cmp"><div class="cmp-teams"><span>${esc(g.away)}<small>${gp(A)} GP</small></span><span>${esc(g.home)}<small>${gp(H)} GP</small></span></div>${rows.join('')}</div>`;
+      <div class="card cmp" style="--ca:${cc[0]};--ch:${cc[1]}"><div class="cmp-teams"><span><b><i class="tdot a"></i>${esc(g.away)}</b><small>${gp(A)} GP</small></span><span><b>${esc(g.home)}<i class="tdot h"></i></b><small>${gp(H)} GP</small></span></div>${rows.join('')}</div>`;
   }
   const INJ_CLS = { out: 'bad', doubtful: 'bad', questionable: 'warn', 'day-to-day': 'warn', dtd: 'warn', probable: 'ok' };
   // "Name (starter, Questionable, Ankle)" -> { name, status, rest }
@@ -601,8 +626,6 @@
     nba: [['min', 'MIN', 1], ['pts', 'PTS', 1], ['reb', 'REB', 1], ['ast', 'AST', 1], ['tpm', '3PM', 1], ['tpa', '3PA', 1]],
     nhl: [['min', 'TOI', 1], ['g', 'G', 2], ['a', 'A', 2], ['sog', 'SOG', 1], ['blk', 'BLK', 2]],
   };
-  const ROSTER_LINE = { nba: ['min', 'pts', 'reb', 'ast', 'tpm'], nhl: ['min', 'g', 'a', 'sog'] };
-  const TONIGHT = { nba: ['pts', 'reb', 'ast', 'tpm'], nhl: ['sog', 'g', 'a', 'pts'] };
   const fx = (v, dp) => (isNum(v) ? v.toFixed(dp) : '—');
   const projDp = (sport, stat) => (sport === 'nhl' && stat !== 'sog' ? 2 : 1);
   const initials = (name) => {
@@ -624,29 +647,35 @@
     });
     return m;
   }
-  function rosterRow(sport, id, p, w, best) {
+  // roster card table: fixed columns per sport; rows Season avg / Line / Projection ("—" when missing)
+  const RCOLS = {
+    nba: [['min', 'MIN', 1], ['pts', 'PTS', 1], ['reb', 'REB', 1], ['ast', 'AST', 1], ['tpm', '3PM', 1]],
+    nhl: [['min', 'TOI', 1], ['sog', 'SOG', 1], ['g', 'G', 2], ['a', 'A', 2], ['pts', 'PTS', 2]],
+  };
+  function rosterRow(sport, id, p, w, picks) {
     const d = w.st === 'ok' ? (w.data || {}) : null;
     const st = (d && d.st) || {};
     const sub = d ? roleTxt(sport, d) : '';
-    const cols = COLS[sport];
-    const line = ROSTER_LINE[sport].map((k) => {
-      const c = cols.find((x) => x[0] === k);
-      return `<span><em>${c[1]}</em>${fx(st[k], c[2])}</span>`;
-    }).join('');
     const pr = p.proj || {};
-    const chips = TONIGHT[sport].map((k) => {
-      const ph = pr.close && pr.close[k] ? pr.close : pr.open;
-      const v = ph && ph[k] && ph[k].v;
-      if (!isNum(v)) return '';
-      const b = best[id + '|' + k], ln = b ? b.ph.line : null;
-      const cls = isNum(ln) ? (v > ln ? ' up' : v < ln ? ' dn' : '') : '';
-      return `<span class="pj${cls}">${esc(BET_STAT[k] || k.toUpperCase())} ${v.toFixed(projDp(sport, k))}</span>`;
-    }).filter(Boolean).join('');
-    return `<button class="prow" data-player="${esc(id)}" aria-label="${esc(p.name || id)} player page">
-      <span class="ini" aria-hidden="true">${esc(initials(p.name))}</span>
-      <span class="pr-main"><span class="pr-name"><b>${esc(p.name || id)}</b>${p.inj ? `<i class="inj">${esc(p.inj)}</i>` : ''}${sub ? `<small>${esc(sub)}</small>` : ''}</span>
-        <span class="pr-line" style="--n:${ROSTER_LINE[sport].length}">${line}</span>
-        ${chips ? `<span class="pr-tn"><span class="pr-tl">Tonight:</span>${chips}</span>` : ''}</span></button>`;
+    const cols = RCOLS[sport] || [];
+    const cell = (t, cls) => `<span class="rc${cls ? ' ' + cls : ''}">${t}</span>`;
+    const head = cols.map((c) => cell(c[1], 'rh')).join('');
+    const season = cols.map((c) => cell(fx(st[c[0]], c[2]))).join('');
+    const line = cols.map((c) => { const r = picks[id + '|' + c[0]]; return cell(r ? esc(r.ph.line) : '—', r ? '' : 'nil'); }).join('');
+    const proj = cols.map((c) => {
+      const ph = pr.close && pr.close[c[0]] ? pr.close : pr.open;
+      const v = ph && ph[c[0]] && ph[c[0]].v;
+      if (!isNum(v)) return cell('—', 'nil');
+      const r = picks[id + '|' + c[0]];
+      if (!r) return cell(v.toFixed(projDp(sport, c[0])));
+      const arr = r.b.side === 'u' ? '\u25BC' : '\u25B2';
+      return cell(`${v.toFixed(projDp(sport, c[0]))}<i aria-label="${r.b.side === 'u' ? 'under' : 'over'}">${arr}</i>`, 'pj ' + evCls(r.ph.ev));
+    }).join('');
+    const lab = (t) => `<span class="rl">${t}</span>`;
+    return `<button class="prow rcard" data-player="${esc(id)}" aria-label="${esc(p.name || id)} player page">
+      <span class="rc-top"><span class="ini sm" aria-hidden="true">${esc(initials(p.name))}</span>
+        <span class="pr-name"><b>${esc(p.name || id)}</b>${p.inj ? `<i class="inj">${esc(p.inj)}</i>` : ''}${sub ? `<small>${esc(sub)}</small>` : ''}</span><span class="chev" aria-hidden="true">\u203A</span></span>
+      <span class="rtab" style="--n:${cols.length}">${lab('')}${head}${lab('Season avg')}${season}${lab('Line')}${line}${lab('Projection')}${proj}</span></button>`;
   }
   function rosterTab(sport, date, g, code) {
     const e = ensureSlate(sport, date);
@@ -664,8 +693,9 @@
       else c = roleRank(dd(x).role) - roleRank(dd(y).role);
       return c || (x.p.name < y.p.name ? -1 : x.p.name > y.p.name ? 1 : 0);
     });
-    const best = bestSides(betRows(sl, g.gid));
-    return `<div class="plist">${list.map((r) => rosterRow(sport, r.id, r.p, r.w, best)).join('')}</div>`;
+    const picks = {}; // model's pick side per player+stat (old slates without the flag: every row counts as pick)
+    betRows(sl, g.gid).forEach((r) => { if (r.ph.pick !== false) { const k = r.b.pid + '|' + r.b.stat; if (!picks[k] || r.ph.ev > picks[k].ph.ev) picks[k] = r; } });
+    return `<div class="plist">${list.map((r) => rosterRow(sport, r.id, r.p, r.w, picks)).join('')}</div>`;
   }
 
   const pHead = (extra) => `<div class="pagehead">${backBtn}</div>${extra || ''}`;
@@ -685,21 +715,84 @@
     const team = d.team || (sp && sp.team) || '';
     const inj = (sp && sp.inj) || d.inj || '', note = (sp && sp.injNote) || d.injNote || '', src = (sp && sp.injSrc) || d.src || '';
     const injHtml = inj ? `<div class="pinj"><i class="inj">${esc(inj)}</i>${note ? `<span>${esc(note)}</span>` : ''}${src ? `<small>${esc(src)}</small>` : ''}</div>` : '';
+    const mt = tinfo(sport, team);
+    const tcol = /^#[0-9a-f]{6}$/i.test(mt.color || '') ? mt.color : 'var(--grey)';
     const meta = [roleTxt(sport, d), isNum(d.gp) ? 'GP ' + d.gp : ''].filter(Boolean).join(' · ');
-    const hero = `<div class="phero"><span class="ini xl" aria-hidden="true">${esc(initials(name))}</span>
+    const hero = `<div class="phero2" style="--tc:${tcol}"><span class="ini xxl" aria-hidden="true">${esc(initials(name))}</span>
       <span class="pinfo"><h2 class="tname-xl">${esc(name)}</h2>
         <span class="pteam">${team ? tbadge(sport, team, '', `#${sport}/team/${encodeURIComponent(team)}`, true) : ''}<span class="pmeta">${esc(meta)}</span></span>${injHtml}</span></div>`;
+    const allRows = sp ? betRows(sl, sp.gid).filter((r) => String(r.b.pid) === String(pid)) : [];
+    const mine = Object.values(bestSides(allRows)).sort((x, y) => y.ph.ev - x.ph.ev);
     // Tonight: his props, best EV side per stat, sorted by EV
     let tonight = '';
     if (se.st === 'loading') tonight = sec('Tonight') + skRows(2);
-    else if (sp) {
-      const mine = Object.values(bestSides(betRows(sl, sp.gid).filter((r) => String(r.b.pid) === String(pid)))).sort((x, y) => y.ph.ev - x.ph.ev);
-      tonight = sec('Tonight') + (mine.length ? `<div class="betlist">${mine.map(betRow).join('')}</div>` : '<div class="card empty"><p>No props for this player yet.</p></div>');
-    }
+    else if (sp) tonight = sec('Tonight') + (mine.length ? `<div class="betlist">${mine.map(betRow).join('')}</div>` : '<div class="card empty"><p>No props for this player yet.</p></div>');
     const st = d.st || {}, l5 = d.l5 || {};
-    const grid = `<div class="svl" style="--n:${cols.length}"><span class="svl-h"></span>${cols.map((c) => `<span class="svl-h">${c[1]}</span>`).join('')}
-      <span class="svl-l">Season</span>${cols.map((c) => `<span class="svl-v">${fx(st[c[0]], c[2])}</span>`).join('')}
-      <span class="svl-l">Last 5</span>${cols.map((c) => `<span class="svl-v">${fx(l5[c[0]], c[2])}</span>`).join('')}</div>`;
+    // stat tiles: season big, L5 under it with an arrow when it differs >= 10%
+    const TILES = sport === 'nba' ? [['pts', 'PTS', 1], ['reb', 'REB', 1], ['ast', 'AST', 1], ['tpm', '3PM', 1]] : [['g', 'G', 2], ['a', 'A', 2], ['pts', 'PTS', 2], ['sog', 'SOG', 1]];
+    const l5v = (k) => (sport === 'nhl' && k === 'pts' ? (isNum(l5.g) && isNum(l5.a) ? l5.g + l5.a : null) : l5[k]);
+    const tiles = `<div class="stiles">${TILES.map(([k, lab, dp]) => {
+      const sv = st[k], lv5 = l5v(k);
+      let l5html = '';
+      if (isNum(lv5)) {
+        const big = isNum(sv) && sv > 0 && Math.abs(lv5 - sv) / sv >= 0.1;
+        const up = lv5 > sv;
+        l5html = `<span class="st-l5${big ? (up ? ' up' : ' dn') : ''}">${big ? `<i aria-label="${up ? 'up' : 'down'}">${up ? '▲' : '▼'}</i>` : ''}L5 ${lv5.toFixed(dp)}</span>`;
+      }
+      return `<div class="stile"><span class="st-lab">${lab}</span><span class="st-v">${fx(sv, dp)}</span>${l5html}</div>`;
+    }).join('')}</div>`;
+    // recent performances chart
+    const logsAll = Array.isArray(d.logs) ? d.logs : [];
+    const CH = sport === 'nba' ? [['pts', 'PTS'], ['reb', 'REB'], ['ast', 'AST'], ['tpm', '3PM'], ['pra', 'PRA']] : [['sog', 'SOG'], ['pts', 'PTS'], ['g', 'G'], ['a', 'A']];
+    const ci = (k) => cols.findIndex((c) => c[0] === k);
+    const lval = (r, k) => {
+      const g = (x) => r[3 + ci(x)];
+      if (k === 'pra') return isNum(g('pts')) && isNum(g('reb')) && isNum(g('ast')) ? g('pts') + g('reb') + g('ast') : null;
+      if (sport === 'nhl' && k === 'pts') return isNum(g('g')) && isNum(g('a')) ? g('g') + g('a') : null;
+      const v = g(k); return isNum(v) ? v : null;
+    };
+    let chart = '';
+    if (logsAll.length >= 2) {
+      const ck = sport + '/' + pid;
+      const topStat = mine.length ? mine[0].b.stat : '';
+      let cs = state.chartStat[ck];
+      if (!CH.some((c) => c[0] === cs)) cs = CH.some((c) => c[0] === topStat) ? topStat : CH[0][0];
+      const pts = logsAll.map((r) => ({ r, v: lval(r, cs) })).filter((x) => x.v !== null).slice(-10);
+      const lr = allRows.find((r) => r.b.stat === cs);
+      const line = lr ? lr.ph.line : null;
+      const chips = `<div class="bchips" role="group" aria-label="Chart stat">${CH.map((c) => `<button class="bchip${c[0] === cs ? ' on' : ''}" data-cstat="${c[0]}" aria-pressed="${c[0] === cs}">${c[1]}</button>`).join('')}</div>`;
+      if (pts.length >= 2) {
+        const hasL = isNum(line);
+        const max = Math.max(1, ...pts.map((x) => x.v), hasL ? line : 0);
+        const H = 104, hOf = (v) => Math.round(v / max * H * 10) / 10;
+        const over = hasL ? pts.filter((x) => x.v > line).length : 0;
+        const head = hasL ? `Over ${line} in ${over} of ${pts.length}` : `Last ${pts.length} games`;
+        const vf = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
+        const cells = pts.map((x) => {
+          const hi = hasL && x.v > line;
+          const col = hasL ? (hi ? 'var(--pos)' : 'var(--faint)') : 'var(--accent)';
+          const op = hasL ? (hi ? .85 : .7) : .7;
+          const lab = (x.r[2] === 1 ? 'vs ' : x.r[2] === 0 ? '@ ' : '') + (x.r[1] || '');
+          return `<div class="cb"><span class="cb-v">${vf(x.v)}</span><span class="cb-bar" style="height:${Math.max(2, hOf(x.v))}px;background:${col};opacity:${op}"></span>
+            <span class="cb-x">${esc(lab)}</span><span class="cb-d">${esc(String(x.r[0] || '').replace('-', '/'))}</span></div>`;
+        }).join('');
+        const lineEl = hasL ? `<span class="cline" style="bottom:${hOf(line) + 38}px"><em>Line ${esc(line)}</em></span>` : '';
+        chart = sec('Recent performances') + chips + `<div class="card cchart" style="--cn:${pts.length}"><div class="ch-h">${esc(head)}</div>
+          <div class="cplot${hasL ? ' hl' : ''}${pts.length > 6 ? ' thin' : ''}${pts.length > 4 ? ' sm' : ''}" role="img" aria-label="${esc(CH.find((c) => c[0] === cs)[1])} in last ${pts.length} games: ${pts.map((x) => vf(x.v)).join(', ')}${hasL ? '. ' + head : ''}">${lineEl}${cells}</div></div>`;
+      } else chart = sec('Recent performances') + chips + '<div class="card empty"><p>Not enough games with this stat.</p></div>';
+    }
+    // home / away splits
+    // NHL `ha` has g and a but no pts: per-game pts = avg g + avg a (exact, same games)
+    const addPts = (o) => (o && !isNum(o.pts) && isNum(o.g) && isNum(o.a) ? Object.assign({}, o, { pts: o.g + o.a }) : o);
+    const ha0 = d.ha || {};
+    const ha = sport === 'nhl' ? { home: addPts(ha0.home), away: addPts(ha0.away) } : ha0;
+    const hcols = TILES.filter(([k]) => ha.home && ha.away && (isNum(ha.home[k]) || isNum(ha.away[k])));
+    let splits = '';
+    if ((ha.home || ha.away) && hcols.length) {
+      const cell = (t, cls) => `<span class="rc${cls ? ' ' + cls : ''}">${t}</span>`;
+      const row = (lab, o) => `<span class="rl">${lab}${o && isNum(o.gp) ? ` (${o.gp})` : ''}</span>${hcols.map(([k, , dp]) => (o && isNum(o[k]) ? cell(o[k].toFixed(dp)) : cell('—', 'nil'))).join('')}`;
+      splits = sec('Splits') + `<div class="card spl"><span class="rtab" style="--n:${hcols.length}"><span class="rl"></span>${hcols.map((c) => cell(c[1], 'rh')).join('')}${row('Home', ha.home)}${row('Away', ha.away)}</span></div>`;
+    }
     const logs = Array.isArray(d.logs) ? d.logs.slice().reverse() : [];
     const opt = sport === 'nba' ? 'tpa' : 'blk';
     const cl = (c) => (c[0] === opt ? ' c-opt' : '');
@@ -708,7 +801,7 @@
       ? `<div class="glog" style="--n:${cols.length};--n2:${cols.length - 1}"><div class="gl-row gl-h"><span>Date</span><span>Opp</span>${cols.map((c) => `<span class="${cl(c).trim()}">${c[1]}</span>`).join('')}</div>
         ${logs.map((r) => `<div class="gl-row"><span>${esc(String(r[0] || '—').replace('-', '/'))}</span><span>${r[2] === 1 ? 'vs' : r[2] === 0 ? '@' : ''} ${esc(r[1] || '—')}</span>${cols.map((c, i) => `<span class="${cl(c).trim()}">${lv(c, r[3 + i], i)}</span>`).join('')}</div>`).join('')}</div>`
       : '<div class="card empty"><p>No game log yet.</p></div>';
-    return pHead(hero + tonight + sec('Season vs Last 5') + grid + sec('Game log') + glog);
+    return pHead(hero + tiles + tonight + chart + splits + sec('Game log') + glog);
   }
 
   function teamView(sport, code) {
@@ -833,6 +926,7 @@
     }
     else if (d.sub) state.gameTab = d.sub;
     else if (d.cmp) state.cmpSplit = d.cmp;
+    else if (d.cstat) state.chartStat[sportOf() + '/' + cur.id] = d.cstat;
     else if (d.info) { if (state.infoOpen[d.info]) delete state.infoOpen[d.info]; else state.infoOpen[d.info] = true; }
     else if (d.day) state.sel[sportOf()] = d.day;
     else if (d.filter) state.filter = d.filter;
