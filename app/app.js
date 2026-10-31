@@ -554,7 +554,7 @@
       return { id, b, ph, tag: b.close ? 'close' : 'open', pid: String(b.pid), team: p.team || '', pick: ph.pick !== false, name: p.name || String(b.pid), inj: p.inj || '' };
     }).filter(Boolean);
   }
-  const UNCAL = '<span class="grade-badge uncal">uncalibrated</span>'; // NFL until its calibration gate passes: no grade, EV shown
+  const UNCAL = '<span class="grade-badge uncal" role="img" aria-label="Not graded yet: model not calibrated">\u2013</span>'; // NFL until its calibration gate passes: no grade (gray dash), EV shown
   const gradeIdx = (r) => { const i = GRADE_ORDER.indexOf(r.ph.grade); return i < 0 ? 99 : i; };
   const byEv = (x, y) => y.ph.ev - x.ph.ev;
   function betGroups(rows, how) {
@@ -591,7 +591,7 @@
     const n = grp.rows.length;
     return `<div class="pcard"><button class="pcard-h" data-player="${esc(grp.pid)}" aria-label="${esc(grp.name)} player page">
       <span class="pcard-n">${grp.team ? tbadge(sport, grp.team, 's', '', true) : ''}<b>${esc(grp.name)}</b>${grp.inj ? `<i class="inj">${esc(grp.inj)}</i>` : ''}</span>
-      <span class="pcard-r">${best ? `<span class="grade-badge" data-g="${best}">${best}</span>` : grp.rows.every((r) => r.ph.uncal) ? UNCAL : ''}<small>${n} ${n === 1 ? 'prop' : 'props'}</small></span>
+      <span class="pcard-r">${best ? `<span class="grade-badge" data-g="${best}">${best}</span>` : ''}<small>${n} ${n === 1 ? 'prop' : 'props'}</small></span>
       <span class="pcard-chev" aria-hidden="true">›</span></button>
       ${grp.rows.map((r) => betRow(r, showPick)).join('')}</div>`;
   }

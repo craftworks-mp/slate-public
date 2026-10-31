@@ -253,7 +253,7 @@ a.srow:active{background:var(--card2)}
 .grade-badge[data-g="C"]{--gc:var(--g-c)}
 .grade-badge[data-g="D"]{--gc:var(--g-d)}
 .grade-badge[data-g="F"]{--gc:var(--g-f)}
-.grade-badge.uncal{--gc:var(--muted);font-weight:600;font-size:11px;letter-spacing:.02em;white-space:nowrap;padding:3px 7px 2px}
+.grade-badge.uncal{--gc:var(--faint);background:transparent;box-shadow:none}
 .ev{font:700 14px/1 var(--f-m)}
 .ev.p2{color:var(--pos)}
 .ev.p5{color:var(--pos-hi);text-shadow:0 0 10px rgba(62,230,160,.55)}
