@@ -20,6 +20,7 @@
     gameTab: 'bets',
     filter: 'All',
     betSort: 'ev', // game Bets tab sort: ev | grade | player
+    betF: { ga: false, side: '', mkt: '', both: false }, // game Bets tab filters, kept across games
     betOpen: {}, // expanded bet rows (bet id -> true), kept in memory
     cmpSplit: 'season', // game Game tab comparison: season | l5 | ha
     infoOpen: {}, // open definition notes ('<sport>/<key>' -> true)
@@ -76,6 +77,7 @@
   // Sliding highlight for segmented controls. prev = {x,w} from last render of same kind.
   const lastHl = {};
   let lastKey = null;
+  let bcScroll = 0; // Bets chip row scroll, kept across re-renders
   function placeHl(animate) {
     view.querySelectorAll('.seg').forEach((seg) => {
       const hl = seg.querySelector('.seg-hl');
@@ -524,18 +526,24 @@
       const ph = b.close || b.open;
       if (!ph || !isNum(ph.ev) || !isNum(ph.line) || !isNum(ph.proj)) return null;
       const p = players[b.pid] || {};
-      return { id, b, ph, tag: b.close ? 'close' : 'open', name: p.name || String(b.pid), inj: p.inj || '' };
+      return { id, b, ph, tag: b.close ? 'close' : 'open', pid: String(b.pid), team: p.team || '', pick: ph.pick !== false, name: p.name || String(b.pid), inj: p.inj || '' };
     }).filter(Boolean);
   }
-  function sortBets(rows, how) {
-    const gr = (r) => { const i = GRADE_ORDER.indexOf(r.ph.grade); return i < 0 ? 99 : i; };
-    const byEv = (x, y) => y.ph.ev - x.ph.ev;
-    const cmp = how === 'grade' ? (x, y) => gr(x) - gr(y) || byEv(x, y)
-      : how === 'player' ? (x, y) => (x.name < y.name ? -1 : x.name > y.name ? 1 : 0) || byEv(x, y)
-        : byEv;
-    return rows.slice().sort(cmp);
+  const gradeIdx = (r) => { const i = GRADE_ORDER.indexOf(r.ph.grade); return i < 0 ? 99 : i; };
+  const byEv = (x, y) => y.ph.ev - x.ph.ev;
+  function betGroups(rows, how) {
+    const m = new Map();
+    rows.forEach((r) => { if (!m.has(r.pid)) m.set(r.pid, []); m.get(r.pid).push(r); });
+    const groups = [...m.values()].map((rs) => {
+      rs.sort(byEv);
+      return { pid: rs[0].pid, name: rs[0].name, team: rs[0].team, inj: rs[0].inj, rows: rs, ev: rs[0].ph.ev, gi: Math.min(...rs.map(gradeIdx)) };
+    });
+    const cmp = how === 'grade' ? (x, y) => x.gi - y.gi || y.ev - x.ev
+      : how === 'player' ? (x, y) => (x.name < y.name ? -1 : x.name > y.name ? 1 : 0) || y.ev - x.ev
+        : (x, y) => y.ev - x.ev;
+    return groups.sort(cmp);
   }
-  function betRow(r) {
+  function betRow(r, showPick) {
     const { b, ph } = r, open = !!state.betOpen[r.id];
     const gap = ph.proj - ph.line, pct = ph.line ? gap / ph.line * 100 : null;
     const c = evCls(ph.ev);
@@ -543,14 +551,31 @@
     const pros = (ph.pros || []).map((t) => `<div class="pro">${esc(t)}</div>`).join('');
     const cons = (ph.cons || []).map((t) => `<div class="con">${esc(t)}</div>`).join('');
     const ctx = pros || cons ? `<div class="bet-ctx"><div class="lbl">Context</div>${pros}${cons}</div>` : '<div class="bet-ctx"><div class="lbl">Context</div><div class="bet-none">No notes on this prop.</div></div>';
-    return `<div class="bet-wrap${open ? ' open' : ''}"><button class="bet" data-bet="${esc(r.id)}" aria-expanded="${open}">
-      <span class="bet-l"><span class="bet-name"><b>${esc(r.name)}</b>${r.inj ? `<i class="inj">${esc(r.inj)}</i>` : ''}</span>
-        <span class="bet-sub">${esc(BET_STAT[b.stat] || String(b.stat).toUpperCase())} ${b.side === 'u' ? 'U' : 'O'} ${esc(ph.line)} · ${fmtOdds(ph.odds)}</span></span>
+    return `<div class="bet-wrap${open ? ' open' : ''}${showPick && !r.pick ? ' alt' : ''}"><button class="bet" data-bet="${esc(r.id)}" aria-expanded="${open}">
+      <span class="bet-l"><span class="bet-mkt">${esc(BET_STAT[b.stat] || String(b.stat).toUpperCase())} ${b.side === 'u' ? 'U' : 'O'} ${esc(ph.line)}</span>
+        <span class="bet-sub">${fmtOdds(ph.odds)} · ${r.tag.toUpperCase()}${showPick && !r.pick ? '<em class="side-tag">Other side</em>' : ''}</span></span>
       <span class="bet-m"><span class="bet-proj">Proj ${ph.proj.toFixed(1)}</span>
         <span class="ev gap ${c}">${sgn(gap, 1)}${pct === null ? '' : ` (${sgn(pct, 0)}%)`}</span></span>
       <span class="bet-r"><span class="ev bet-ev ${c}">${sgn(ph.ev, 1)}%</span>
-        <span class="bet-meta">${g ? `<span class="grade-badge" data-g="${g}">${g}</span>` : ''}<small>${r.tag}</small></span></span>
+        ${g ? `<span class="grade-badge" data-g="${g}">${g}</span>` : ''}</span>
     </button>${open ? ctx : ''}</div>`;
+  }
+  function playerCard(sport, grp, showPick) {
+    const best = GRADE_ORDER[Math.min(...grp.rows.map(gradeIdx))];
+    const n = grp.rows.length;
+    return `<div class="pcard"><button class="pcard-h" data-player="${esc(grp.pid)}" aria-label="${esc(grp.name)} player page">
+      <span class="pcard-n">${grp.team ? tbadge(sport, grp.team, 's', '', true) : ''}<b>${esc(grp.name)}</b>${grp.inj ? `<i class="inj">${esc(grp.inj)}</i>` : ''}</span>
+      <span class="pcard-r">${best ? `<span class="grade-badge" data-g="${best}">${best}</span>` : ''}<small>${n} ${n === 1 ? 'prop' : 'props'}</small></span>
+      <span class="pcard-chev" aria-hidden="true">›</span></button>
+      ${grp.rows.map((r) => betRow(r, showPick)).join('')}</div>`;
+  }
+  function betChips(rows) {
+    const f = state.betF;
+    const chip = (k, label, on) => `<button class="bchip${on ? ' on' : ''}" data-bf="${k}" aria-pressed="${on}">${label}</button>`;
+    const present = new Set(rows.map((r) => r.b.stat));
+    const mk = Object.keys(BET_STAT).filter((k) => present.has(k));
+    const div = '<span class="bchip-div" aria-hidden="true"></span>';
+    return `<div class="bchips" role="group" aria-label="Filter props">${chip('all', 'All', !f.ga && !f.side && !f.mkt)}${chip('ga', 'S+/A', f.ga)}${chip('o', 'Over', f.side === 'o')}${chip('u', 'Under', f.side === 'u')}${mk.length ? div + mk.map((k) => chip('mkt:' + k, esc(BET_STAT[k]), f.mkt === k)).join('') : ''}${div}${chip('both', 'Both sides', f.both)}</div>`;
   }
   function betsTab(sport, date) {
     const e = ensureSlate(sport, date);
@@ -558,8 +583,15 @@
     if (e.st === 'err') return `<div class="card empty"><h2>Couldn’t load props</h2><p>Check your connection and try again.</p><button class="pillbtn retry" data-retry-slate="${esc(sport + '/' + date)}">Retry</button></div>`;
     const rows = e.st === 'ok' ? betRows(e.data || {}, state.betGid) : [];
     if (!rows.length) return empty('Bets', 'No props for this game yet', 'Props show up here once the slate is published.', 0);
-    return `<div class="bets-head"><span class="bets-n">${rows.length} ${rows.length === 1 ? 'prop' : 'props'}</span>${segmented(SORTS, state.betSort, 'data-sort', 'sortseg')}</div>
-      <div class="betlist">${sortBets(rows, state.betSort).map(betRow).join('')}</div>`;
+    const f = state.betF;
+    const shown = rows.filter((r) => (f.both || r.pick) && (!f.ga || r.ph.grade === 'S+' || r.ph.grade === 'A')
+      && (!f.side || r.b.side === f.side) && (!f.mkt || r.b.stat === f.mkt));
+    const groups = betGroups(shown, state.betSort);
+    const body = groups.length
+      ? `<div class="pcards">${groups.map((gp) => playerCard(sport, gp, f.both)).join('')}</div>`
+      : '<div class="card empty"><h2>No props match these filters</h2><button class="pillbtn" data-bf="all">Clear filters</button></div>';
+    return `<div class="bets-head"><span class="bets-n">${groups.length} ${groups.length === 1 ? 'player' : 'players'} · ${shown.length} ${shown.length === 1 ? 'prop' : 'props'}</span>${segmented(SORTS, state.betSort, 'data-sort', 'sortseg')}</div>
+      ${betChips(rows)}${body}`;
   }
   const gameView = liveGameView;
 
@@ -767,6 +799,8 @@
     if (po) pl.scrollLeft = Math.max(0, po.offsetLeft - (pl.clientWidth - po.offsetWidth) / 2);
     const sch = view.querySelector('.sched'), nx = sch && sch.querySelector('[data-next]');
     if (nx) sch.scrollTop = Math.max(0, nx.offsetTop - 56);
+    const bc = view.querySelector('.bchips');
+    if (bc && !changed) bc.scrollLeft = bcScroll;
     const on = view.querySelector('.chips .on');
     if (on) on.parentNode.scrollLeft = Math.max(0, on.offsetLeft - 8);
     if (changed) {
@@ -781,6 +815,7 @@
     const b = e.target.closest('button');
     if (!b) return;
     const d = b.dataset;
+    const bcEl = view.querySelector('.bchips'); bcScroll = bcEl ? bcEl.scrollLeft : 0;
     if (d.back !== undefined) return goBack();
     if (d.retry) { delete store.days[d.retry]; const m = store.meta[sportOf()]; if (m && m.st === 'err') delete store.meta[sportOf()]; render(); return; }
     if (d.retrySlate) { delete store.slates[d.retrySlate]; render(); return; }
@@ -788,6 +823,14 @@
     if (d.retryPlayer) { delete store.players[d.retryPlayer]; render(); return; }
     if (d.bet) { if (state.betOpen[d.bet]) delete state.betOpen[d.bet]; else state.betOpen[d.bet] = true; }
     else if (d.sort) state.betSort = d.sort;
+    else if (d.bf) {
+      const f = state.betF, k = d.bf;
+      if (k === 'all') { f.ga = false; f.side = ''; f.mkt = ''; }
+      else if (k === 'ga') f.ga = !f.ga;
+      else if (k === 'o' || k === 'u') f.side = f.side === k ? '' : k;
+      else if (k === 'both') f.both = !f.both;
+      else if (k.startsWith('mkt:')) f.mkt = f.mkt === k.slice(4) ? '' : k.slice(4);
+    }
     else if (d.sub) state.gameTab = d.sub;
     else if (d.cmp) state.cmpSplit = d.cmp;
     else if (d.info) { if (state.infoOpen[d.info]) delete state.infoOpen[d.info]; else state.infoOpen[d.info] = true; }

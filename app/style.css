@@ -270,8 +270,8 @@ a.srow:active{background:var(--card2)}
 
 /* ---- game Bets tab ---- */
 .bets-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px}
-.bets-n{font:600 12px/1 var(--f-m);color:var(--muted);white-space:nowrap}
-.sortseg{width:210px;max-width:68%;flex:none}
+.bets-n{font:600 11px/1.3 var(--f-m);color:var(--muted);min-width:0}
+.sortseg{width:180px;max-width:58%;flex:none}
 .sortseg button{font-size:12px}
 .betlist{display:flex;flex-direction:column;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.25)}
 .bet-wrap{background:var(--card)}
@@ -292,7 +292,31 @@ a.srow:active{background:var(--card2)}
 .bet-meta small{font:500 9px/1 var(--f-m);color:var(--faint);text-transform:uppercase;letter-spacing:.04em}
 .bet-ctx{display:flex;flex-direction:column;gap:7px;padding:4px 12px 12px;background:var(--card2)}
 .bet-none{font-size:13px;color:var(--faint)}
-@media (max-width:340px){.bet{gap:6px;padding:10px}.bet-ev{font-size:17px}.sortseg{width:190px}}
+/* grouped by player + filter chips */
+.bchips{display:flex;align-items:center;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 calc(-1*var(--gut)) 10px;padding:2px var(--gut)}
+.bchips::-webkit-scrollbar{display:none}
+.bchip{flex:none;height:32px;padding:0 12px;margin:2px 0;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);font:600 12px/1 var(--f-b);white-space:nowrap;position:relative}
+.bchip::after{content:"";position:absolute;inset:-2px -2px}
+.bchip.on{background:var(--accent-bg);border-color:rgba(62,230,160,.45);border-color:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--ink)}
+.bchip-div{flex:none;width:1px;height:18px;background:var(--line);margin:0 2px}
+.pcards{display:flex;flex-direction:column;gap:10px}
+.pcard{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.pcard-h{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;width:100%;min-height:52px;padding:10px 12px;text-align:left;background:var(--card2);border-bottom:1px solid var(--line)}
+.pcard-n{display:flex;align-items:center;gap:8px;min-width:0}
+.pcard-n b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:700 15px/1.2 var(--f-b)}
+.pcard-r{display:flex;align-items:center;gap:8px}
+.pcard-r small{font:500 11px/1 var(--f-m);color:var(--muted);white-space:nowrap}
+.pcard-chev{color:var(--faint);font-size:20px;line-height:1}
+.pcard .bet-wrap+.bet-wrap{border-top:1px solid var(--line)}
+.pcard .bet{min-height:58px}
+.bet-mkt{font:600 15px/1.2 var(--f-b);color:var(--ink);white-space:nowrap}
+.bet-sub{display:flex;align-items:center;gap:6px}
+.side-tag{font:600 9px/1 var(--f-m);font-style:normal;letter-spacing:.06em;text-transform:uppercase;margin-left:6px;color:var(--faint)}
+.bet-wrap.alt .bet{opacity:.62}
+.bet-wrap.alt.open .bet{opacity:1}
+.pcard .bet-r{gap:5px}
+.card.empty .pillbtn{margin-top:10px}
+@media (max-width:340px){.bet{gap:6px;padding:10px}.bet-ev{font-size:17px}.sortseg{width:158px}.sortseg button{font-size:11px}.bets-n{white-space:normal;line-height:1.3}.pcard-h{padding:10px}}
 
 /* ---- roster rows + player page ---- */
 button.prow{width:100%;text-align:left;align-items:flex-start;min-height:64px}
