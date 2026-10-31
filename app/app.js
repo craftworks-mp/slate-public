@@ -101,7 +101,7 @@
 
 
   // ---- data layer ----
-  const store = { days: {}, meta: {}, sched: {}, slates: {}, idx: null, idxDone: false };
+  const store = { days: {}, meta: {}, sched: {}, slates: {}, players: {}, idx: null, idxDone: false };
   const MINUS = '−';
   const ver = () => (store.idx && store.idx.updated ? '?v=' + encodeURIComponent(store.idx.updated) : '');
   async function getJSON(url, opts) {
@@ -142,6 +142,16 @@
     if (store.slates[k]) return store.slates[k];
     const e = store.slates[k] = { st: 'loading', sp, date };
     indexP.then(() => getJSON('../slates/' + sp + '/' + date + '.json' + ver())).then((r) => {
+      if (r.nf) e.st = '404'; else { e.st = 'ok'; e.data = r.data || {}; }
+    }, () => { e.st = 'err'; }).then(rerender);
+    return e;
+  }
+  // Research-world player file: ../players/<sp>/<pid>.json (role, pos, gp, st, l5, logs)
+  function ensurePlayer(sp, pid) {
+    const k = sp + '/' + pid;
+    if (store.players[k]) return store.players[k];
+    const e = store.players[k] = { st: 'loading', sp, pid };
+    indexP.then(() => getJSON('../players/' + sp + '/' + encodeURIComponent(pid) + '.json' + ver())).then((r) => {
       if (r.nf) e.st = '404'; else { e.st = 'ok'; e.data = r.data || {}; }
     }, () => { e.st = 'err'; }).then(rerender);
     return e;
@@ -371,11 +381,7 @@
       const row = (l, r) => `<div><div class="cmp-top"><span class="v">—</span><span class="lab"><span class="bar"></span></span><span class="v">—</span></div>
         <div class="split"><i style="flex:${l}"></i><i style="flex:${r}"></i></div></div>`;
       body = `<div class="card cmp" aria-hidden="true">${row(55, 45)}${row(40, 60)}${row(50, 50)}</div>`;
-    } else {
-      const code = tab === 'away' ? aw : hm;
-      body = `<div class="plist">${[0, 1, 2, 3].map((n) => `<div class="prow" aria-hidden="true">
-        <span class="ini">—</span><span class="bars">${bar(n % 2 ? 'w55' : 'w70')}${bar(n % 2 ? 'w40' : 'w55')}</span><span class="bar st"></span></div>`).join('')}</div>`;
-    }
+    } else body = rosterTab(sport, f.date, g, tab === 'away' ? aw : hm);
     const fin = g.status === 'final' && g.final;
     const center = fin
       ? `<span class="big fin">${esc(g.final.away)}<i>–</i>${esc(g.final.home)}</span><span class="lbl">Final${g.ot ? '/' + esc(g.ot) : ''}</span>`
@@ -446,17 +452,120 @@
   }
   const gameView = liveGameView;
 
-  function playerView(sport) {
-    const labs = STAT_LABELS[sport];
-    const cells = labs.map((l) => `<div><div class="lbl">${esc(l)}</div><div class="num">\u2014</div></div>`).join('');
-    const hs = [40, 72, 55, 90, 62, 80, 48];
-    return `<div class="pagehead">${backBtn}</div>
-      <div class="phero"><span class="ini xl" aria-hidden="true">\u2014</span><span class="bars">${bar('w70')}${bar('w55')}${bar('w40')}</span></div>
-      <div class="statgrid" aria-hidden="true">${cells}</div>
-      <button class="pillbtn" disabled>Splits</button>
-      ${sec('Recent performances')}
-      <div class="bars7" aria-hidden="true">${hs.map((h) => `<i style="height:${h}%"></i>`).join('')}</div>
-      ${sec('Game log')}${rowsGeneric(3)}`;
+  // ---- game AWAY / HOME roster tabs ----
+  // log columns (after date, opp, home) are in this order in both packs; keys match the world st/l5 objects
+  const COLS = {
+    nba: [['min', 'MIN', 1], ['pts', 'PTS', 1], ['reb', 'REB', 1], ['ast', 'AST', 1], ['tpm', '3PM', 1], ['tpa', '3PA', 1]],
+    nhl: [['min', 'TOI', 1], ['g', 'G', 2], ['a', 'A', 2], ['sog', 'SOG', 1], ['blk', 'BLK', 2]],
+  };
+  const ROSTER_LINE = { nba: ['min', 'pts', 'reb', 'ast', 'tpm'], nhl: ['min', 'g', 'a', 'sog'] };
+  const TONIGHT = { nba: ['pts', 'reb', 'ast', 'tpm'], nhl: ['sog', 'g', 'a', 'pts'] };
+  const fx = (v, dp) => (isNum(v) ? v.toFixed(dp) : '—');
+  const projDp = (sport, stat) => (sport === 'nhl' && stat !== 'sog' ? 2 : 1);
+  const initials = (name) => {
+    const w = String(name || '').split(/\s+/).filter((x) => x && !/^(jr|sr|ii|iii|iv)\.?$/i.test(x));
+    const a = w.length > 1 ? w[0][0] + w[w.length - 1][0] : (w[0] || '').slice(0, 2);
+    return a ? a.toUpperCase() : '—';
+  };
+  const roleTxt = (sport, d) => [d.pos, sport === 'nba' ? ({ S: 'Starter', B: 'Bench' }[d.role] || d.role) : d.role].filter(Boolean).join(' · ');
+  const roleRank = (role) => {
+    const m = /^([FDG])(\d+)?$/.exec(role || '');
+    return m ? { F: 0, D: 100, G: 200 }[m[1]] + (+m[2] || 0) : 999;
+  };
+  // one row per player+stat: the best-EV side of the latest phase (both sides can exist)
+  function bestSides(rows) {
+    const m = {};
+    rows.forEach((r) => {
+      const k = r.b.pid + '|' + r.b.stat;
+      if (!m[k] || r.ph.ev > m[k].ph.ev) m[k] = r;
+    });
+    return m;
+  }
+  function rosterRow(sport, id, p, w, best) {
+    const d = w.st === 'ok' ? (w.data || {}) : null;
+    const st = (d && d.st) || {};
+    const sub = d ? roleTxt(sport, d) : '';
+    const cols = COLS[sport];
+    const line = ROSTER_LINE[sport].map((k) => {
+      const c = cols.find((x) => x[0] === k);
+      return `<span><em>${c[1]}</em>${fx(st[k], c[2])}</span>`;
+    }).join('');
+    const pr = p.proj || {};
+    const chips = TONIGHT[sport].map((k) => {
+      const ph = pr.close && pr.close[k] ? pr.close : pr.open;
+      const v = ph && ph[k] && ph[k].v;
+      if (!isNum(v)) return '';
+      const b = best[id + '|' + k], ln = b ? b.ph.line : null;
+      const cls = isNum(ln) ? (v > ln ? ' up' : v < ln ? ' dn' : '') : '';
+      return `<span class="pj${cls}">${esc(BET_STAT[k] || k.toUpperCase())} ${v.toFixed(projDp(sport, k))}</span>`;
+    }).filter(Boolean).join('');
+    return `<button class="prow" data-player="${esc(id)}" aria-label="${esc(p.name || id)} player page">
+      <span class="ini" aria-hidden="true">${esc(initials(p.name))}</span>
+      <span class="pr-main"><span class="pr-name"><b>${esc(p.name || id)}</b>${p.inj ? `<i class="inj">${esc(p.inj)}</i>` : ''}${sub ? `<small>${esc(sub)}</small>` : ''}</span>
+        <span class="pr-line" style="--n:${ROSTER_LINE[sport].length}">${line}</span>
+        ${chips ? `<span class="pr-tn"><span class="pr-tl">Tonight:</span>${chips}</span>` : ''}</span></button>`;
+  }
+  function rosterTab(sport, date, g, code) {
+    const e = ensureSlate(sport, date);
+    if (e.st === 'loading') return skRows(4);
+    if (e.st === 'err') return `<div class="card empty"><h2>Couldn’t load players</h2><p>Check your connection and try again.</p><button class="pillbtn retry" data-retry-slate="${esc(sport + '/' + date)}">Retry</button></div>`;
+    const sl = e.st === 'ok' ? (e.data || {}) : {};
+    const list = Object.entries(sl.players || {}).filter(([, p]) => p && p.team === code && String(p.gid) === String(g.gid))
+      .map(([id, p]) => ({ id, p, w: ensurePlayer(sport, id) }));
+    if (!list.length) return empty('Bets', 'No players for ' + code + ' yet', 'Players show up here once the slate is published.', 0);
+    const dd = (r) => (r.w.st === 'ok' ? r.w.data || {} : {});
+    const mins = (r) => ((dd(r).st || {}).min);
+    list.sort((x, y) => {
+      let c = 0;
+      if (sport === 'nba') c = (dd(x).role === 'S' ? 0 : 1) - (dd(y).role === 'S' ? 0 : 1) || (isNum(mins(y)) ? mins(y) : -1) - (isNum(mins(x)) ? mins(x) : -1);
+      else c = roleRank(dd(x).role) - roleRank(dd(y).role);
+      return c || (x.p.name < y.p.name ? -1 : x.p.name > y.p.name ? 1 : 0);
+    });
+    const best = bestSides(betRows(sl, g.gid));
+    return `<div class="plist">${list.map((r) => rosterRow(sport, r.id, r.p, r.w, best)).join('')}</div>`;
+  }
+
+  const pHead = (extra) => `<div class="pagehead">${backBtn}</div>${extra || ''}`;
+  function playerView(sport, pid) {
+    ensureMeta(sport);
+    const pe = ensurePlayer(sport, pid), sc = ensureSched(sport);
+    if (!store.idxDone || sc.st === 'loading' || store.meta[sport].st === 'loading' || pe.st === 'loading') {
+      return pHead(`<div class="phero"><span class="dot"></span><span class="bars">${bar('w70')}${bar('w55')}</span></div>${rowsGeneric(3)}`);
+    }
+    if (pe.st === 'err') return pHead(`<div class="card empty"><h2>Couldn’t load player</h2><p>Check your connection and try again.</p><button class="pillbtn retry" data-retry-player="${esc(sport + '/' + pid)}">Retry</button></div>`);
+    if (pe.st !== 'ok') return pHead(`<div class="card empty"><h2>No data for this player</h2><p>This player has no published stats yet.</p></div>`);
+    const d = pe.data || {}, cols = COLS[sport];
+    const date = selDate(sport), se = ensureSlate(sport, date);
+    const sl = se.st === 'ok' ? (se.data || {}) : null;
+    const sp = sl && sl.players && sl.players[pid];
+    const name = d.name || (sp && sp.name) || pid;
+    const team = d.team || (sp && sp.team) || '';
+    const inj = (sp && sp.inj) || d.inj || '', note = (sp && sp.injNote) || d.injNote || '', src = (sp && sp.injSrc) || d.src || '';
+    const injHtml = inj ? `<div class="pinj"><i class="inj">${esc(inj)}</i>${note ? `<span>${esc(note)}</span>` : ''}${src ? `<small>${esc(src)}</small>` : ''}</div>` : '';
+    const meta = [roleTxt(sport, d), isNum(d.gp) ? 'GP ' + d.gp : ''].filter(Boolean).join(' · ');
+    const hero = `<div class="phero"><span class="ini xl" aria-hidden="true">${esc(initials(name))}</span>
+      <span class="pinfo"><h2 class="tname-xl">${esc(name)}</h2>
+        <span class="pteam">${team ? tbadge(sport, team, '', `#${sport}/team/${encodeURIComponent(team)}`, true) : ''}<span class="pmeta">${esc(meta)}</span></span>${injHtml}</span></div>`;
+    // Tonight: his props, best EV side per stat, sorted by EV
+    let tonight = '';
+    if (se.st === 'loading') tonight = sec('Tonight') + skRows(2);
+    else if (sp) {
+      const mine = Object.values(bestSides(betRows(sl, sp.gid).filter((r) => String(r.b.pid) === String(pid)))).sort((x, y) => y.ph.ev - x.ph.ev);
+      tonight = sec('Tonight') + (mine.length ? `<div class="betlist">${mine.map(betRow).join('')}</div>` : '<div class="card empty"><p>No props for this player yet.</p></div>');
+    }
+    const st = d.st || {}, l5 = d.l5 || {};
+    const grid = `<div class="svl" style="--n:${cols.length}"><span class="svl-h"></span>${cols.map((c) => `<span class="svl-h">${c[1]}</span>`).join('')}
+      <span class="svl-l">Season</span>${cols.map((c) => `<span class="svl-v">${fx(st[c[0]], c[2])}</span>`).join('')}
+      <span class="svl-l">Last 5</span>${cols.map((c) => `<span class="svl-v">${fx(l5[c[0]], c[2])}</span>`).join('')}</div>`;
+    const logs = Array.isArray(d.logs) ? d.logs.slice().reverse() : [];
+    const opt = sport === 'nba' ? 'tpa' : 'blk';
+    const cl = (c) => (c[0] === opt ? ' c-opt' : '');
+    const lv = (c, v, i) => (isNum(v) ? (sport === 'nhl' && i === 0 ? v.toFixed(1) : String(v)) : '—');
+    const glog = logs.length
+      ? `<div class="glog" style="--n:${cols.length};--n2:${cols.length - 1}"><div class="gl-row gl-h"><span>Date</span><span>Opp</span>${cols.map((c) => `<span class="${cl(c).trim()}">${c[1]}</span>`).join('')}</div>
+        ${logs.map((r) => `<div class="gl-row"><span>${esc(String(r[0] || '—').replace('-', '/'))}</span><span>${r[2] === 1 ? 'vs' : r[2] === 0 ? '@' : ''} ${esc(r[1] || '—')}</span>${cols.map((c, i) => `<span class="${cl(c).trim()}">${lv(c, r[3 + i], i)}</span>`).join('')}</div>`).join('')}</div>`
+      : '<div class="card empty"><p>No game log yet.</p></div>';
+    return pHead(hero + tonight + sec('Season vs Last 5') + grid + sec('Game log') + glog);
   }
 
   function teamView(sport, code) {
@@ -512,9 +621,9 @@
     const sport = SPORTS[r] ? r : 'nba';
     const kind = SUBTITLES[p[1]] ? p[1] : 'root';
     if (p[1] === 'day' && /^\d{4}-\d{2}-\d{2}$/.test(p[2] || '')) return { key: sport + '/day', sport, kind: 'day', id: p[2] };
-    let id = kind === 'game' ? (/^[A-Za-z0-9_-]{1,40}$/.test(p[2] || '') ? p[2] : '') : kind === 'player' ? 'sample' : '';
+    let id = kind === 'game' ? (/^[A-Za-z0-9_-]{1,40}$/.test(p[2] || '') ? p[2] : '') : kind === 'player' ? (/^[A-Za-z0-9_-]{1,40}$/.test(p[2] || '') ? p[2] : '') : '';
     if (kind === 'team') id = /^[A-Za-z0-9]{1,4}$/.test(p[2] || '') ? p[2].toUpperCase() : '\u2014';
-    if (kind === 'game' && !id) return { key: sport, sport, kind: 'root', id: '' };
+    if ((kind === 'game' || kind === 'player') && !id) return { key: sport, sport, kind: 'root', id: '' };
     return { key: [sport, kind, id].filter(Boolean).join('/'), sport, kind, id };
   }
 
@@ -539,7 +648,7 @@
         `<div class="tiles" aria-label="${esc(state.filter)} results, data coming next">${['W-L', 'Win %', 'Units', 'ROI'].map(tile).join('')}</div>`;
     } else if (c.kind === 'standings') view.innerHTML = standings(c.sport);
     else if (c.kind === 'game') view.innerHTML = gameView(c.sport, c.id);
-    else if (c.kind === 'player') view.innerHTML = playerView(c.sport);
+    else if (c.kind === 'player') view.innerHTML = playerView(c.sport, c.id);
     else if (c.kind === 'team') view.innerHTML = teamView(c.sport, c.id);
     else view.innerHTML = sportRoot(c.sport);
 
@@ -564,6 +673,8 @@
     if (d.back !== undefined) return goBack();
     if (d.retry) { delete store.days[d.retry]; const m = store.meta[sportOf()]; if (m && m.st === 'err') delete store.meta[sportOf()]; render(); return; }
     if (d.retrySlate) { delete store.slates[d.retrySlate]; render(); return; }
+    if (d.player) { location.hash = '#' + sportOf() + '/player/' + encodeURIComponent(d.player); return; }
+    if (d.retryPlayer) { delete store.players[d.retryPlayer]; render(); return; }
     if (d.bet) { if (state.betOpen[d.bet]) delete state.betOpen[d.bet]; else state.betOpen[d.bet] = true; }
     else if (d.sort) state.betSort = d.sort;
     else if (d.sub) state.gameTab = d.sub;
@@ -576,6 +687,10 @@
   // Track in-app history so the back button can use real browser back when possible.
   const stack = [location.hash];
   function parentHash() {
+    if (cur.kind === 'player') {
+      const se = store.slates[selDate(cur.sport) && cur.sport + '/' + selDate(cur.sport)], p = se && se.st === 'ok' && se.data.players && se.data.players[cur.id];
+      if (p && p.gid) return `#${cur.sport}/game/${encodeURIComponent(p.gid)}`;
+    }
     return `#${cur.sport || 'nba'}`;
   }
   function goBack() {
