@@ -21,6 +21,8 @@
     filter: 'All',
     betSort: 'ev', // game Bets tab sort: ev | grade | player
     betOpen: {}, // expanded bet rows (bet id -> true), kept in memory
+    cmpSplit: 'season', // game Game tab comparison: season | l5 | ha
+    infoOpen: {}, // open definition notes ('<sport>/<key>' -> true)
   };
   let cur = { key: '', sport: null, kind: 'root', id: '' };
 
@@ -80,7 +82,7 @@
       const on = seg.querySelector('button.on');
       if (!hl || !on) return;
       const b0 = seg.querySelector('button').dataset;
-      const kind = b0.sub !== undefined ? 'sub' : b0.sort !== undefined ? 'sort' : 'filter';
+      const kind = b0.sub !== undefined ? 'sub' : b0.sort !== undefined ? 'sort' : b0.cmp !== undefined ? 'cmp' : 'filter';
       const x = on.offsetLeft, w = on.offsetWidth;
       const prev = lastHl[kind];
       lastHl[kind] = { x, w };
@@ -101,7 +103,7 @@
 
 
   // ---- data layer ----
-  const store = { days: {}, meta: {}, sched: {}, slates: {}, players: {}, idx: null, idxDone: false };
+  const store = { days: {}, meta: {}, sched: {}, slates: {}, players: {}, teams: {}, idx: null, idxDone: false };
   const MINUS = '−';
   const ver = () => (store.idx && store.idx.updated ? '?v=' + encodeURIComponent(store.idx.updated) : '');
   async function getJSON(url, opts) {
@@ -143,6 +145,19 @@
     const e = store.slates[k] = { st: 'loading', sp, date };
     indexP.then(() => getJSON('../slates/' + sp + '/' + date + '.json' + ver())).then((r) => {
       if (r.nf) e.st = '404'; else { e.st = 'ok'; e.data = r.data || {}; }
+    }, () => { e.st = 'err'; }).then(rerender);
+    return e;
+  }
+  // Research-world team stats: ../teams/<sp>.json ({ defs, teams: { CODE: { split: { season, l5, home, away, ... } } } }), cached per sport
+  function ensureTeams(sp) {
+    if (store.teams[sp]) return store.teams[sp];
+    const e = store.teams[sp] = { st: 'loading' };
+    indexP.then(() => {
+      const s = store.idx && store.idx.sports && store.idx.sports[sp];
+      if (store.idx && !(s && s.teams)) return { nf: true };
+      return getJSON('../teams/' + sp + '.json' + ver());
+    }).then((r) => {
+      if (r.nf || !r.data) e.st = '404'; else { e.st = 'ok'; e.data = r.data; }
     }, () => { e.st = 'err'; }).then(rerender);
     return e;
   }
@@ -377,11 +392,8 @@
     let body;
     state.betGid = g.gid;
     if (tab === 'bets') body = betsTab(sport, f.date);
-    else if (tab === 'game') {
-      const row = (l, r) => `<div><div class="cmp-top"><span class="v">—</span><span class="lab"><span class="bar"></span></span><span class="v">—</span></div>
-        <div class="split"><i style="flex:${l}"></i><i style="flex:${r}"></i></div></div>`;
-      body = `<div class="card cmp" aria-hidden="true">${row(55, 45)}${row(40, 60)}${row(50, 50)}</div>`;
-    } else body = rosterTab(sport, f.date, g, tab === 'away' ? aw : hm);
+    else if (tab === 'game') body = gameTab(sport, f.date, g);
+    else body = rosterTab(sport, f.date, g, tab === 'away' ? aw : hm);
     const fin = g.status === 'final' && g.final;
     const center = fin
       ? `<span class="big fin">${esc(g.final.away)}<i>–</i>${esc(g.final.home)}</span><span class="lbl">Final${g.ot ? '/' + esc(g.ot) : ''}</span>`
@@ -394,6 +406,105 @@
       <div class="ghead">${team(aw, 'away')}<div class="gcenter">${center}${lp}</div>${team(hm, 'home')}</div>
       <div class="subtabs">${segmented(TABS.map(([k, l]) => [k, k === 'away' ? aw : k === 'home' ? hm : l]), tab, 'data-sub')}</div>
       ${body}`;
+  }
+  // ---- game Game tab: model projection, team comparison, injuries, goalies ----
+  const CMP_SPLITS = [['season', 'Season'], ['l5', 'Last 5'], ['ha', 'Home/Road']];
+  // [key, label, kind ('pct' = fraction shown as %), lowerIsBetter]
+  const CMP_STATS = {
+    nba: [['tt', 'PPG'], ['oppg', 'Opp PPG', '', 1], ['pace', 'Pace'], ['ortg', 'ORtg'], ['drtg', 'DRtg', '', 1], ['net', 'Net'],
+      ['efg', 'eFG%', 'pct'], ['tp', '3P%', 'pct'], ['reb', 'REB'], ['tovp', 'TOV%', 'pct', 1]],
+    nhl: [['gf', 'GF'], ['ga', 'GA', '', 1], ['sf', 'SF'], ['sa', 'SA', '', 1], ['sv', 'SV%', 'pct'], ['sh', 'SH%', 'pct'], ['pdo', 'PDO']],
+  };
+  // small tappable info icon + its note (generic: any label whose key has a text in `defs`)
+  const infoBtn = (sport, key, defs) => (defs && defs[key]
+    ? `<button class="info" data-info="${esc(sport + '/' + key)}" aria-expanded="${!!state.infoOpen[sport + '/' + key]}" aria-label="What is this?">i</button>` : '');
+  const infoNote = (sport, key, defs) => (defs && defs[key] && state.infoOpen[sport + '/' + key] ? `<div class="info-note">${esc(defs[key])}</div>` : '');
+  const toNum = (v) => { const n = typeof v === 'string' && v.trim() === '' ? NaN : parseFloat(v); return isFinite(n) ? n : null; };
+  const projOf = (sg) => {
+    for (const k of ['close', 'open']) {
+      const p = sg && sg['proj_' + k];
+      if (p && !p.err && isNum(p.away) && isNum(p.home) && isNum(p.total)) return { p, tag: k };
+    }
+    return null;
+  };
+  function projCard(sport, g, sg) {
+    const pr = projOf(sg);
+    if (!pr) return '';
+    const { p, tag } = pr, dp = sport === 'nhl' ? 2 : 1;
+    const ln = (sg['lines_' + tag] && toNum(sg['lines_' + tag].total) !== null) ? [sg['lines_' + tag], tag] : [sg.lines_open, 'open'];
+    const lines = (ln[0]) || {}, lineTag = ln[1];
+    const bookTot = toNum(lines.total);
+    const bookTag = bookTot !== null && lineTag !== tag ? ` <small>${lineTag}</small>` : '';
+    const cmpLine = (label, model, book, mTxt, bTxt, diffDp) => `<div class="proj-row"><span class="lbl">${label}</span>
+      <span class="proj-v"><b>Model ${mTxt}</b><span class="sep">·</span><span class="book">Book ${book === null ? '—' : bTxt}${bookTag}</span>${book === null ? '' : ` <span class="diff">(${sgn(model - book, diffDp)})</span>`}</span></div>`;
+    let rows = cmpLine('Total', p.total, bookTot, p.total.toFixed(dp), String(bookTot), dp);
+    if (sport === 'nba' && isNum(p.margin)) {
+      const sp = toNum(lines.spread);
+      const bm = sp === null ? null : sp === 0 ? 0 : lines.fav === 'A' ? sp : lines.fav === 'B' ? -sp : null;
+      const mt = (v) => esc(g.away) + ' ' + sgn(v, 1);
+      rows += cmpLine('Margin', p.margin, bm, mt(p.margin), mt(bm === null ? 0 : bm), 1);
+    }
+    if (sport === 'nhl' && isNum(p.winAway) && isNum(p.winHome)) {
+      rows += `<div class="proj-row"><span class="lbl">Win prob</span><span class="proj-v"><b>${esc(g.away)} ${p.winAway.toFixed(1)}%</b><span class="sep">·</span><b>${esc(g.home)} ${p.winHome.toFixed(1)}%</b></span></div>`;
+    }
+    return `${sec('Model projection')}<div class="card proj"><div class="proj-head"><span class="lbl">${sport === 'nhl' ? 'Expected goals' : 'Projected score'}</span><small class="ptag">${tag}</small></div>
+      <div class="proj-score"><span class="pc">${esc(g.away)}</span><b>${p.away.toFixed(dp)}</b><i>–</i><b>${p.home.toFixed(dp)}</b><span class="pc">${esc(g.home)}</span></div>${rows}</div>`;
+  }
+  const fmtStat = (v, kind) => (isNum(v) ? (kind === 'pct' ? (v * 100).toFixed(1) + '%' : v.toFixed(1)) : '—');
+  function cmpCard(sport, g) {
+    const te = ensureTeams(sport);
+    if (te.st === 'loading') return sec('Team comparison') + skRows(3);
+    const tm = te.st === 'ok' ? (te.data.teams || {}) : {};
+    if (!tm[g.away] && !tm[g.home]) return sec('Team comparison') + `<div class="card empty"><h2>${te.st === 'err' ? 'Couldn’t load team stats' : 'No team stats yet'}</h2><p>${te.st === 'err' ? 'Check your connection and try again.' : 'Team stats show up here once they are published.'}</p></div>`;
+    const sk = state.cmpSplit === 'ha' ? ['away', 'home'] : [state.cmpSplit, state.cmpSplit];
+    const A = ((tm[g.away] || {}).split || {})[sk[0]] || {}, H = ((tm[g.home] || {}).split || {})[sk[1]] || {};
+    const defs = te.data.defs || {};
+    const rows = CMP_STATS[sport].filter(([k]) => isNum(A[k]) || isNum(H[k])).map(([k, label, kind, low]) => {
+      const a = A[k], h = H[k];
+      let share = 0.5, ba = false, bh = false;
+      if (isNum(a) && isNum(h)) {
+        const den = Math.abs(a) + Math.abs(h);
+        if (den > 0) share = Math.min(0.9, Math.max(0.1, 0.5 + (low ? -1 : 1) * (a - h) / (2 * den)));
+        const ta = fmtStat(a, kind), th = fmtStat(h, kind);
+        if (a !== h) { ba = low ? a < h : a > h; bh = !ba; }
+        if (ta === th) { ba = bh = false; }
+      }
+      return `<div><div class="cmp-top"><span class="v${ba ? ' best' : ''}">${fmtStat(a, kind)}</span><span class="lab">${esc(label)}${infoBtn(sport, k, defs)}</span><span class="v${bh ? ' best' : ''}">${fmtStat(h, kind)}</span></div>
+        ${infoNote(sport, k, defs)}<div class="split"><i style="flex:${share}"></i><i style="flex:${1 - share}"></i></div></div>`;
+    });
+    if (!rows.length) return sec('Team comparison') + '<div class="card empty"><h2>No team stats yet</h2><p>This split has no games played.</p></div>';
+    const gp = (o) => (isNum(o.gp) ? o.gp : '—');
+    return `${sec('Team comparison')}<div class="cmp-head">${segmented(CMP_SPLITS, state.cmpSplit, 'data-cmp', 'cmpseg')}</div>
+      <div class="card cmp"><div class="cmp-teams"><span>${esc(g.away)}<small>${gp(A)} GP</small></span><span>${esc(g.home)}<small>${gp(H)} GP</small></span></div>${rows.join('')}</div>`;
+  }
+  const INJ_CLS = { out: 'bad', doubtful: 'bad', questionable: 'warn', 'day-to-day': 'warn', dtd: 'warn', probable: 'ok' };
+  // "Name (starter, Questionable, Ankle)" -> { name, status, rest }
+  function parseInj(str) {
+    const m = /^(.*?)\s*\((.*)\)\s*$/.exec(String(str));
+    if (!m) return { name: String(str), status: '', rest: '' };
+    const parts = m[2].split(',').map((x) => x.trim()).filter(Boolean);
+    const i = parts.findIndex((x) => INJ_CLS[x.toLowerCase()]);
+    if (i < 0) return { name: m[1], status: '', rest: parts.join(', ') };
+    return { name: m[1], status: parts[i], rest: parts.filter((_, j) => j !== i).join(', ') };
+  }
+  function injCol(code, list) {
+    const items = (list || []).map(parseInj).map((x) => `<div class="inj-row"><span class="inj-n">${esc(x.name)}</span>
+      <span class="inj-s ${INJ_CLS[x.status.toLowerCase()] || ''}">${esc(x.status || '—')}</span>${x.rest ? `<span class="inj-d">${esc(x.rest)}</span>` : ''}</div>`).join('');
+    return `<div class="inj-col"><div class="lbl">${esc(code)}</div>${items || '<div class="bet-none">No injuries reported</div>'}</div>`;
+  }
+  function goalieCol(code, gl) {
+    if (!gl || !gl.name) return `<div class="inj-col"><div class="lbl">${esc(code)}</div><div class="bet-none">—</div></div>`;
+    const meta = [isNum(gl.sv) ? 'SV% ' + gl.sv.toFixed(3).replace(/^0/, '') : '', isNum(gl.gp) ? gl.gp + ' GP' : '', gl.why || ''].filter(Boolean).join(' · ');
+    return `<div class="inj-col"><div class="lbl">${esc(code)}</div><div class="inj-row"><span class="inj-n">${esc(gl.name)}</span></div>${meta ? `<div class="inj-d">${esc(meta)}</div>` : ''}</div>`;
+  }
+  function gameTab(sport, date, g) {
+    const se = ensureSlate(sport, date);
+    const sg = se.st === 'ok' && se.data && se.data.games ? se.data.games[g.gid] : null;
+    let out = sg ? projCard(sport, g, sg) : '';
+    out += cmpCard(sport, g);
+    if (sg && sg.inj && (sg.inj.A || sg.inj.B)) out += `${sec('Injuries')}<div class="card inj-card">${injCol(g.away, sg.inj.A)}${injCol(g.home, sg.inj.B)}</div>`;
+    if (sg && sg.goalies) out += `${sec('Goalies')}<div class="card inj-card">${goalieCol(g.away, sg.goalies.A)}${goalieCol(g.home, sg.goalies.B)}</div>`;
+    return out;
   }
   // ---- game Bets tab: projections list ----
   const BET_STAT = { pts: 'PTS', reb: 'REB', ast: 'AST', tpm: '3PM', pra: 'PRA', pr: 'P+R', pa: 'P+A', ra: 'R+A', sog: 'SOG', g: 'G', a: 'A' };
@@ -678,6 +789,8 @@
     if (d.bet) { if (state.betOpen[d.bet]) delete state.betOpen[d.bet]; else state.betOpen[d.bet] = true; }
     else if (d.sort) state.betSort = d.sort;
     else if (d.sub) state.gameTab = d.sub;
+    else if (d.cmp) state.cmpSplit = d.cmp;
+    else if (d.info) { if (state.infoOpen[d.info]) delete state.infoOpen[d.info]; else state.infoOpen[d.info] = true; }
     else if (d.day) state.sel[sportOf()] = d.day;
     else if (d.filter) state.filter = d.filter;
     else return;
