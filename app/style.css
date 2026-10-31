@@ -523,3 +523,59 @@ button.prow{width:100%;text-align:left;align-items:flex-start;min-height:64px}
 /* player tags: chips on roster cards, pills in the player hero */
 .rc-top .tchips{margin-left:auto}
 .ph-tags{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 12px}
+
+/* ---- Model vs book card ---- */
+.mvb{padding:14px 12px 12px;margin:0 0 16px}
+.mvb-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.mvb-l1{margin-top:10px;font:600 13px/1.35 var(--f-b);color:var(--ink)}
+.mvb-l1 .sep{color:var(--faint);margin:0 3px}
+.mvb-l2{margin-top:3px;font:700 14px/1.3 var(--f-b);color:var(--muted)}
+.mvb-l2.lv1{color:var(--pos)}
+.mvb-l2.lv2{color:var(--pos-hi)}
+.mvb-score{display:flex;align-items:flex-end;justify-content:center;gap:14px;margin:12px 0 12px}
+.mvb-score i{font-style:normal;font:700 30px/1 var(--f-d);color:var(--faint);padding-bottom:2px}
+.mvb-t{display:flex;flex-direction:column;align-items:center;gap:3px}
+.mvb-t .pc{font:700 13px/1 var(--f-d);letter-spacing:.08em;color:var(--muted)}
+.mvb-t b{font:700 34px/1 var(--f-d);letter-spacing:.03em}
+.mvb-tab{display:grid;grid-template-columns:minmax(52px,.9fr) minmax(0,1fr) minmax(0,1fr) minmax(76px,1.15fr);column-gap:0;align-items:center;border-top:1px solid var(--line)}
+.mvb-tab>*{padding:8px 6px 8px 0;border-bottom:1px solid var(--line);min-width:0}
+.mvb-tab>:nth-last-child(-n+4){border-bottom:0}
+.mvb-h{font:600 9.5px/1 var(--f-b);letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.mvb-lab{display:flex;align-items:center;gap:4px;font:600 11px/1.2 var(--f-b);color:var(--muted)}
+.mvb-v{font:500 11.5px/1.2 var(--f-m);color:var(--muted);white-space:nowrap}
+.mvb-v.mod{color:var(--ink);font-weight:700}
+.edge-c{padding-right:0!important;display:flex;flex-direction:column;align-items:flex-end;gap:2px;text-align:right}
+.edge-c small{font:500 9.5px/1 var(--f-m);color:var(--faint)}
+.edge{display:inline-block;padding:4px 7px 3px;border-radius:999px;font:700 11px/1.1 var(--f-m);white-space:nowrap;background:rgba(142,166,156,.14);color:var(--muted)}
+.edge.lv1{background:rgba(62,230,160,.16);color:var(--pos)}
+.edge.lv2{background:var(--pos);color:#05261a}
+@media (max-width:340px){.mvb{padding:12px 8px}.mvb-tab{grid-template-columns:58px minmax(0,1fr) minmax(0,1fr) auto}.mvb-lab{font-size:10.5px;white-space:nowrap}.mvb-lab .info{width:13px;height:13px;font-size:8px;line-height:11px}.mvb-tab>*{padding-right:4px}.mvb-v{font-size:10.5px}.edge{font-size:10px;padding:4px 6px 3px}}
+
+/* ---- game Bets tab: Over / Under / Model toggle + player table ---- */
+.sidetog{margin:0 0 10px}
+.sideseg{width:100%}
+.sideseg button{min-height:38px;font-size:12.5px}
+.btab{display:grid;grid-template-columns:52px repeat(var(--n),minmax(0,1fr));column-gap:2px;align-items:center;padding:6px 8px 8px 0;table-layout:fixed}
+.btab>*{min-width:0;min-height:30px}
+.bt-l{display:flex;align-items:center;gap:3px;padding-left:12px;font:600 9.5px/1 var(--f-b);letter-spacing:.04em;text-transform:uppercase;color:var(--faint);white-space:nowrap}
+.bt-l .info{width:14px;height:14px;font-size:9px;line-height:12px}
+.bt-h{text-align:center;font:600 9.5px/1 var(--f-b);letter-spacing:.04em;color:var(--muted);align-self:center;padding:2px 0}
+.bt-v,.bt-c{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-align:center;font:600 12px/1.1 var(--f-m);color:var(--ink);white-space:nowrap;border-radius:8px;padding:2px 0}
+.bt-v.nil{color:var(--faint);font-weight:500}
+.bt-c{width:100%}
+.bt-c:active,.bt-c.open{background:var(--card2)}
+.bt-c.open{box-shadow:inset 0 0 0 1px rgba(62,230,160,.35)}
+.bt-line b{font-weight:600}
+.bt-line small{font:500 11px/1 var(--f-m);color:var(--muted)}
+.bt-pj i{font-style:normal;font-size:8px;margin-left:2px;vertical-align:1px;display:inline}
+.bt-pj{display:block;line-height:30px}
+.bt-pj.ev{font:600 12px/30px var(--f-m)}
+.bt-ev .ev{font-size:12px}
+.bt-ev .grade-badge{font-size:11px;min-width:22px;padding:2px 6px 1px}
+.btab .hl{background:rgba(62,230,160,.07)}
+.bt-h.hl{color:var(--ink)}
+.pcard .info-note{margin:0 12px 8px}
+.pcard .bet-ctx{border-top:1px solid var(--line)}
+.bt-foot{display:block;width:100%;min-height:40px;padding:0 12px;border-top:1px solid var(--line);text-align:left;font:600 12px/1 var(--f-b);color:var(--accent)}
+.bt-foot:active{background:var(--card2)}
+@media (max-width:340px){.btab{padding-right:6px}.bt-v,.bt-c{font-size:11.5px}.bt-l{padding-left:10px}}

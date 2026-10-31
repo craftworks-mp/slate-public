@@ -14,13 +14,20 @@
     nhl: ['G', 'A', 'PTS', 'SOG', 'TOI', '+/-', 'PIM', 'PPP', 'HIT', 'BLK'],
   };
   const TABS = [['bets', 'Bets'], ['game', 'Game'], ['away', 'AWAY'], ['home', 'HOME']];
+  // Model vs Book edge chip thresholds, per sport: [lean, strong]. spread = points, total/tt = % of the book line, win = win % points.
+  // spread: null = always gray (thresholds not decided yet; the chip still shows the edge).
+  const EDGE_T = {
+    nba: { spread: [1.5, 3], total: [1, 2.5], tt: [1, 2.5], win: [2, 5] },
+    nhl: { spread: null, total: [1, 2.5], tt: [1, 2.5], win: [2, 5] },
+  };
 
   const state = {
     sel: { nfl: null, nba: null, nhl: null }, // selected date per sport (null = default), kept in memory
     gameTab: 'bets',
     filter: 'All',
     betSort: 'ev', // game Bets tab sort: ev | grade | player
-    betF: { ga: false, side: '', mkt: '', both: false }, // game Bets tab filters, kept across games
+    betF: { ga: false, mkt: '' }, // game Bets tab filters, kept across games
+    betSide: 'model', // game Bets tab side toggle: model (pick side) | o | u
     betOpen: {}, // expanded bet rows (bet id -> true), kept in memory
     cmpSplit: 'season', // game Game tab comparison: season | l5 | ha
     playerTab: '', // player page tab (tonight | trends | matchup | recent); '' = default by props, kept across players
@@ -87,7 +94,7 @@
       const on = seg.querySelector('button.on');
       if (!hl || !on) return;
       const b0 = seg.querySelector('button').dataset;
-      const kind = b0.sub !== undefined ? 'sub' : b0.sort !== undefined ? 'sort' : b0.cmp !== undefined ? 'cmp' : b0.ptab !== undefined ? 'ptab' : 'filter';
+      const kind = b0.sub !== undefined ? 'sub' : b0.sort !== undefined ? 'sort' : b0.cmp !== undefined ? 'cmp' : b0.ptab !== undefined ? 'ptab' : b0.bside !== undefined ? 'bside' : 'filter';
       const x = on.offsetLeft, w = on.offsetWidth;
       const prev = lastHl[kind];
       lastHl[kind] = { x, w };
@@ -568,6 +575,7 @@
       ${empty('Standings', 'Standings', 'Standings land with the data step.', 0)}`;
   }
 
+  const mvbSlate = (sport, date) => { const e = ensureSlate(sport, date); return e.st === 'ok' ? e.data || {} : null; };
   function liveGameView(sport, id) {
     ensureMeta(sport);
     const f = findGame(sport, id);
@@ -594,11 +602,12 @@
       ? `<span class="big fin">${esc(g.final.away)}<i>–</i>${esc(g.final.home)}</span><span class="lbl">Final${g.ot ? '/' + esc(g.ot) : ''}</span>`
       : g.status === 'post' ? '<span class="big">—</span><span class="lbl">Postponed</span>'
         : `<span class="big">${esc(ktxt(g))}</span>${g.status === 'pending' ? '<span class="lbl amber">Final pending</span>' : g.status === 'live' ? '<span class="lbl amber">Live</span>' : ''}${g.status === 'scheduled' && g.bc && g.bc[0] ? `<span class="kline">${esc(g.bc[0])}</span>` : ''}`;
-    const lp = lineParts(g).map((p) => `<span class="kline">${p}</span>`).join('');
+    const lp = headLineParts(g, mvbSlate(sport, f.date)).map((p) => `<span class="kline">${p}</span>`).join('');
     const team = (code, side) => `<div class="gteam">${tbadge(sport, code, 'l', `#${sport}/team/${encodeURIComponent(code)}`, false)}
       <span class="rec">${esc(recFor(sport, g, side) || '—')}</span><span class="tn">${esc(tinfo(sport, code).short || '')}</span></div>`;
     return `<div class="pagehead">${backBtn}<div class="chips" aria-label="Games this day">${chips}</div></div>
       <div class="ghead">${team(aw, 'away')}<div class="gcenter">${center}${lp}</div>${team(hm, 'home')}</div>
+      ${mvbCard(sport, g, mvbSlate(sport, f.date))}
       <div class="subtabs">${segmented(TABS.map(([k, l]) => [k, k === 'away' ? aw : k === 'home' ? hm : l]), tab, 'data-sub')}</div>
       ${body}`;
   }
@@ -614,7 +623,6 @@
   const infoBtn = (sport, key, defs) => (defs && defs[key]
     ? `<button class="info" data-info="${esc(sport + '/' + key)}" aria-expanded="${!!state.infoOpen[sport + '/' + key]}" aria-label="What is this?">i</button>` : '');
   const infoNote = (sport, key, defs) => (defs && defs[key] && state.infoOpen[sport + '/' + key] ? `<div class="info-note">${esc(defs[key])}</div>` : '');
-  const toNum = (v) => { const n = typeof v === 'string' && v.trim() === '' ? NaN : parseFloat(v); return isFinite(n) ? n : null; };
   const projOf = (sg) => {
     for (const k of ['close', 'open']) {
       const p = sg && sg['proj_' + k];
@@ -622,28 +630,101 @@
     }
     return null;
   };
-  function projCard(sport, g, sg) {
+  // ---- Model vs Book card (NBA + NHL), shown above the game tabs ----
+  const MVB_DEFS = {
+    mvb: 'Model = our projection. Book = DraftKings line. Edge = how far apart they are. Grades and EV for game lines stay hidden until they pass the calibration check.',
+    winpct: 'Book win % is the moneyline price turned into a probability, with the bookmaker’s cut removed so both sides add to 100%. Edge = how many percentage points our model is above or below it.',
+  };
+  // latest phase of each game-line bet: { stat: { side: { line, odds } } } (close if present, else open)
+  // game header line: latest phase (close, else open) of the game-line bets, like the Model vs Book card (user 10/31 16:44); else the day file's line
+  function headLineParts(g, slate) {
+    const bk = slate ? bookLines(slate, g.gid) : {}, out = [];
+    const sA = bk.spread && bk.spread.A ? bk.spread.A.line : null, sB = bk.spread && bk.spread.B ? bk.spread.B.line : null;
+    const lA = isNum(sA) ? sA : isNum(sB) ? -sB : null;
+    const tl = bk.total ? ((bk.total.o || {}).line ?? (bk.total.u || {}).line) : null;
+    if (!isNum(lA) && !isNum(tl)) return lineParts(g);
+    if (isNum(lA)) out.push(lA === 0 ? 'PK' : esc(lA < 0 ? g.away : g.home) + ' ' + MINUS + esc(String(Math.abs(lA))));
+    if (isNum(tl)) out.push('O/U ' + esc(String(tl)));
+    return out;
+  }
+  function bookLines(slate, gid) {
+    const out = {};
+    Object.values(slate.bets || {}).forEach((b) => {
+      if (!b || b.type !== 'game' || String(b.gid) !== String(gid)) return;
+      const has = (p) => p && (isNum(p.line) || isNum(p.odds));
+      const ph = has(b.close) ? b.close : b.open;
+      if (!has(ph)) return;
+      (out[b.stat] = out[b.stat] || {})[b.side] = { line: isNum(ph.line) ? ph.line : null, odds: isNum(ph.odds) ? ph.odds : null };
+    });
+    return out;
+  }
+  // 0 = gray, 1 = lean, 2 = strong
+  const edgeLevel = (m, th) => (!th ? 0 : m >= th[1] ? 2 : m >= th[0] ? 1 : 0);
+  function edgeChip(txt, lv, sub) {
+    return `<span class="edge-c"><span class="edge lv${lv}">${txt}</span>${sub ? `<small>${sub}</small>` : ''}</span>`;
+  }
+  const impProb = (o) => (o > 0 ? 100 / (o + 100) : -o / (-o + 100));
+  function mvbCard(sport, g, slate) {
+    if (sport !== 'nba' && sport !== 'nhl') return '';
+    const sg = slate && slate.games ? slate.games[g.gid] : null;
     const pr = projOf(sg);
     if (!pr) return '';
-    const { p, tag } = pr, dp = sport === 'nhl' ? 2 : 1;
-    const ln = (sg['lines_' + tag] && toNum(sg['lines_' + tag].total) !== null) ? [sg['lines_' + tag], tag] : [sg.lines_open, 'open'];
-    const lines = (ln[0]) || {}, lineTag = ln[1];
-    const bookTot = toNum(lines.total);
-    const bookTag = bookTot !== null && lineTag !== tag ? ` <small>${lineTag}</small>` : '';
-    const cmpLine = (label, model, book, mTxt, bTxt, diffDp) => `<div class="proj-row"><span class="lbl">${label}</span>
-      <span class="proj-v"><b>Model ${mTxt}</b><span class="sep">·</span><span class="book">Book ${book === null ? '—' : bTxt}${bookTag}</span>${book === null ? '' : ` <span class="diff">(${sgn(model - book, diffDp)})</span>`}</span></div>`;
-    let rows = cmpLine('Total', p.total, bookTot, p.total.toFixed(dp), String(bookTot), dp);
-    if (sport === 'nba' && isNum(p.margin)) {
-      const sp = toNum(lines.spread);
-      const bm = sp === null ? null : sp === 0 ? 0 : lines.fav === 'A' ? sp : lines.fav === 'B' ? -sp : null;
-      const mt = (v) => esc(g.away) + ' ' + sgn(v, 1);
-      rows += cmpLine('Margin', p.margin, bm, mt(p.margin), mt(bm === null ? 0 : bm), 1);
+    const { p, tag } = pr, dp = sport === 'nhl' ? 2 : 1, T = EDGE_T[sport];
+    const bk = bookLines(slate, g.gid);
+    const mg = isNum(p.margin) ? p.margin : p.away - p.home; // away - home
+    const side = (v) => (v > 0 ? g.away : g.home);
+    const book = (stat, sd) => (bk[stat] && bk[stat][sd]) || null;
+    const rows = [];
+    // spread / lean sentence
+    let lA = book('spread', 'A') ? book('spread', 'A').line : null, lB = book('spread', 'B') ? book('spread', 'B').line : null;
+    if (!isNum(lA) && isNum(lB)) lA = -lB;
+    if (!isNum(lB) && isNum(lA)) lB = -lA;
+    const evenM = Math.abs(mg) < 0.05;
+    let sentence = `<div class="mvb-l1">Model: ${evenM ? 'Even' : `${esc(side(mg))} by ${Math.abs(mg).toFixed(dp)}`}`;
+    if (isNum(lA)) {
+      const bm = -lA; // book margin, away - home
+      sentence += ` <span class="sep">·</span> Book: ${bm === 0 ? 'PK' : `${esc(side(bm))} by ${Math.abs(bm).toFixed(dp)}`}</div>`;
+      const d = mg - bm, ad = Math.abs(d), lv = ad < 0.05 ? 0 : edgeLevel(ad, T.spread);
+      if (ad < 0.05) sentence += '<div class="mvb-l2 lv0">No lean</div>';
+      else {
+        const team = side(d), ln = d > 0 ? lA : lB;
+        sentence += `<div class="mvb-l2 lv${lv}">Lean ${esc(team)} ${ln === 0 ? 'PK' : sgn(ln, 1)}</div>`;
+      }
+      rows.push({
+        label: 'Spread',
+        book: bm === 0 ? 'PK' : `${esc(side(bm))} ${MINUS}${Math.abs(bm)}`,
+        model: evenM ? 'Even' : `${esc(side(mg))} ${MINUS}${Math.abs(mg).toFixed(dp)}`,
+        chip: ad < 0.05 ? edgeChip('Even', 0) : edgeChip(`${esc(side(d))} +${ad.toFixed(dp)} pts`, lv),
+      });
+    } else sentence += '</div>';
+    // total + team totals
+    const lineOf = (stat) => { const b = book(stat, 'o') || book(stat, 'u'); return b && isNum(b.line) ? b.line : null; };
+    [['total', 'Total', p.total, T.total], ['ttA', g.away + ' total', p.away, T.tt], ['ttB', g.home + ' total', p.home, T.tt]].forEach(([stat, label, model, th]) => {
+      const bl = lineOf(stat);
+      if (bl === null || !isNum(model)) return;
+      const d = model - bl, ad = Math.abs(d), pct = bl ? ad / bl * 100 : 0;
+      rows.push({
+        label: esc(label), book: String(bl), model: model.toFixed(dp),
+        chip: ad < 0.05 ? edgeChip('Even', 0) : edgeChip(`${d > 0 ? 'Over' : 'Under'} ${ad.toFixed(dp)}`, edgeLevel(pct, th), `${pct.toFixed(1)}%`),
+      });
+    });
+    // win %
+    const oA = book('ml', 'A') ? book('ml', 'A').odds : null, oB = book('ml', 'B') ? book('ml', 'B').odds : null;
+    if (isNum(p.winAway) && isNum(p.winHome) && isNum(oA) && isNum(oB)) {
+      const ia = impProb(oA), ib = impProb(oB), na = ia / (ia + ib) * 100, nb = 100 - na;
+      const favAway = na >= nb, ft = favAway ? g.away : g.home, ot = favAway ? g.home : g.away;
+      const bv = favAway ? na : nb, mv = favAway ? p.winAway : p.winHome, d = mv - bv, ad = Math.abs(d);
+      rows.push({
+        label: 'Win %', info: 'winpct', book: `${esc(ft)} ${bv.toFixed(1)}%`, model: `${esc(ft)} ${mv.toFixed(1)}%`,
+        chip: ad < 0.05 ? edgeChip('Even', 0) : edgeChip(`${esc(d > 0 ? ft : ot)} +${ad.toFixed(1)}`, edgeLevel(ad, T.win), 'win % pts'),
+      });
     }
-    if (sport === 'nhl' && isNum(p.winAway) && isNum(p.winHome)) {
-      rows += `<div class="proj-row"><span class="lbl">Win prob</span><span class="proj-v"><b>${esc(g.away)} ${p.winAway.toFixed(1)}%</b><span class="sep">·</span><b>${esc(g.home)} ${p.winHome.toFixed(1)}%</b></span></div>`;
-    }
-    return `${sec('Model projection')}<div class="card proj"><div class="proj-head"><span class="lbl">${sport === 'nhl' ? 'Expected goals' : 'Projected score'}</span><small class="ptag">${tag}</small></div>
-      <div class="proj-score"><span class="pc">${esc(g.away)}</span><b>${p.away.toFixed(dp)}</b><i>–</i><b>${p.home.toFixed(dp)}</b><span class="pc">${esc(g.home)}</span></div>${rows}</div>`;
+    const score = (code, v) => `<span class="mvb-t"><span class="pc">${esc(code)}</span><b>${v.toFixed(dp)}</b></span>`;
+    const table = rows.length ? `<div class="mvb-tab"><span class="mvb-h"></span><span class="mvb-h">Book</span><span class="mvb-h">Model</span><span class="mvb-h">Edge</span>${rows.map((r) =>
+      `<span class="mvb-lab">${r.label}${r.info ? infoBtn(sport, r.info, MVB_DEFS) : ''}</span><span class="mvb-v">${r.book}</span><span class="mvb-v mod">${r.model}</span>${r.chip}`).join('')}</div>` : '';
+    return `<div class="card mvb"><div class="mvb-top"><span class="lbl">Model vs book · ${tag.toUpperCase()}</span>${infoBtn(sport, 'mvb', MVB_DEFS)}</div>
+      ${infoNote(sport, 'mvb', MVB_DEFS)}${sentence}
+      <div class="mvb-score">${score(g.away, p.away)}<i>–</i>${score(g.home, p.home)}</div>${table}${rows.filter((r) => r.info).map((r) => infoNote(sport, r.info, MVB_DEFS)).join('')}</div>`;
   }
   const fmtStat = (v, kind) => (isNum(v) ? (kind === 'pct' ? (v * 100).toFixed(1) + '%' : v.toFixed(1)) : '—');
   // team bar colors for the comparison: readable on the dark card, distinct from each other
@@ -668,6 +749,16 @@
     }
     return [rgbStr(ca || NEUTRAL), rgbStr(ch || NEUTRAL)];
   }
+  // population standard deviation of one stat across all teams for the split in use (Home/Road pools every team's home and away values); 0 = not enough data
+  function teamSd(tm, split, k) {
+    const sets = split === 'ha' ? ['home', 'away'] : [split];
+    const xs = [];
+    Object.values(tm).forEach((t) => sets.forEach((sk) => { const v = ((t && t.split) || {})[sk]; if (v && isNum(v[k])) xs.push(v[k]); }));
+    if (xs.length < 5) return 0;
+    const mean = xs.reduce((x, y) => x + y, 0) / xs.length;
+    const sd = Math.sqrt(xs.reduce((x, y) => x + (y - mean) ** 2, 0) / xs.length);
+    return sd > 0 ? sd : 0;
+  }
   function cmpCard(sport, g) {
     const te = ensureTeams(sport);
     if (te.st === 'loading') return sec('Team comparison') + skRows(3);
@@ -678,16 +769,16 @@
     const defs = te.data.defs || {};
     const rows = CMP_STATS[sport].filter(([k]) => isNum(A[k]) || isNum(H[k])).map(([k, label, kind, low]) => {
       const a = A[k], h = H[k];
-      let share = 0.5, ba = false, bh = false;
+      let share = 0.5, ba = false, bh = false, la = false, lh = false;
       if (isNum(a) && isNum(h)) {
-        const den = Math.abs(a) + Math.abs(h);
-        if (den > 0) share = Math.min(0.9, Math.max(0.1, 0.5 + (low ? -1 : 1) * (a - h) / (2 * den)));
+        const sd = teamSd(tm, state.cmpSplit, k);
+        if (sd) share = 0.5 + 0.4 * Math.tanh(0.75 * (a - h) / sd); // raw values: the bigger number gets the bigger bar
         const ta = fmtStat(a, kind), th = fmtStat(h, kind);
-        if (a !== h) { ba = low ? a < h : a > h; bh = !ba; }
-        if (ta === th) { ba = bh = false; }
+        if (a !== h) { ba = low ? a < h : a > h; bh = !ba; la = a > h; lh = !la; }
+        if (ta === th) { ba = bh = la = lh = false; share = 0.5; }
       }
       return `<div><div class="cmp-top"><span class="v${ba ? ' best' : ''}">${fmtStat(a, kind)}</span><span class="lab">${esc(label)}${infoBtn(sport, k, defs)}</span><span class="v${bh ? ' best' : ''}">${fmtStat(h, kind)}</span></div>
-        ${infoNote(sport, k, defs)}<div class="split tc"><i class="${ba ? 'lead' : ''}" style="flex:${share}"></i><i class="${bh ? 'lead' : ''}" style="flex:${1 - share}"></i></div></div>`;
+        ${infoNote(sport, k, defs)}<div class="split tc"><i class="${la ? 'lead' : ''}" style="flex:${share}"></i><i class="${lh ? 'lead' : ''}" style="flex:${1 - share}"></i></div></div>`;
     });
     if (!rows.length) return sec('Team comparison') + '<div class="card empty"><h2>No team stats yet</h2><p>This split has no games played.</p></div>';
     const gp = (o) => (isNum(o.gp) ? o.gp : '—');
@@ -719,8 +810,7 @@
   function gameTab(sport, date, g) {
     const se = ensureSlate(sport, date);
     const sg = se.st === 'ok' && se.data && se.data.games ? se.data.games[g.gid] : null;
-    let out = sg ? projCard(sport, g, sg) : '';
-    out += cmpCard(sport, g);
+    let out = cmpCard(sport, g);
     if (sg && sg.inj && (sg.inj.A || sg.inj.B)) out += `${sec('Injuries')}<div class="card inj-card">${injCol(g.away, sg.inj.A)}${injCol(g.home, sg.inj.B)}</div>`;
     if (sg && sg.goalies) out += `${sec('Goalies')}<div class="card inj-card">${goalieCol(g.away, sg.goalies.A)}${goalieCol(g.home, sg.goalies.B)}</div>`;
     return out;
@@ -787,29 +877,121 @@
       <span class="pcard-chev" aria-hidden="true">›</span></button>
       ${grp.rows.map((r) => betRow(r, showPick)).join('')}</div>`;
   }
-  function betChips(rows) {
+  const COMBOS = ['pra', 'pr', 'pa', 'ra'];
+  // table columns per sport [stat, label, decimals]; MIN/TOI first (season average + projected minutes only, no line)
+  const TBL_COLS = {
+    nba: [['min', 'MIN', 1], ['pts', 'PTS', 1], ['reb', 'REB', 1], ['ast', 'AST', 1], ['tpm', '3PM', 1]],
+    nhl: [['min', 'TOI', 1], ['sog', 'SOG', 1], ['pts', 'PTS', 2], ['a', 'A', 2], ['g', 'G', 2]],
+  };
+  const BT_DEFS = {
+    btproj: 'Our projection for this stat. The arrow shows if it is above (up) or below (down) the book line; the color follows the EV.',
+    btev: 'EV = expected profit per $100 bet, at this price, if our model is right. Plus is good. The badge is our grade for the bet.',
+  };
+  function betChips(chipStats) {
     const f = state.betF;
     const chip = (k, label, on) => `<button class="bchip${on ? ' on' : ''}" data-bf="${k}" aria-pressed="${on}">${label}</button>`;
-    const present = new Set(rows.map((r) => r.b.stat));
-    const mk = Object.keys(BET_STAT).filter((k) => present.has(k));
     const div = '<span class="bchip-div" aria-hidden="true"></span>';
-    return `<div class="bchips" role="group" aria-label="Filter props">${chip('all', 'All', !f.ga && !f.side && !f.mkt)}${chip('ga', 'S+/A', f.ga)}${chip('o', 'Over', f.side === 'o')}${chip('u', 'Under', f.side === 'u')}${mk.length ? div + mk.map((k) => chip('mkt:' + k, esc(BET_STAT[k]), f.mkt === k)).join('') : ''}${div}${chip('both', 'Both sides', f.both)}</div>`;
+    return `<div class="bchips" role="group" aria-label="Filter props">${chip('all', 'All', !f.ga && !f.mkt)}${chip('ga', 'S+/A', f.ga)}${chipStats.length ? div + chipStats.map((k) => chip('mkt:' + k, esc(BET_STAT[k]), f.mkt === k)).join('') : ''}</div>`;
+  }
+  const isGA = (r) => r.ph.grade === 'S+' || r.ph.grade === 'A';
+  const latestMin = (pl) => { const m = pl && pl.min; const v = m && (isNum(m.close) ? m.close : m.open); return isNum(v) ? v : null; };
+  // NBA / NHL: one table card per player. cells = { stat: row } (the shown side of each base stat)
+  function tblCard(sport, grp, cols, slate, first) {
+    const w = ensurePlayer(sport, grp.pid), st = (w.st === 'ok' && w.data && w.data.st) || {};
+    const pl = (slate.players || {})[grp.pid] || {};
+    const hl = (k) => (state.betF.mkt === k ? ' hl' : '');
+    const cellsAll = Object.values(grp.cells);
+    const best = GRADE_ORDER[Math.min(...cellsAll.map(gradeIdx))];
+    const uncal = !best && cellsAll.some((r) => r.ph.uncal);
+    const bt = (id, cls, inner) => `<button class="bt-c ${cls}${state.betOpen[id] ? ' open' : ''}" data-bet="${esc(id)}" aria-expanded="${!!state.betOpen[id]}">${inner}</button>`;
+    let hd = '<span class="bt-l"></span>', sr = '<span class="bt-l">Season</span>', ln = '<span class="bt-l">Line</span>',
+      pj = `<span class="bt-l">Proj${first ? infoBtn(sport, 'btproj', BT_DEFS) : ''}</span>`, ev = `<span class="bt-l">EV${first ? infoBtn(sport, 'btev', BT_DEFS) : ''}</span>`;
+    cols.forEach(([k, lab, dp]) => {
+      const r = grp.cells[k], h = hl(k);
+      hd += `<span class="bt-h${h}">${lab}</span>`;
+      sr += `<span class="bt-v${h}">${fx(st[k], dp)}</span>`;
+      if (k === 'min') {
+        ln += '<span class="bt-v"></span>';
+        const m = latestMin(pl);
+        pj += `<span class="bt-v">${m === null ? '' : m.toFixed(1)}</span>`;
+        ev += '<span class="bt-v"></span>';
+        return;
+      }
+      if (!r) {
+        const pp = pl.proj && ((pl.proj.close && pl.proj.close[k]) || (pl.proj.open && pl.proj.open[k]));
+        ln += `<span class="bt-v nil${h}">—</span>`;
+        pj += isNum(pp && pp.v) ? `<span class="bt-v${h}">${pp.v.toFixed(dp)}</span>` : `<span class="bt-v nil${h}">—</span>`;
+        ev += `<span class="bt-v nil${h}">—</span>`;
+        return;
+      }
+      const c = evCls(r.ph.ev), g = GRADE_ORDER.includes(r.ph.grade) ? r.ph.grade : '';
+      const arrow = r.ph.proj > r.ph.line ? '<i aria-label="over">▲</i>' : r.ph.proj < r.ph.line ? '<i aria-label="under">▼</i>' : '';
+      ln += bt(r.id, 'bt-line' + h, `<b>${r.b.side === 'u' ? 'U' : 'O'} ${esc(r.ph.line)}</b><small>${fmtOdds(r.ph.odds)}</small>`);
+      pj += bt(r.id, 'bt-pj ev ' + c + h, `${r.ph.proj.toFixed(dp)}${arrow}`);
+      ev += bt(r.id, 'bt-ev' + h, `<span class="ev ${c}">${sgn(r.ph.ev, 1)}%</span>${g ? `<span class="grade-badge" data-g="${g}">${g}</span>` : r.ph.uncal ? UNCAL : ''}`);
+    });
+    const ctx = cellsAll.filter((r) => state.betOpen[r.id]).map((r) => {
+      const pros = (r.ph.pros || []).map((t) => `<div class="pro">${esc(t)}</div>`).join('');
+      const cons = (r.ph.cons || []).map((t) => `<div class="con">${esc(t)}</div>`).join('');
+      return `<div class="bet-ctx"><div class="lbl">${esc(BET_STAT[r.b.stat] || r.b.stat)} ${r.b.side === 'u' ? 'U' : 'O'} ${esc(r.ph.line)} · ${fmtOdds(r.ph.odds)} · ${r.tag.toUpperCase()}</div>${pros || cons ? pros + cons : '<div class="bet-none">No notes on this prop.</div>'}</div>`;
+    }).join('');
+    const notes = !first ? '' : ['btproj', 'btev'].map((k) => infoNote(sport, k, BT_DEFS)).join('');
+    const combo = grp.combos ? `<button class="bt-foot" data-player="${esc(grp.pid)}">${grp.combos} combo ${grp.combos === 1 ? 'line' : 'lines'} on profile ›</button>` : '';
+    return `<div class="pcard"><button class="pcard-h" data-player="${esc(grp.pid)}" aria-label="${esc(grp.name)} player page">
+      <span class="pcard-n">${grp.team ? tbadge(sport, grp.team, 's', '', true) : ''}<b>${esc(grp.name)}</b>${grp.inj ? `<i class="inj">${esc(grp.inj)}</i>` : ''}</span>
+      <span class="pcard-r">${best ? `<span class="grade-badge" data-g="${best}">${best}</span>` : uncal ? UNCAL : ''}</span>
+      <span class="pcard-chev" aria-hidden="true">›</span></button>
+      <div class="btab" style="--n:${cols.length}">${hd}${sr}${ln}${pj}${ev}</div>${notes}${ctx}${combo}</div>`;
   }
   function betsTab(sport, date) {
     const e = ensureSlate(sport, date);
     if (e.st === 'loading') return skRows(4);
     if (e.st === 'err') return `<div class="card empty"><h2>Couldn’t load props</h2><p>Check your connection and try again.</p><button class="pillbtn retry" data-retry-slate="${esc(sport + '/' + date)}">Retry</button></div>`;
-    const rows = e.st === 'ok' ? betRows(e.data || {}, state.betGid) : [];
+    const slate = e.st === 'ok' ? (e.data || {}) : {};
+    const rows = e.st === 'ok' ? betRows(slate, state.betGid) : [];
     if (!rows.length) return empty('Bets', 'No props for this game yet', 'Props show up here once the slate is published.', 0);
-    const f = state.betF;
-    const shown = rows.filter((r) => (f.both || r.pick) && (!f.ga || r.ph.grade === 'S+' || r.ph.grade === 'A')
-      && (!f.side || r.b.side === f.side) && (!f.mkt || r.b.stat === f.mkt));
-    const groups = betGroups(shown, state.betSort);
-    const body = groups.length
-      ? `<div class="pcards">${groups.map((gp) => playerCard(sport, gp, f.both)).join('')}</div>`
-      : '<div class="card empty"><h2>No props match these filters</h2><button class="pillbtn" data-bf="all">Clear filters</button></div>';
-    return `<div class="bets-head"><span class="bets-n">${groups.length} ${groups.length === 1 ? 'player' : 'players'} · ${shown.length} ${shown.length === 1 ? 'prop' : 'props'}</span>${segmented(SORTS, state.betSort, 'data-sort', 'sortseg')}</div>
-      ${betChips(rows)}${body}`;
+    const f = state.betF, mode = state.betSide;
+    const table = !!TBL_COLS[sport];
+    let cols = TBL_COLS[sport] || [];
+    if (sport === 'nhl' && !Object.values(slate.bets || {}).some((b) => b && b.type === 'prop' && b.stat === 'g')) cols = cols.filter((c) => c[0] !== 'g');
+    const sideOk = (r) => (mode === 'model' ? r.pick : r.b.side === mode);
+    const present = new Set(rows.map((r) => r.b.stat));
+    const chipStats = table ? cols.filter((c) => c[0] !== 'min' && present.has(c[0])).map((c) => c[0]) : Object.keys(BET_STAT).filter((k) => present.has(k) && !COMBOS.includes(k));
+    if (f.mkt && !chipStats.includes(f.mkt)) f.mkt = '';
+    const toggle = segmented([['model', 'Model'], ['o', 'Over'], ['u', 'Under']], mode, 'data-bside', 'sideseg');
+    let n = 0, body, shownN;
+    const empt = '<div class="card empty"><h2>No props match these filters</h2><button class="pillbtn" data-bf="all">Clear filters</button></div>';
+    if (table) {
+      const stats = new Set(cols.map((c) => c[0]));
+      const m = new Map();
+      rows.forEach((r) => {
+        if (!stats.has(r.b.stat) || r.b.stat === 'min' || !sideOk(r)) return;
+        if (!m.has(r.pid)) m.set(r.pid, { pid: r.pid, name: r.name, team: r.team, inj: r.inj, cells: {} });
+        const c = m.get(r.pid).cells;
+        if (!c[r.b.stat] || r.ph.ev > c[r.b.stat].ph.ev) c[r.b.stat] = r;
+      });
+      const combos = {};
+      rows.forEach((r) => { if (COMBOS.includes(r.b.stat)) (combos[r.pid] = combos[r.pid] || new Set()).add(r.b.stat); });
+      const groups = [...m.values()].filter((gp) => Object.values(gp.cells).some((r) => (!f.ga || isGA(r)) && (!f.mkt || r.b.stat === f.mkt)));
+      groups.forEach((gp) => {
+        const cs = Object.values(gp.cells);
+        gp.combos = combos[gp.pid] ? combos[gp.pid].size : 0;
+        gp.ev = Math.max(...cs.map((r) => r.ph.ev)); gp.gi = Math.min(...cs.map(gradeIdx));
+      });
+      const how = state.betSort;
+      groups.sort(how === 'grade' ? (x, y) => x.gi - y.gi || y.ev - x.ev
+        : how === 'player' ? (x, y) => (x.name < y.name ? -1 : x.name > y.name ? 1 : 0) || y.ev - x.ev
+          : (x, y) => y.ev - x.ev);
+      n = groups.length; shownN = groups.reduce((a, gp) => a + Object.keys(gp.cells).length, 0);
+      body = n ? `<div class="pcards">${groups.map((gp, i) => tblCard(sport, gp, cols, slate, i === 0)).join('')}</div>` : empt;
+    } else {
+      const shown = rows.filter((r) => sideOk(r) && (!f.ga || isGA(r)) && (!f.mkt || r.b.stat === f.mkt));
+      const groups = betGroups(shown, state.betSort);
+      n = groups.length; shownN = shown.length;
+      body = n ? `<div class="pcards">${groups.map((gp) => playerCard(sport, gp, false)).join('')}</div>` : empt;
+    }
+    return `<div class="bets-head"><span class="bets-n">${n} ${n === 1 ? 'player' : 'players'} · ${shownN} ${shownN === 1 ? 'prop' : 'props'}</span>${segmented(SORTS, state.betSort, 'data-sort', 'sortseg')}</div>
+      <div class="sidetog">${toggle}</div>${betChips(chipStats)}${body}`;
   }
   const gameView = liveGameView;
 
@@ -1307,12 +1489,11 @@
     if (d.retryPlayer) { delete store.players[d.retryPlayer]; render(); return; }
     if (d.bet) { if (state.betOpen[d.bet]) delete state.betOpen[d.bet]; else state.betOpen[d.bet] = true; }
     else if (d.sort) state.betSort = d.sort;
+    else if (d.bside) state.betSide = d.bside;
     else if (d.bf) {
       const f = state.betF, k = d.bf;
-      if (k === 'all') { f.ga = false; f.side = ''; f.mkt = ''; }
+      if (k === 'all') { f.ga = false; f.mkt = ''; }
       else if (k === 'ga') f.ga = !f.ga;
-      else if (k === 'o' || k === 'u') f.side = f.side === k ? '' : k;
-      else if (k === 'both') f.both = !f.both;
       else if (k.startsWith('mkt:')) f.mkt = f.mkt === k.slice(4) ? '' : k.slice(4);
     }
     else if (d.sub) state.gameTab = d.sub;
