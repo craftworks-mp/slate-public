@@ -838,6 +838,8 @@
   };
   const fmtOdds = (o) => (isNum(o) ? (o > 0 ? '+' : o < 0 ? MINUS : '') + Math.abs(Math.round(o)) : '—');
   const evCls = (ev) => (ev > 5 ? 'p5' : ev >= 2 ? 'p2' : ev > -2 ? 'n' : ev >= -5 ? 'm2' : 'm5');
+  // longshot yes/no markets (NHL anytime goal, NBA triple-double, NFL anytime TD): shown only in their own panels / game top-3 blocks (user 11/01 09:35)
+  const isLong = (r) => (r.b.stat === 'g' && Number(r.ph.line) === 0.5) || r.b.stat === 'td3' || r.b.stat === 'atd';
   function betRows(slate, gid) {
     const players = slate.players || {};
     return Object.entries(slate.bets || {}).map(([id, b]) => {
@@ -1056,12 +1058,13 @@
     if (e.st === 'err') return `<div class="card empty"><h2>Couldn’t load props</h2><p>Check your connection and try again.</p><button class="pillbtn retry" data-retry-slate="${esc(sport + '/' + date)}">Retry</button></div>`;
     const slate = e.st === 'ok' ? (e.data || {}) : {};
     if (isPre(slate) && !pgCtx.final) { const fg = findGame(sport, state.betGid); if (fg) return preBetsTab(sport, slate, fg.g); }
-    const rows = e.st === 'ok' ? betRows(slate, state.betGid) : [];
-    if (!rows.length) return pgCtx.past || pgCtx.final ? `<div class="card empty"><h2>No props for this game</h2>${PG_NOTE}</div>` : empty('Bets', 'No props for this game yet', 'Props show up here once the slate is published.', 0);
+    const allRows = e.st === 'ok' ? betRows(slate, state.betGid) : [];
+    const rows = allRows.filter((r) => !isLong(r)); // longshots only in the top-3 blocks below
+    if (!allRows.length) return pgCtx.past || pgCtx.final ? `<div class="card empty"><h2>No props for this game</h2>${PG_NOTE}</div>` : empty('Bets', 'No props for this game yet', 'Props show up here once the slate is published.', 0);
     const f = state.betF, mode = state.betSide;
     const table = !!TBL_COLS[sport];
     let cols = TBL_COLS[sport] || [];
-    if (sport === 'nhl' && !Object.values(slate.bets || {}).some((b) => b && b.type === 'prop' && b.stat === 'g')) cols = cols.filter((c) => c[0] !== 'g');
+    if (sport === 'nhl' && !rows.some((r) => r.b.stat === 'g')) cols = cols.filter((c) => c[0] !== 'g');
     const sideOk = (r) => (mode === 'model' ? r.pick : r.b.side === mode);
     const present = new Set(rows.map((r) => r.b.stat));
     const chipStats = table ? cols.filter((c) => c[0] !== 'min' && present.has(c[0])).map((c) => c[0]) : Object.keys(BET_STAT).filter((k) => present.has(k) && !COMBOS.includes(k));
@@ -1098,7 +1101,7 @@
       n = groups.length; shownN = shown.length;
       body = n ? `<div class="pcards">${groups.map((gp) => playerCard(sport, gp, false)).join('')}</div>` : empt;
     }
-    return `${agGameBlock(sport, slate, rows)}${td3GameBlock(sport, slate, rows)}${atdGameBlock(sport, slate, rows)}<div class="bets-head"><span class="bets-n">${n} ${n === 1 ? 'player' : 'players'} · ${shownN} ${shownN === 1 ? 'prop' : 'props'}</span>${segmented(SORTS, state.betSort, 'data-sort', 'sortseg')}</div>
+    return `${agGameBlock(sport, slate, allRows)}${td3GameBlock(sport, slate, allRows)}${atdGameBlock(sport, slate, allRows)}<div class="bets-head"><span class="bets-n">${n} ${n === 1 ? 'player' : 'players'} · ${shownN} ${shownN === 1 ? 'prop' : 'props'}</span>${segmented(SORTS, state.betSort, 'data-sort', 'sortseg')}</div>
       <div class="sidetog">${toggle}</div>${betChips(chipStats)}${body}`;
   }
   // ======== Past games: Final mode (box score from ../box/<sp>/<date>.json; prefix pg) ========
@@ -1350,7 +1353,7 @@
       <div class="ghead pg-head">${team(aw, 'away')}<div class="gcenter">${center}${lp}<span class="kline pg-date">${esc(longOf(date))}</span></div>${team(hm, 'home')}</div>${pgLineScore(g, bg)}`;
     // body
     const picks = {};
-    if (slate) betRows(slate, sgid).forEach((r) => { if (r.ph.pick !== false) { const k = r.b.pid + '|' + r.b.stat; if (!picks[k] || r.ph.ev > picks[k].ph.ev) picks[k] = r; } });
+    if (slate) betRows(slate, sgid).forEach((r) => { if (r.ph.pick !== false && !isLong(r)) { const k = r.b.pid + '|' + r.b.stat; if (!picks[k] || r.ph.ev > picks[k].ph.ev) picks[k] = r; } });
     const ctx = { slate, picks, proj: modeled && state.pgProj, hl: q.p || '' };
     let body = '';
     if (tab === 'box') {
@@ -1481,7 +1484,7 @@
       return c || (x.p.name < y.p.name ? -1 : x.p.name > y.p.name ? 1 : 0);
     });
     const picks = {}; // model's pick side per player+stat (old slates without the flag: every row counts as pick)
-    betRows(sl, g.gid).forEach((r) => { if (r.ph.pick !== false) { const k = r.b.pid + '|' + r.b.stat; if (!picks[k] || r.ph.ev > picks[k].ph.ev) picks[k] = r; } });
+    betRows(sl, g.gid).forEach((r) => { if (r.ph.pick !== false && !isLong(r)) { const k = r.b.pid + '|' + r.b.stat; if (!picks[k] || r.ph.ev > picks[k].ph.ev) picks[k] = r; } });
     const sgm = (sl.games || {})[g.gid] || null;
     return `<div class="plist">${list.map((r) => rosterRow(sport, r.id, r.p, r.w, picks, playerTags(sport, r.id, date, sgm, r.p.inj, r.p.team))).join('')}</div>`;
   }
@@ -1783,7 +1786,7 @@
       <span class="pinfo"><h2 class="tname-xl">${esc(name)}</h2>
         <span class="pteam">${team ? tbadge(sport, team, '', `#${sport}/team/${encodeURIComponent(team)}`, true) : ''}<span class="pmeta">${esc(meta)}</span>${inj ? `<i class="inj">${esc(inj)}</i>` : ''}</span></span></div>${ptg.length ? `<div class="ph-tags">${ptg.map((x) => tagPill(sport, team, x, 'ph')).join('')}</div>` : ''}${tiles}</div>`;
 
-    const allRows = sp ? betRows(sl, sp.gid).filter((r) => String(r.b.pid) === String(pid)) : [];
+    const allRows = sp ? betRows(sl, sp.gid).filter((r) => String(r.b.pid) === String(pid) && !isLong(r)) : [];
     const mine = Object.values(bestSides(allRows)).sort((x, y) => y.ph.ev - x.ph.ev);
     const tabs = goalie ? PTABS.filter(([k]) => k === 'tonight' || k === 'recent') : PTABS;
     const dflt = mine.length || (sl && isPre(sl) && sp) ? 'tonight' : goalie ? 'recent' : 'trends';
