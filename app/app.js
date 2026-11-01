@@ -33,6 +33,7 @@
     playerTab: '', // player page tab (tonight | trends | matchup | recent); '' = default by props, kept across players
     pmore: {}, // player Recent tab 'Show all' ('<sport>/<pid>' -> true)
     chartStat: {}, // player page chart stat ('<sport>/<pid>' -> stat key)
+    shotView: {}, // player Matchup tab shot matchup toggle ('<sport>/<pid>' -> 'his' | 'def')
     infoOpen: {}, // open definition notes ('<sport>/<key>' -> true)
   };
   let cur = { key: '', sport: null, kind: 'root', id: '' };
@@ -94,7 +95,7 @@
       const on = seg.querySelector('button.on');
       if (!hl || !on) return;
       const b0 = seg.querySelector('button').dataset;
-      const kind = b0.sub !== undefined ? 'sub' : b0.sort !== undefined ? 'sort' : b0.cmp !== undefined ? 'cmp' : b0.ptab !== undefined ? 'ptab' : b0.bside !== undefined ? 'bside' : 'filter';
+      const kind = b0.sub !== undefined ? 'sub' : b0.sort !== undefined ? 'sort' : b0.cmp !== undefined ? 'cmp' : b0.shotv !== undefined ? 'shotv' : b0.ptab !== undefined ? 'ptab' : b0.bside !== undefined ? 'bside' : 'filter';
       const x = on.offsetLeft, w = on.offsetWidth;
       const prev = lastHl[kind];
       lastHl[kind] = { x, w };
@@ -115,7 +116,7 @@
 
 
   // ---- data layer ----
-  const store = { days: {}, meta: {}, sched: {}, slates: {}, players: {}, hist: {}, teams: {}, def: {}, idx: null, idxDone: false };
+  const store = { days: {}, meta: {}, sched: {}, slates: {}, players: {}, hist: {}, teams: {}, def: {}, shots: {}, idx: null, idxDone: false };
   const MINUS = '−';
   const ver = () => (store.idx && store.idx.updated ? '?v=' + encodeURIComponent(store.idx.updated) : '');
   async function getJSON(url, opts) {
@@ -210,6 +211,20 @@
       return getJSON('../defense/' + sp + '.json' + ver());
     }).then((r) => {
       if (r.nf || !r.data || !r.data.teams) { e.st = 'none'; return; }
+      e.st = 'ok'; e.data = r.data;
+    }, () => { e.st = 'err'; }).then(rerender);
+    return e;
+  }
+  // Shot zones (scripts/shots.py): ../shots/<sp>.json. 404 / not published = 'none': the shot matchup shows its empty note.
+  function ensureShots(sp) {
+    if (store.shots[sp]) return store.shots[sp];
+    const e = store.shots[sp] = { st: 'loading' };
+    indexP.then(() => {
+      const s = store.idx && store.idx.sports && store.idx.sports[sp];
+      if (store.idx && !(s && s.shots)) return { nf: true };
+      return getJSON('../shots/' + sp + '.json' + ver());
+    }).then((r) => {
+      if (r.nf || !r.data || !r.data.players) { e.st = 'none'; return; }
       e.st = 'ok'; e.data = r.data;
     }, () => { e.st = 'err'; }).then(rerender);
     return e;
@@ -1158,7 +1173,7 @@
           dl = `<span class="dl ${cls}" aria-label="${x > 0 ? 'they allow more' : 'they allow less'}">${sgn(x, pct ? 1 : 0)}${pct ? 'pp' : '%'}</span>`;
         }
       }
-      const orc = ar >= N - 4 ? ' top' : ar <= 5 ? ' bot' : '';
+      const orc = ar >= N - 11 ? ' top' : ar <= 12 ? ' bot' : ''; // color rule: opponent top/bottom 12 (season ranks; this table shows season only)
       return `<div class="dt-r"><span class="dt-k">${lab}</span>
         <span class="dt-c">${f(hv0)}${isNum(hr) ? `<i class="rk">#${hr}</i>` : ''}</span>
         <span class="dt-c dt-o">${f(av)}${isNum(ar) ? `<i class="rk${orc}">#${ar}</i>` : ''}${dl}</span></div>`;
@@ -1167,10 +1182,148 @@
     return `${sec('Him vs what ' + opp + ' allows')}<div class="card dtab"><div class="dt-r dt-h"><span></span><span>Him<small>of ${esc(me.n)} ${esc(P)}</small></span><span>${esc(opp)} allows<small>rank of ${N}</small></span></div>${rows}<p class="dt-f">${esc(foot)}</p></div>`;
   }
 
+
+  // ---- Shot matchup (Matchup tab): zone table + court / rink, "His shots" vs "OPP defense vs position" ----
+  const SZ = {
+    nba: {
+      zones: ['rim', 'paint', 'midL', 'midC', 'midR', 'c3L', 'c3R', 'ab3L', 'ab3C', 'ab3R'],
+      lab: ['Rim', 'Paint', 'Mid L', 'Mid C', 'Mid R', 'Corner 3 L', 'Corner 3 R', 'Above 3 L', 'Above 3 C', 'Above 3 R'],
+      at: ['at the rim', 'in the paint', 'from left mid-range', 'from center mid-range', 'from right mid-range', 'from the left corner 3', 'from the right corner 3', 'from above-the-break 3, left', 'from above-the-break 3, center', 'from above-the-break 3, right'],
+      min: 20, unit: 'FG%', verb: 'make', grp: { G: 'guards', F: 'forwards', C: 'centers' },
+    },
+    nhl: {
+      zones: ['behind', 'slot', 'high', 'circL', 'circR', 'ptL', 'ptR'],
+      lab: ['Behind net', 'Slot', 'High slot', 'L circle', 'R circle', 'L point', 'R point'],
+      at: ['from behind the net', 'in the slot', 'from the high slot', 'from the left circle', 'from the right circle', 'from the left point', 'from the right point'],
+      min: 15, unit: 'scoring %', verb: 'score', grp: { F: 'forwards', D: 'defensemen' },
+    },
+  };
+  const SZ_TYPES = [['wrist', 'Wrist'], ['snap', 'Snap'], ['slap', 'Slap'], ['back', 'Backhand'], ['tip', 'Tip / defl.'], ['wrap', 'Wrap-around']];
+  const SZ_PT = 0.03; // S% vs league: green at +3 pts or more, red at -3 or less
+  const szHue = (s, l) => (!isNum(s) || !isNum(l) ? 'n' : s - l >= SZ_PT ? 'g' : s - l <= -SZ_PT ? 'r' : 'n');
+  const szPct = (v) => (isNum(v) ? Math.round(v * 100) + '%' : '—');
+  // fill: hue = S% vs league, strength = Dist. (alpha 0.10..0.55 across the view's zone shares; neutral 0.04..0.14)
+  function szFills(S, D, LS) {
+    const ds = D.filter(isNum), lo = Math.min(...ds), hi = Math.max(...ds);
+    return D.map((dv, i) => {
+      if (!isNum(dv)) return 'rgba(236,245,240,.03)';
+      const t = hi > lo ? (dv - lo) / (hi - lo) : .5, h = szHue(S[i], LS[i]);
+      if (h === 'n') return `rgba(236,245,240,${(.04 + t * .10).toFixed(3)})`;
+      return (h === 'g' ? 'rgba(62,230,160,' : 'rgba(255,122,112,') + (.10 + t * .45).toFixed(3) + ')';
+    });
+  }
+  function szCourt(F, T) {
+    const B = (shape, i) => `${shape.replace('/>', ' class="szb"/>')}${shape.replace('/>', ` style="fill:${F[i]}"/>`)}`;
+    const ab = ['170,40 100,236 0,236 0,0 170,0', '170,40 100,236 240,236', '170,40 240,236 340,236 340,0 170,0'];
+    const poly = (pts, i) => B(`<polygon points="${pts}"/>`, i);
+    const txt = (x, y, i, sz) => `<text x="${x}" y="${y}"${sz ? ` style="font-size:${sz}px"` : ''}>${T[i]}</text>`;
+    return `<svg class="szsvg" viewBox="0 0 340 226" role="img" aria-label="Half court with the make percentage in each of 10 zones" preserveAspectRatio="xMidYMin meet">
+      <defs><clipPath id="szc-out"><path d="M12,0 H328 Q340,0 340,12 V110 A183.8 183.8 0 0 1 0,110 V12 Q0,0 12,0 Z"/></clipPath>
+      <clipPath id="szc-arc"><path d="M56,0 L56,110 A133.8,133.8 0 0 0 284,110 L284,0 Z"/></clipPath></defs>
+      <g clip-path="url(#szc-out)">
+        ${poly(ab[0], 7)}${poly(ab[1], 8)}${poly(ab[2], 9)}
+        ${B('<rect x="0" y="0" width="56" height="110"/>', 5)}${B('<rect x="284" y="0" width="56" height="110"/>', 6)}
+        <g clip-path="url(#szc-arc)">${poly(ab[0], 2)}${poly(ab[1], 3)}${poly(ab[2], 4)}</g>
+        ${B('<rect x="120" y="0" width="100" height="124"/>', 1)}${B('<circle cx="170" cy="40" r="36"/>', 0)}
+        <path class="szl" d="M56,0 V110 A133.8,133.8 0 0 0 284,110 V0 M0,110 H56 M284,110 H340 M140,124 L108.1,213.1 M200,124 L231.9,213.1 M120,0 V124 H220 V0"/>
+        <circle class="szl" cx="170" cy="40" r="36"/>
+        <path class="szh" d="M158,8 H182"/><circle class="szh" cx="170" cy="13" r="4"/>
+      </g>
+      ${txt(170, 54, 0)}${txt(170, 104, 1)}${txt(88, 64, 2)}${txt(170, 158, 3)}${txt(252, 64, 4)}${txt(28, 61, 5, 16)}${txt(312, 61, 6, 16)}${txt(58, 162, 7)}${txt(170, 206, 8)}${txt(282, 162, 9)}
+    </svg>`;
+  }
+  function szRink(F, T) {
+    const B = (shape, i) => `${shape.replace('/>', ' class="szb"/>')}${shape.replace('/>', ` style="fill:${F[i]}"/>`)}`;
+    const R = (x, y, w, h, i) => B(`<rect x="${x}" y="${y}" width="${w}" height="${h}"/>`, i);
+    const txt = (x, y, i) => `<text x="${x}" y="${y}">${T[i]}</text>`;
+    return `<svg class="szsvg" viewBox="0 0 340 300" role="img" aria-label="Offensive zone with the scoring percentage in each of 7 zones" preserveAspectRatio="xMidYMin meet">
+      <defs><clipPath id="szc-rink"><path d="M0,300 L0,112 A112,112 0 0 1 112,0 L228,0 A112,112 0 0 1 340,112 L340,300 Z"/></clipPath></defs>
+      <g clip-path="url(#szc-rink)">
+        ${R(0, 0, 340, 44, 0)}${R(0, 44, 112, 164, 3)}${R(112, 44, 116, 80, 1)}${R(112, 124, 116, 84, 2)}${R(228, 44, 112, 164, 4)}${R(0, 208, 170, 92, 5)}${R(170, 208, 170, 92, 6)}
+        <path class="szl" d="M112,44 V208 M228,44 V208 M112,124 H228 M0,208 H340 M170,208 V300"/>
+        <circle cx="82" cy="124" r="60" style="fill:none;stroke:rgba(255,122,112,.45);stroke-width:1.2"/><circle cx="258" cy="124" r="60" style="fill:none;stroke:rgba(255,122,112,.45);stroke-width:1.2"/>
+        <path d="M0,44 H340" style="stroke:rgba(255,122,112,.6);stroke-width:1.2"/>
+        <path d="M146,44 A24,24 0 0 0 194,44" style="fill:none;stroke:rgba(124,195,255,.7);stroke-width:1.2"/>
+        <path d="M0,298 H340" style="stroke:rgba(124,195,255,.7);stroke-width:2.4"/>
+      </g>
+      ${txt(170, 28, 0)}${txt(56, 132, 3)}${txt(170, 90, 1)}${txt(170, 172, 2)}${txt(284, 132, 4)}${txt(85, 260, 5)}${txt(255, 260, 6)}
+    </svg>`;
+  }
+
+  function shotMatchup(sport, pid, d, opp, team, gsg) {
+    const cfg = SZ[sport];
+    const hd = (x) => `<div class="sec szh"><span>Shot matchup</span>${x || ''}</div>`;
+    if (!cfg) return '';
+    const se = ensureShots(sport);
+    if (se.st === 'loading') return '';
+    const none = hd() + noteCard('Not enough shots yet');
+    if (se.st !== 'ok') return none;
+    const sd = se.data, e = sd.players[pid], P = (e && e.pos) || d.pos;
+    const lg = sd.league && sd.league[P], tm = sd.teams && sd.teams[opp] && sd.teams[opp][P];
+    if (!e || !lg || !tm || !(e.n >= cfg.min)) return none;
+    const nhl = sport === 'nhl', Z = cfg.zones.length;
+    // tonight's projected goalie of the opponent (NHL): from the slate game when known and in the shots file
+    let gk = null;
+    if (nhl && gsg && gsg.goalies) {
+      const gl = gsg.goalies[gsg.home === team ? 'A' : 'B'];
+      const ge = gl && gl.id && sd.goalies && sd.goalies[String(gl.id)];
+      if (ge && ge.n > 0) gk = { e: ge, name: gl.name };
+    }
+    const key = sport + '/' + pid, view = state.shotView[key] === 'def' ? 'def' : 'his';
+    const defS = gk ? gk.e.s : tm.s, defLS = gk ? sd.league.all.s : lg.s;
+    // summary: sum over zones of his Dist. x (allowed S% - league S%), in percentage points
+    let tot = 0, best = -1, bi = -1;
+    for (let i = 0; i < Z; i++) {
+      if (!isNum(e.d[i]) || !isNum(defS[i]) || !isNum(defLS[i])) continue;
+      const g = e.d[i] * (defS[i] - defLS[i]);
+      tot += g;
+      if (Math.abs(g) > best) { best = Math.abs(g); bi = i; }
+    }
+    tot *= 100;
+    const cls = tot > .5 ? 'pos' : tot < -.5 ? 'neg' : '';
+    const sum = `<span class="szsum ${cls}">${sgn(tot, 1)} pts ${cfg.unit} ${tot > .5 ? 'favorable' : tot < -.5 ? 'unfavorable' : 'even'}</span>`;
+    const gname = cfg.grp[P] || P;
+    const defLab = nhl && gk ? `${opp} + ${gk.name}` : `${opp} defense vs ${P}`;
+    const tog = `<div class="sztog">${segmented([['his', 'His shots'], ['def', defLab]], view, 'data-shotv', 'szseg')}</div>`;
+    const S = view === 'his' ? e.s : defS, D = view === 'his' ? e.d : tm.d;
+    const LS = view === 'his' ? lg.s : defLS, LD = lg.d;
+    const fills = szFills(S, D, LS);
+    const T = S.map((v) => (isNum(v) ? Math.round(v * 100) + '' : '–'));
+    const art = nhl ? szRink(fills, T) : szCourt(fills, T);
+    const rows = cfg.lab.map((lab, i) => {
+      const sh = szHue(S[i], LS[i]), dh = szHue(D[i], LD[i]);
+      return `<div class="szr"><span class="szk">${lab}</span><b class="sz-${sh}">${szPct(S[i])}</b><i class="sz-${dh}">${szPct(D[i])}</i></div>`;
+    }).join('');
+    const table = `<div class="sztab" role="table"><div class="szr szrh"><span>Zone</span><span>S%</span><span>Dist.</span></div>${rows}</div>`;
+    const sw = (c, t) => `<span class="szw"><u style="background:${c}"></u>${t}</span>`;
+    const key3 = `<div class="szkey"><p><b>S%</b> ${view === 'his' ? 'he ' + cfg.verb + 's' : (nhl && gk ? opp + ' + ' + gk.name + ' allow' : opp + ' allows ' + gname)} from each zone</p>
+      <p><b>Dist.</b> share of ${view === 'his' ? 'his shots' : 'the shots ' + opp + ' allows ' + gname}; deeper color = more shots</p>
+      <p>${sw('rgba(62,230,160,.5)', '3+ pts over league')}${sw('rgba(255,122,112,.5)', '3+ pts under')}${sw('rgba(236,245,240,.12)', 'even')}</p></div>`;
+    // mismatch: zone with the biggest his-Dist. x (allowed - league) gap
+    let mm = '';
+    if (bi >= 0) {
+      const dnm = (nhl && gk ? opp + ' with ' + gk.name : opp);
+      mm = `<p class="szmm"><b>Mismatch</b> ${cfg.at[bi].replace(/^./, (c) => c.toUpperCase())}: ${szPct(e.d[bi])} of his shots${isNum(e.s[bi]) ? ', he ' + cfg.verb + 's ' + szPct(e.s[bi]) : ''}. ${esc(dnm)} ${nhl && gk ? 'let shooters' : 'lets ' + gname} ${cfg.verb} ${szPct(defS[bi])} there (league ${szPct(defLS[bi])}).</p>`;
+    }
+    // NHL shot types
+    let types = '';
+    if (nhl && e.tc) {
+      const tv = view === 'his' ? { s: e.ts, d: e.td, l: lg.ts } : gk ? { s: gk.e.ts, d: gk.e.td, l: sd.league.all.ts } : { s: tm.ts, d: tm.td, l: lg.ts };
+      const mx = Math.max(.01, ...tv.d.slice(0, 6).filter(isNum));
+      types = `<div class="sztypes">${SZ_TYPES.map(([k, lab]) => {
+        const i = sd.types.indexOf(k), dv = tv.d[i], sv = tv.s[i], hh = szHue(sv, tv.l[i]);
+        const txt = view === 'def' && gk ? (isNum(sv) ? (1 - sv).toFixed(3).replace(/^0/, '') + ' sv%' : '—') : `${szPct(dv)} · ${isNum(sv) ? Math.round(sv * 100) + '% G' : '—'}`;
+        return `<div class="szt"><span class="szk">${lab}</span><span class="szbar"><u class="sz-bg-${hh}" style="width:${isNum(dv) ? Math.max(2, dv / mx * 100).toFixed(1) : 0}%"></u></span><span class="szv">${txt}</span></div>`;
+      }).join('')}</div>`;
+    }
+    return hd(sum) + `<div class="card szcard">${tog}<div class="szgrid">${table}<div class="szart">${art}${key3}</div></div>${types}${mm}</div>`;
+  }
+
   function playerView(sport, pid) {
     ensureMeta(sport);
     const pe = ensurePlayer(sport, pid), sc = ensureSched(sport);
     ensureDef(sport);
+    ensureShots(sport);
     if (!store.idxDone || sc.st === 'loading' || store.meta[sport].st === 'loading' || pe.st === 'loading') {
       return pHead(`<div class="phero"><span class="dot"></span><span class="bars">${bar('w70')}${bar('w55')}</span></div>${rowsGeneric(3)}`);
     }
@@ -1338,7 +1491,7 @@
               ${sec('Games vs ' + opp)}${histList(hist, g, lcols)}`;
           }
         }
-        body = head + dtab + vs;
+        body = head + dtab + (goalie ? '' : shotMatchup(sport, pid, d, opp, team, gsg)) + vs;
       }
     } else { // recent
       let log;
@@ -1498,6 +1651,7 @@
     }
     else if (d.sub) state.gameTab = d.sub;
     else if (d.cmp) state.cmpSplit = d.cmp;
+    else if (d.shotv) state.shotView[sportOf() + '/' + cur.id] = d.shotv;
     else if (d.cstat) state.chartStat[sportOf() + '/' + cur.id] = d.cstat;
     else if (d.info) { if (state.infoOpen[d.info]) delete state.infoOpen[d.info]; else state.infoOpen[d.info] = true; }
     else if (d.day) state.sel[sportOf()] = d.day;

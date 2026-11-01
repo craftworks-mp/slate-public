@@ -524,6 +524,45 @@ button.prow{width:100%;text-align:left;align-items:flex-start;min-height:64px}
 .rc-top .tchips{margin-left:auto}
 .ph-tags{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 12px}
 
+/* shot matchup (player Matchup tab) */
+.szh{justify-content:space-between}
+.szh::after{order:1}
+.szh .szsum{order:2;font:600 12px/1.2 var(--f-b);letter-spacing:0;text-transform:none;color:var(--muted);white-space:nowrap}
+.szsum.pos{color:var(--pos)}.szsum.neg{color:var(--neg)}
+.szcard{padding:12px 10px 14px}
+.sztog{margin-bottom:12px}
+.szseg button{min-height:38px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.szgrid{display:grid;grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr);column-gap:8px;align-items:start}
+.sztab{min-width:0}
+.szr{display:grid;grid-template-columns:minmax(0,1fr) 34px 32px;column-gap:4px;align-items:center;min-height:25px;border-bottom:1px solid var(--line)}
+.szr:last-child{border-bottom:0}
+.szrh{min-height:0;padding-bottom:5px;font:600 10.5px/1.2 var(--f-b);color:var(--faint)}
+.szrh span:nth-child(n+2),.szr b,.szr i{text-align:right}
+.szk{font:500 11.5px/1.15 var(--f-b);color:var(--muted);min-width:0}
+.szr b{font:600 13px/1 var(--f-b);font-variant-numeric:tabular-nums;color:var(--ink)}
+.szr i{font:500 10.5px/1 var(--f-b);font-style:normal;font-variant-numeric:tabular-nums;color:var(--faint)}
+.szr b.sz-g,.szr i.sz-g{color:var(--pos)}.szr b.sz-r,.szr i.sz-r{color:var(--neg)}
+.szr i.sz-g,.szr i.sz-r{opacity:.8}
+.szart{min-width:0}
+.szsvg{display:block;width:100%;height:auto;overflow:visible;stroke:none;stroke-width:1}
+.szsvg .szb{fill:var(--card)}
+.szsvg .szl{fill:none;stroke:rgba(236,245,240,.13);stroke-width:1}
+.szsvg .szh{fill:none;stroke:rgba(236,245,240,.3);stroke-width:1.5}
+.szsvg text{stroke:none;font:600 19px var(--f-b);fill:var(--ink);text-anchor:middle;dominant-baseline:central;font-variant-numeric:tabular-nums}
+.szkey{margin-top:8px}
+.szkey p{margin:0 0 3px;font-size:10.5px;line-height:1.35;color:var(--faint)}
+.szkey b{color:var(--muted);font-weight:600}
+.szw{display:inline-flex;align-items:center;gap:4px;margin-right:8px;white-space:nowrap}
+.szw u{display:inline-block;width:10px;height:10px;border-radius:3px}
+.szmm{margin:12px 2px 0;font-size:12.5px;line-height:1.45;color:var(--muted)}
+.szmm b{display:block;margin-bottom:2px;font:600 10.5px/1.2 var(--f-b);letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.sztypes{margin-top:12px}
+.szt{display:grid;grid-template-columns:78px minmax(0,1fr) 78px;column-gap:8px;align-items:center;min-height:24px}
+.szbar{display:block;height:8px;border-radius:4px;background:rgba(236,245,240,.05);overflow:hidden}
+.szbar u{display:block;height:100%;border-radius:4px;text-decoration:none}
+.sz-bg-g{background:rgba(62,230,160,.6)}.sz-bg-r{background:rgba(255,122,112,.6)}.sz-bg-n{background:rgba(236,245,240,.28)}
+.szv{font:500 11px/1 var(--f-b);font-variant-numeric:tabular-nums;color:var(--muted);text-align:right;white-space:nowrap}
+@media (max-width:340px){.szk{font-size:10.5px}.szr{grid-template-columns:minmax(0,1fr) 30px 28px}.szr b{font-size:12px}.szt{grid-template-columns:58px minmax(0,1fr) 70px}.szv{font-size:10px}}
 /* ---- Model vs book card ---- */
 .mvb{padding:14px 12px 12px;margin:0 0 16px}
 .mvb-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
