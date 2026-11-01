@@ -634,7 +634,13 @@
     nba: [['tt', 'PPG'], ['oppg', 'Opp PPG', '', 1], ['pace', 'Pace'], ['ortg', 'ORtg'], ['drtg', 'DRtg', '', 1], ['net', 'Net'],
       ['efg', 'eFG%', 'pct'], ['tp', '3P%', 'pct'], ['reb', 'REB'], ['tovp', 'TOV%', 'pct', 1]],
     nhl: [['gf', 'GF'], ['ga', 'GA', '', 1], ['sf', 'SF'], ['sa', 'SA', '', 1], ['sv', 'SV%', 'pct'], ['sh', 'SH%', 'pct'], ['pdo', 'PDO']],
+    // NFL (user 11/01 11:05: Game tab crashed once NFL team stats arrived): fields of data/world/nfl/teams.json; 'ep' = 2-decimal EPA
+    nfl: [['ppg', 'PPG'], ['ppga', 'Opp PPG', '', 1], ['ypp_o', 'Yds/play'], ['ypp_d', 'Yds/play allowed', '', 1], ['epa_o', 'EPA/play', 'ep'],
+      ['epa_d', 'EPA/play allowed', 'ep', 1], ['sr_o', 'Success rate', 'pct'], ['rztd_o', 'Red-zone TD%', 'pct'], ['sk_o', 'Sack rate', 'pct', 1]],
   };
+  // NFL keeps a last-3 split where NBA/NHL keep last 5: one toggle, mapped per sport
+  const cmpSplitOf = (sport) => (sport === 'nfl' && state.cmpSplit === 'l5' ? 'l3' : sport !== 'nfl' && state.cmpSplit === 'l3' ? 'l5' : state.cmpSplit);
+  const cmpSplitsOf = (sport) => (sport === 'nfl' ? CMP_SPLITS.map(([k, l]) => (k === 'l5' ? ['l3', 'Last 3'] : [k, l])) : CMP_SPLITS);
   // small tappable info icon + its note (generic: any label whose key has a text in `defs`)
   const infoBtn = (sport, key, defs) => (defs && defs[key]
     ? `<button class="info" data-info="${esc(sport + '/' + key)}" aria-expanded="${!!state.infoOpen[sport + '/' + key]}" aria-label="What is this?">i</button>` : '');
@@ -735,7 +741,7 @@
       ${infoNote(sport, 'mvb', MVB_DEFS)}
       <div class="mvb-score">${score(g.away, p.away)}<i>–</i>${score(g.home, p.home)}</div>${table}${rows.filter((r) => r.info).map((r) => infoNote(sport, r.info, MVB_DEFS)).join('')}</div>`;
   }
-  const fmtStat = (v, kind) => (isNum(v) ? (kind === 'pct' ? (v * 100).toFixed(1) + '%' : v.toFixed(1)) : '—');
+  const fmtStat = (v, kind) => (isNum(v) ? (kind === 'pct' ? (v * 100).toFixed(1) + '%' : kind === 'ep' ? (v > 0 ? '+' : '') + v.toFixed(2) : v.toFixed(1)) : '—');
   // team bar colors for the comparison: readable on the dark card, distinct from each other
   const hexRgb = (h) => { const m = /^#?([0-9a-f]{6})$/i.exec(String(h || '')); return m ? [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16)) : null; };
   const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
@@ -773,14 +779,14 @@
     if (te.st === 'loading') return sec('Team comparison') + skRows(3);
     const tm = te.st === 'ok' ? (te.data.teams || {}) : {};
     if (!tm[g.away] && !tm[g.home]) return sec('Team comparison') + `<div class="card empty"><h2>${te.st === 'err' ? 'Couldn’t load team stats' : 'No team stats yet'}</h2><p>${te.st === 'err' ? 'Check your connection and try again.' : 'Team stats show up here once they are published.'}</p></div>`;
-    const sk = state.cmpSplit === 'ha' ? ['away', 'home'] : [state.cmpSplit, state.cmpSplit];
+    const cs = cmpSplitOf(sport), sk = cs === 'ha' ? ['away', 'home'] : [cs, cs];
     const A = ((tm[g.away] || {}).split || {})[sk[0]] || {}, H = ((tm[g.home] || {}).split || {})[sk[1]] || {};
     const defs = te.data.defs || {};
-    const rows = CMP_STATS[sport].filter(([k]) => isNum(A[k]) || isNum(H[k])).map(([k, label, kind, low]) => {
+    const rows = (CMP_STATS[sport] || []).filter(([k]) => isNum(A[k]) || isNum(H[k])).map(([k, label, kind, low]) => {
       const a = A[k], h = H[k];
       let share = 0.5, ba = false, bh = false, la = false, lh = false;
       if (isNum(a) && isNum(h)) {
-        const sd = teamSd(tm, state.cmpSplit, k);
+        const sd = teamSd(tm, cs, k);
         if (sd) share = 0.5 + 0.4 * Math.tanh(0.75 * (a - h) / sd); // raw values: the bigger number gets the bigger bar
         const ta = fmtStat(a, kind), th = fmtStat(h, kind);
         if (a !== h) { ba = low ? a < h : a > h; bh = !ba; la = a > h; lh = !la; }
@@ -793,7 +799,7 @@
     const gp = (o) => (isNum(o.gp) ? o.gp : '—');
     ensureMeta(sport);
     const cc = cmpColors(sport, g);
-    return `${sec('Team comparison')}<div class="cmp-head">${segmented(CMP_SPLITS, state.cmpSplit, 'data-cmp', 'cmpseg')}</div>
+    return `${sec('Team comparison')}<div class="cmp-head">${segmented(cmpSplitsOf(sport), cs, 'data-cmp', 'cmpseg')}</div>
       <div class="card cmp" style="--ca:${cc[0]};--ch:${cc[1]}"><div class="cmp-teams"><span><b><i class="tdot a"></i>${esc(g.away)}</b><small>${gp(A)} GP</small></span><span><b>${esc(g.home)}<i class="tdot h"></i></b><small>${gp(H)} GP</small></span></div>${rows.join('')}</div>`;
   }
   const INJ_CLS = { out: 'bad', doubtful: 'bad', questionable: 'warn', 'day-to-day': 'warn', dtd: 'warn', probable: 'ok' };
@@ -2578,7 +2584,7 @@
   function plCard(c, i, n) {
     return `<div class="card pl-card" role="group" aria-label="Parlay ${i + 1} of ${n}"><div class="pl-top"><span class="lbl">${esc(plKind(c))}</span><span class="pl-odds">${fmtOdds(c.american)}</span></div>
       <div class="pl-tiles"><div class="pl-tile"><span class="pl-tl">EV</span><b class="ev ${evCls(c.ev)}">${sgn(c.ev, 1)}%</b></div><div class="pl-tile"><span class="pl-tl">Model P</span><b>${c.chance.toFixed(1)}%</b></div></div>
-      ${plWhy(c)}<div class="pl-legs">${c.legs.map(plLeg).join('')}</div><div class="pl-foot">1 leg per game · paid at multiplied odds</div></div>`;
+      <div class="pl-legs">${c.legs.map(plLeg).join('')}</div>${plWhy(c)}<div class="pl-foot">1 leg per game · paid at multiplied odds</div></div>`;
   }
   // why it looks good on paper + its weak spot (PARLAY.notes: sentences built from the card's own numbers; user 10/31 23:59)
   function plWhy(c) {
