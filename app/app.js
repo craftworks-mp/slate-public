@@ -2168,6 +2168,7 @@
       }
     }
     placeHl(!changed);
+    lvSync();
   }
 
   const sportOf = () => cur.sport || 'nba';
@@ -2369,7 +2370,8 @@
     gradeMine();
     return `<div class="bseg">${segmented([['dash', 'Dashboard'], ['mine', 'My Bets']], state.betSeg, 'data-bseg')}</div>${state.betSeg === 'mine' ? myBetsView() : dashView()}`;
   }
-  function mbRow(b) {
+  function mbRow(b) { return mbRowL(b, false); }
+  function mbRowL(b, live) {
     const open = b.status === 'open', where = b.away && b.home ? `${b.away} @ ${b.home}` : [b.team, b.opp].filter(Boolean).join(' vs ');
     const when = open ? where : `${mdOf(b.date)} · ${where}`;
     const res = open ? '' : b.status === 'void' ? '<span class="res-pill v">Void</span>' : `<span class="res-pill ${b.status === 'W' ? 'w' : b.status === 'L' ? 'l' : 'p'}">${b.status}</span>`;
@@ -2377,7 +2379,7 @@
     return `<div class="bet-wrap"><button class="bet mbr" data-addbet="${esc(b.sport + '|' + b.id)}" aria-label="${open ? 'Edit' : 'View'} ${esc(b.label)}">
       <span class="bet-l"><span class="bet-mkt">${esc(b.label)}</span>
         <span class="bet-sub">${fmtOdds(b.odds)}${b.oddsEdited ? ' edited' : ''} · ${open ? uTxt(b.units) + ' · ' : ''}${esc(when)}${b.note ? `<em class="mb-note">${esc(b.note)}</em>` : ''}</span></span>
-      <span class="bet-m">${res}</span><span class="bet-r">${lead}${gradeChip(b)}</span></button></div>`;
+      <span class="bet-m">${res}</span><span class="bet-r">${lead}${gradeChip(b)}</span></button>${live && open ? `<div class="lv-wrap" data-lv="${esc(b.id)}">${lvHtml(b)}</div>` : ''}</div>`;
   }
   // ======== Scoring watch shell (prefix sw): shared card + row renderer for the NHL anytime-goal, NBA triple-double and NFL anytime-TD panels and game blocks ========
   // Layered card: sport-tinted header band, body rows with a thin chance bar (model P on a per-panel 0–scale% track) and a break-even tick at the DK price, recessed footer legend.
@@ -2744,7 +2746,7 @@
         const when = open ? (b.date === ymd(0) ? '' : `${dowOf(b.date)} ${mdOf(b.date)} · `) + (b.start ? fmtTime(b.start) : 'time TBD') : `${dowOf(b.date)} ${mdOf(b.date)}${b.start ? ` · ${fmtTime(b.start)}` : ''}`;
         out += `<div class="bx-t${open ? '' : ' done'}">${esc(when)}</div>`;
       }
-      out += mbRow(b);
+      out += mbRowL(b, open);
     });
     return `<div class="bx-tl">${out}</div>`;
   }
@@ -2760,7 +2762,7 @@
       const shown = state.mbMore ? done : done.slice(0, 10);
       body = done.length ? `${bxTl(shown, false)}${done.length > 10 && !state.mbMore ? `<button class="pillbtn" data-bmore="1">Show all ${done.length}</button>` : ''}` : bxQuiet('No settled bets yet.');
     }
-    return bxHero(s, done) + tabs + body;
+    return bxHero(s, done) + tabs + (state.bxTab === 'open' && open.length ? `<div class="lv-note" id="lv-note">${lvNote()}</div>` : '') + body;
   }
   view.addEventListener('click', (e) => {
     const b = e.target.closest('button');
@@ -2801,6 +2803,70 @@
   });
   document.querySelector('label[for="bk-file"]').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('bk-file').click(); } });
   gradeMine();
+
+  // ---- Live tracking (display only; logic in live.js; owner-approved 11/01 17:23) ----
+  // Polls ESPN straight from the browser every 30 s while My Bets (Open tab) is on screen and the page is visible. Nothing is written to storage and no
+  // bet's status or P/L changes: the morning grading stays the record. Moneyline / spread show the live score only (owner 11/01 18:17).
+  const LV = window.Live;
+  const lv = { cache: { games: {}, failed: false }, timer: 0, busy: false, gen: 0 };
+  const lvOn = () => cur.page === 'bets' && state.betSeg === 'mine' && state.bxTab === 'open' && document.visibilityState === 'visible';
+  // away / home / start of a bet saved without them come from the loaded slate (bets added in the app always carry them)
+  function lvBet(b) {
+    if (b.away && b.home && b.start) return b;
+    const e = store.slates[b.sport + '/' + b.date], g = e && e.st === 'ok' && e.data && e.data.games && e.data.games[b.gid];
+    return g ? Object.assign({}, b, { away: b.away || g.away || '', home: b.home || g.home || '', start: b.start || g.kickoff || '' }) : b;
+  }
+  // the player's name: the slate's, else the label minus the bet text it was built from (label = '<name> <bet text>'); '' when neither works
+  function lvName(b) {
+    if (b.type !== 'prop') return '';
+    const e = store.slates[b.sport + '/' + b.date], p = e && e.st === 'ok' && b.pid && e.data && e.data.players && e.data.players[b.pid];
+    if (p && p.name) return p.name;
+    const sfx = ' ' + betLbl(b.market, b.side, b.line);
+    return b.label.endsWith(sfx) ? b.label.slice(0, -sfx.length) : '';
+  }
+  function lvHtml(b) {
+    const x = lvBet(b), v = LV.betView(x, lv.cache.games[LV.gameKey(x)], lvName(b));
+    if (!v) return '';
+    const fin = v.phase === 'post', tail = v.cls === 'push' ? 'Push' : v.tail;
+    if (v.kind === 'score') { // score in white; at the final the losing team goes muted and the bet's result sits on the right (owner 11/01 18:27)
+      const tm = (k, t, sc) => `<span class="${v.win && v.win !== k ? 'lo' : v.win ? 'hi' : ''}">${k === 'A' ? esc(t) + ' ' + sc : sc + ' ' + esc(t)}</span>`;
+      const res = fin ? `<b class="lv-r lv-r-${v.cls}">${v.cls === 'green' ? 'Won' : v.cls === 'red' ? 'Lost' : 'Push'}</b> · ` : '';
+      return `<div class="lv lv-sc"><span class="lv-n">${tm('A', v.away, v.sA)} – ${tm('H', v.home, v.sH)}</span><span class="lv-t">${res}${v.tail ? esc(v.tail) + ' · ' : ''}${fin ? 'Final' : 'Live'}</span></div>`;
+    }
+    return `<div class="lv lv-${v.cls}"><span class="lv-n">${esc(v.text)}</span><span class="lv-bar" role="progressbar" aria-label="Progress toward the line" aria-valuemin="0" aria-valuemax="${v.target}" aria-valuenow="${v.cur}"><i style="width:${v.pct.toFixed(1)}%"></i></span><span class="lv-t">${esc(tail)} · ${fin ? 'Final' : 'Live'}</span></div>`;
+  }
+  const lvNote = () => (lv.cache.failed ? 'Live data unavailable' : '');
+  function lvPaint() {
+    view.querySelectorAll('[data-lv]').forEach((el) => { const b = mb.bets[el.dataset.lv]; el.innerHTML = b ? lvHtml(b) : ''; });
+    const n = $('lv-note');
+    if (n) n.textContent = lvNote();
+  }
+  function lvFetch(url) { // JSON or rejects; 8 s limit
+    const ac = typeof AbortController === 'function' ? new AbortController() : null;
+    return new Promise((res, rej) => {
+      const tm = setTimeout(() => { if (ac) ac.abort(); rej(new Error('timeout')); }, LV.TIMEOUT_MS);
+      fetch(url, ac ? { signal: ac.signal } : undefined).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then((j) => { clearTimeout(tm); res(j); }, (e) => { clearTimeout(tm); rej(e); });
+    });
+  }
+  function lvStop() { clearTimeout(lv.timer); lv.timer = 0; lv.gen++; }
+  function lvSync() { // call after any change of view / visibility
+    if (!lvOn()) { lvStop(); return; }
+    if (!lv.timer && !lv.busy) lvRun();
+  }
+  async function lvRun() {
+    const gen = lv.gen;
+    lv.busy = true;
+    try {
+      const bets = Object.values(mb.bets).filter((b) => b.status === 'open').map(lvBet);
+      if (LV.pending(bets, Date.now(), lv.cache)) await LV.refresh({ bets, now: Date.now(), cache: lv.cache, fetchJson: lvFetch });
+    } catch (e) { lv.cache.failed = true; }
+    lv.busy = false;
+    if (gen !== lv.gen || !lvOn()) { lvSync(); return; } // stopped (or restarted) while the requests were out
+    lvPaint();
+    lv.timer = setTimeout(() => { lv.timer = 0; lvSync(); }, LV.POLL_MS);
+  }
+  document.addEventListener('visibilitychange', lvSync);
   // ======== end My Bets ========
 
   // Track in-app history so the back button can use real browser back when possible.
