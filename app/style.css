@@ -879,8 +879,14 @@ a.gl-row:active{background:var(--card2)}
 .pl-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 .pl-top .lbl{text-transform:none;letter-spacing:.02em;font-size:12px}
 .pl-odds{font:600 14px/1 var(--f-m);color:var(--ink)}
-.pl-ev{margin-top:8px;font:700 34px/1 var(--f-d);letter-spacing:.01em}
-.pl-ch{margin-top:4px;font-size:12px;color:var(--muted)}
+.pl-tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.pl-tile{display:flex;flex-direction:column;gap:5px;padding:9px 10px;border:1px solid var(--line);border-radius:12px;min-width:0}
+.pl-tl{font:600 10px/1 var(--f-b);letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.pl-tile b{font:700 28px/1 var(--f-d);letter-spacing:.01em;color:var(--ink)}
+.pl-why{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.pl-why li{position:relative;padding-left:13px;font-size:12.5px;line-height:1.4;color:var(--muted)}
+.pl-why li::before{content:'';position:absolute;left:2px;top:.55em;width:5px;height:5px;border-radius:50%;background:var(--pos)}
+.pl-why li.pl-weak::before{background:var(--amber)}
 .pl-legs{display:flex;flex-direction:column;margin-top:10px;border-top:1px solid var(--line)}
 .pl-leg{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 0;border-bottom:1px solid var(--line);color:inherit;text-decoration:none;min-width:0}
 .pl-leg-l{display:flex;flex-direction:column;gap:3px;min-width:0}
@@ -892,3 +898,6 @@ a.gl-row:active{background:var(--card2)}
 .pl-dots i{width:6px;height:6px;border-radius:50%;background:var(--line);transition:background .2s,transform .2s}
 .pl-dots i.on{background:var(--accent);transform:scale(1.25)}
 .pl-sk{padding:10px}
+/* player Tonight: team off today (audit fix 10/31) */
+.card.empty.pn-off p{margin:0}
+.card.empty .pn-next{display:block;margin-top:4px;font-size:12px;color:var(--muted);text-align:center}

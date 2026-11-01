@@ -1674,7 +1674,8 @@
     if (pe.st === 'err') return pHead(`<div class="card empty"><h2>Couldn’t load player</h2><p>Check your connection and try again.</p><button class="pillbtn retry" data-retry-player="${esc(sport + '/' + pid)}">Retry</button></div>`);
     if (pe.st !== 'ok') return pHead(`<div class="card empty"><h2>No data for this player</h2><p>This player has no published stats yet.</p></div>`);
     const d = pe.data || {}, goalie = sport === 'nhl' && d.pos === 'G';
-    const date = selDate(sport), se = ensureSlate(sport, date);
+    // always today (ET), never the day picked in the sport list (audit fix, user 10/31 23:51)
+    const date = ymd(0), se = ensureSlate(sport, date);
     const sl = se.st === 'ok' ? (se.data || {}) : null;
     const sp = sl && sl.players && sl.players[pid];
     const name = d.name || (sp && sp.name) || pid;
@@ -1738,7 +1739,15 @@
             <span class="pm-t"><b>${away ? '@' : 'vs'} ${esc(tonightOpp)}</b>${rest ? `<small>${esc(rest)}</small>` : ''}</span><span class="pm-time">${esc(fmtTime(sg.kickoff))}</span></div>
             ${oppPills(tonightOpp, date, sg)}${inj ? `<div class="pm-inj"><i class="inj">${esc(inj)}</i>${note ? `<span>${esc(note)}</span>` : ''}</div>` : ''}</div>`;
         }
-        const props = mine.length ? `${sec('Props')}<div class="betlist">${mine.map(betRow).join('')}</div>`
+        // team off today (schedule known): "No game today" + his next game, small and centered (user 10/31 23:59)
+        const tsd = schedData(sport), tgames = tsd && team ? (tsd.byTeam[team] || []) : null;
+        const offToday = !sg && tgames && !tgames.some((g) => g.d === date);
+        let props;
+        if (offToday) {
+          const ng = tgames.find((g) => g.d > date && g.status !== 'post');
+          const nxt = ng ? `Next game: ${F_LONG.format(dnoon(ng.d))} ${ng.home === team ? 'vs' : '@'} ${oppOf(ng, team)}` : '';
+          props = `<div class="card empty pn-off"><p>No game today</p>${nxt ? `<small class="pn-next">${esc(nxt)}</small>` : ''}<button class="pillbtn" data-ptab="trends">See trends</button></div>`;
+        } else props = mine.length ? `${sec('Props')}<div class="betlist">${mine.map(betRow).join('')}</div>`
           : `<div class="card empty"><p>No props for him tonight.</p><button class="pillbtn" data-ptab="trends">See trends</button></div>`;
         body = card + props;
       }
@@ -2467,7 +2476,8 @@
       gids.forEach((gid) => betRows(e.data, gid).forEach((r) => {
         const sg = (e.data.games || {})[gid] || {};
         legs.push({ key: sp + '|' + r.id, sp, gid, pid: r.pid, name: r.name, team: r.team, label: `${r.name} ${betText(r)}`, odds: r.ph.odds, P: r.ph.P, ev: r.ph.ev,
-          kickoff: sg.kickoff, recheck: !!r.ph.recheck, uncal: !!r.ph.uncal, pick: r.ph.pick, away: sg.away, home: sg.home });
+          kickoff: sg.kickoff, recheck: !!r.ph.recheck, uncal: !!r.ph.uncal, pick: r.ph.pick, away: sg.away, home: sg.home,
+          stat: r.b.stat, side: r.b.side, line: r.ph.line, proj: r.ph.proj, grade: r.ph.grade });
       }));
     });
     return { legs, loading, failed };
@@ -2480,8 +2490,14 @@
   }
   function plCard(c, i, n) {
     return `<div class="card pl-card" role="group" aria-label="Parlay ${i + 1} of ${n}"><div class="pl-top"><span class="lbl">${esc(plKind(c))}</span><span class="pl-odds">${fmtOdds(c.american)}</span></div>
-      <div class="ev pl-ev ${evCls(c.ev)}">${sgn(c.ev, 1)}% EV</div><div class="pl-ch">Model chance ${c.chance.toFixed(1)}%</div>
-      <div class="pl-legs">${c.legs.map(plLeg).join('')}</div><div class="pl-foot">1 leg per game · paid at multiplied odds</div></div>`;
+      <div class="pl-tiles"><div class="pl-tile"><span class="pl-tl">EV</span><b class="ev ${evCls(c.ev)}">${sgn(c.ev, 1)}%</b></div><div class="pl-tile"><span class="pl-tl">Model P</span><b>${c.chance.toFixed(1)}%</b></div></div>
+      ${plWhy(c)}<div class="pl-legs">${c.legs.map(plLeg).join('')}</div><div class="pl-foot">1 leg per game · paid at multiplied odds</div></div>`;
+  }
+  // why it looks good on paper + its weak spot (PARLAY.notes: sentences built from the card's own numbers; user 10/31 23:59)
+  function plWhy(c) {
+    const nt = PARLAY.notes(c);
+    if (!nt.pros.length && !nt.weak) return '';
+    return `<ul class="pl-why">${nt.pros.map((x) => `<li>${esc(x)}</li>`).join('')}${nt.weak ? `<li class="pl-weak">${esc(nt.weak)}</li>` : ''}</ul>`;
   }
   let plWait = false;
   function plPanel() {
