@@ -314,6 +314,7 @@ a.srow:active{background:var(--card2)}
 .pcard .bet{min-height:58px}
 .bet-mkt{font:600 15px/1.2 var(--f-b);color:var(--ink);white-space:nowrap}
 .bet-sub{display:flex;align-items:center;gap:6px}
+.ls-chk{font:600 9px/1 var(--f-m);font-style:normal;letter-spacing:.06em;text-transform:uppercase;margin-left:6px;padding:2px 5px 1px;border:1px solid var(--faint);border-radius:999px;color:var(--muted);white-space:nowrap}
 .side-tag{font:600 9px/1 var(--f-m);font-style:normal;letter-spacing:.06em;text-transform:uppercase;margin-left:6px;color:var(--faint)}
 .bet-wrap.alt .bet{opacity:.62}
 .bet-wrap.alt.open .bet{opacity:1}

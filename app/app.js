@@ -848,6 +848,8 @@
       return { id, b, ph, tag: b.close ? 'close' : 'open', pid: String(b.pid), team: p.team || '', pick: ph.pick !== false, name: p.name || String(b.pid), inj: p.inj || '', pg: p.pg !== false };
     }).filter(Boolean);
   }
+  // yes/no longshot markets (anytime goal, triple-double, anytime TD) whose EV is above the RECHECK line: muted "Check" chip next to the price (prefix ls)
+  const lsChk = (b, ph) => (ph.recheck && ph.uncal && (b.stat === 'td3' || b.stat === 'atd' || (b.stat === 'g' && ph.line === 0.5)) ? '<em class="ls-chk" title="EV above the re-check line: confirm the price, the lineup and the player\u2019s status before trusting it">Check</em>' : '');
   const UNCAL = '<span class="grade-badge uncal" role="img" aria-label="Not graded yet: model not calibrated">\u2013</span>'; // NFL until its calibration gate passes: no grade (gray dash), EV shown
   const gradeIdx = (r) => { const i = GRADE_ORDER.indexOf(r.ph.grade); return i < 0 ? 99 : i; };
   const byEv = (x, y) => y.ph.ev - x.ph.ev;
@@ -880,7 +882,7 @@
     }
     return `<div class="bet-wrap${open ? ' open' : ''}${showPick && !r.pick ? ' alt' : ''}${add ? ' has-add' : ''}"><button class="bet" data-bet="${esc(r.id)}" aria-expanded="${open}">
       <span class="bet-l"><span class="bet-mkt">${esc(betLbl(b.stat, b.side, ph.line))}</span>
-        <span class="bet-sub">${fmtOdds(ph.odds)} · ${r.tag.toUpperCase()}${showPick && !r.pick ? '<em class="side-tag">Other side</em>' : ''}</span></span>
+        <span class="bet-sub">${fmtOdds(ph.odds)} · ${r.tag.toUpperCase()}${showPick && !r.pick ? '<em class="side-tag">Other side</em>' : ''}${lsChk(b, ph)}</span></span>
       <span class="bet-m">${td3 ? `<span class="bet-proj">Model ${isNum(ph.P) ? ph.P.toFixed(1) + '%' : '—'}</span>` : `<span class="bet-proj">Proj ${ph.proj.toFixed(1)}</span>
         <span class="ev gap ${c}">${sgn(gap, 1)}${pct === null ? '' : ` (${sgn(pct, 0)}%)`}</span>`}</span>
       <span class="bet-r"><span class="ev bet-ev ${c}">${sgn(ph.ev, 1)}%</span>
@@ -2376,7 +2378,8 @@
   }
   // ======== NHL anytime goal (Scoring watch panel + game Bets block; prefix ag) ========
   // Rows: slate bets with stat g, side o, line 0.5 (over = Yes). Price = DK yes odds, chance = model P(>= 1 goal), ungraded (UNCAL).
-  const agIs = (r) => r.b.stat === 'g' && r.b.side === 'o' && r.ph.line === 0.5 && isNum(r.ph.P) && isNum(r.ph.odds);
+  const agOk = (r) => r.b.stat === 'g' && r.b.side === 'o' && r.ph.line === 0.5 && isNum(r.ph.P) && isNum(r.ph.odds);
+  const agIs = (r) => agOk(r) && !r.ph.recheck; // Scoring watch panels: recheck rows (EV above the RECHECK line) stay out; the game Bets block keeps them with a Check chip
   const agBy = (x, y) => y.r.ph.P - x.r.ph.P || y.r.ph.ev - x.r.ph.ev;
   // top n by model chance, at most 2 per team and 2 per game; fewer than n qualify -> game cap 3, then 4 (team cap stays 2)
   function agTop(list, n) {
@@ -2396,7 +2399,7 @@
   function agRow(x, short) {
     const { r, sg } = x, c = evCls(r.ph.ev);
     const where = sg.away === r.team ? `@ ${sg.home}` : `vs ${sg.away}`;
-    const sub = `${esc(r.team)} ${esc(where)}${!short && sg.kickoff ? ` · ${esc(fmtTime(sg.kickoff))}` : ''} · DK ${fmtOdds(r.ph.odds)}`;
+    const sub = `${esc(r.team)} ${esc(where)}${!short && sg.kickoff ? ` · ${esc(fmtTime(sg.kickoff))}` : ''} · DK ${fmtOdds(r.ph.odds)}${lsChk(r.b, r.ph)}`;
     const add = pgCtx.final ? '' : addBtn('nhl', r);
     return `<div class="bet-wrap ag-row${add ? ' has-add' : ''}"><a class="bet tr" href="#nhl/player/${encodeURIComponent(r.pid)}">
       <span class="bet-l"><span class="bet-mkt">${esc(r.name)}</span><span class="bet-sub">${sub}</span></span>
@@ -2431,18 +2434,19 @@
   function agGameBlock(sport, slate, rows) {
     if (sport !== 'nhl') return '';
     const sg = (slate.games || {})[state.betGid] || {};
-    const top = rows.filter(agIs).map((r) => ({ r, sg, gid: state.betGid })).sort(agBy).slice(0, 3);
+    const top = rows.filter(agOk).map((r) => ({ r, sg, gid: state.betGid })).sort(agBy).slice(0, 3);
     if (!top.length) return '';
     return `<div class="ag-blk"><div class="lbl ag-h">Anytime goal · top ${top.length} by model chance</div><div class="betlist">${top.map((x) => agRow(x, true)).join('')}</div></div>`;
   }
   // ======== NBA triple-double (Scoring watch panel + game Bets block; prefix td3) ========
   // Rows: slate bets with stat td3, side o (= Yes). Price = DK yes odds, chance = model P(pts, reb, ast all >= 10) after the propShrink, ungraded (UNCAL).
   // Same caps as the anytime-goal panel (top 5 by chance, 2 per team, 2 per game loosening to 3 then 4), so agTop / agBy are reused.
-  const td3Is = (r) => r.b.stat === 'td3' && r.b.side === 'o' && isNum(r.ph.P) && isNum(r.ph.odds) && isNum(r.ph.ev);
+  const td3Ok = (r) => r.b.stat === 'td3' && r.b.side === 'o' && isNum(r.ph.P) && isNum(r.ph.odds) && isNum(r.ph.ev);
+  const td3Is = (r) => td3Ok(r) && !r.ph.recheck; // panel: no recheck rows; game block: kept with a Check chip
   function td3Row(x, short) {
     const { r, sg } = x, c = evCls(r.ph.ev);
     const where = sg.away === r.team ? `@ ${sg.home}` : `vs ${sg.away}`;
-    const sub = `${esc(r.team)} ${esc(where)}${!short && sg.kickoff ? ` · ${esc(fmtTime(sg.kickoff))}` : ''} · DK ${fmtOdds(r.ph.odds)}`;
+    const sub = `${esc(r.team)} ${esc(where)}${!short && sg.kickoff ? ` · ${esc(fmtTime(sg.kickoff))}` : ''} · DK ${fmtOdds(r.ph.odds)}${lsChk(r.b, r.ph)}`;
     const add = pgCtx.final ? '' : addBtn('nba', r);
     return `<div class="bet-wrap td3-row${add ? ' has-add' : ''}"><a class="bet tr" href="#nba/player/${encodeURIComponent(r.pid)}">
       <span class="bet-l"><span class="bet-mkt">${esc(r.name)}</span><span class="bet-sub">${sub}</span></span>
@@ -2474,14 +2478,15 @@
   function td3GameBlock(sport, slate, rows) {
     if (sport !== 'nba') return '';
     const sg = (slate.games || {})[state.betGid] || {};
-    const top = rows.filter(td3Is).map((r) => ({ r, sg, gid: state.betGid })).sort(agBy).slice(0, 3);
+    const top = rows.filter(td3Ok).map((r) => ({ r, sg, gid: state.betGid })).sort(agBy).slice(0, 3);
     if (!top.length) return '';
     return `<div class="td3-blk"><div class="lbl td3-h">Triple-double · top ${top.length} by model chance</div><div class="betlist">${top.map((x) => td3Row(x, true)).join('')}</div></div>`;
   }
   // ======== NFL anytime TD (Scoring watch panel + game Bets block; prefix atd; self-contained, called from agSection's note and betsTab) ========
   // Rows: slate bets with stat atd (over = Yes, line 0.5). Chance = P (model blended toward the book's fair price), price = DK yes odds, ungraded (UNCAL).
   const ATD_NONE = 'No anytime TD prices yet for today’s games.';
-  const atdIs = (r) => r.b.stat === 'atd' && r.b.side === 'o' && isNum(r.ph.P) && isNum(r.ph.odds);
+  const atdOk = (r) => r.b.stat === 'atd' && r.b.side === 'o' && isNum(r.ph.P) && isNum(r.ph.odds);
+  const atdIs = (r) => atdOk(r) && !r.ph.recheck; // panel: no recheck rows; game block: kept with a Check chip
   const atdBy = (x, y) => y.r.ph.P - x.r.ph.P || y.r.ph.ev - x.r.ph.ev;
   // top n by model chance, at most 2 per team and 2 per game; fewer than n qualify -> game cap 3, then 4 (team cap stays 2)
   function atdTop(list, n) {
@@ -2501,7 +2506,7 @@
   function atdRow(x, short) {
     const { r, sg } = x, c = evCls(r.ph.ev);
     const where = sg.away === r.team ? `@ ${sg.home}` : `vs ${sg.away}`;
-    const sub = `${esc(r.team)} ${esc(where)}${!short && sg.kickoff ? ` · ${esc(fmtTime(sg.kickoff))}` : ''} · DK ${fmtOdds(r.ph.odds)}`;
+    const sub = `${esc(r.team)} ${esc(where)}${!short && sg.kickoff ? ` · ${esc(fmtTime(sg.kickoff))}` : ''} · DK ${fmtOdds(r.ph.odds)}${lsChk(r.b, r.ph)}`;
     const add = pgCtx.final ? '' : addBtn('nfl', r);
     const inner = `<span class="bet-l"><span class="bet-mkt">${esc(r.name)}</span><span class="bet-sub">${sub}</span></span>
       <span class="bet-r atd-r"><b class="atd-p">${r.ph.P.toFixed(1)}%</b><span class="atd-e ev ${c}">${sgn(r.ph.ev, 1)}% EV</span></span>`;
@@ -2531,7 +2536,7 @@
   function atdGameBlock(sport, slate, rows) {
     if (sport !== 'nfl') return '';
     const sg = (slate.games || {})[state.betGid] || {};
-    const top = rows.filter(atdIs).map((r) => ({ r, sg, gid: state.betGid })).sort(atdBy).slice(0, 3);
+    const top = rows.filter(atdOk).map((r) => ({ r, sg, gid: state.betGid })).sort(atdBy).slice(0, 3);
     if (!top.length) return '';
     return `<div class="atd-blk"><div class="lbl atd-h">Anytime TD · top ${top.length} by model chance</div><div class="betlist">${top.map((x) => atdRow(x, true)).join('')}</div></div>`;
   }  function dashView() {
