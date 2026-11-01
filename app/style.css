@@ -548,11 +548,6 @@ button.prow{width:100%;text-align:left;align-items:flex-start;min-height:64px}
 /* ---- Model vs book card ---- */
 .mvb{padding:14px 12px 12px;margin:0 0 16px}
 .mvb-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.mvb-l1{margin-top:10px;font:600 13px/1.35 var(--f-b);color:var(--ink)}
-.mvb-l1 .sep{color:var(--faint);margin:0 3px}
-.mvb-l2{margin-top:3px;font:700 14px/1.3 var(--f-b);color:var(--muted)}
-.mvb-l2.lv1{color:var(--pos)}
-.mvb-l2.lv2{color:var(--pos-hi)}
 .mvb-score{display:flex;align-items:flex-end;justify-content:center;gap:14px;margin:12px 0 12px}
 .mvb-score i{font-style:normal;font:700 30px/1 var(--f-d);color:var(--faint);padding-bottom:2px}
 .mvb-t{display:flex;flex-direction:column;align-items:center;gap:3px}
@@ -775,3 +770,78 @@ button.prow{width:100%;text-align:left;align-items:flex-start;min-height:64px}
 .szc-tbtn::before{content:"\203A";display:inline-block;margin-right:6px;transition:transform .18s}
 .szc-tbtn[aria-expanded="true"]::before{transform:rotate(90deg)}
 @media (max-width:340px){.szc-r{grid-template-columns:minmax(0,1fr) 64px 36px 30px;column-gap:6px}.szc-r .szc-k{font-size:11px}}
+
+/* ======== Past games: Final mode (prefix pg) ======== */
+.pg-head .gcenter{gap:6px}
+.pg-sc{display:inline-flex;align-items:baseline}
+.pg-sc .w{color:var(--ink)}.pg-sc .l{color:var(--muted);font-weight:500}
+.pg-ot{font-style:normal;margin-left:4px;padding:1px 5px;border-radius:5px;background:var(--card2);color:var(--amber);letter-spacing:.06em}
+.pg-date{color:var(--faint)}
+/* line score: team · periods · total */
+.pg-ls{display:grid;grid-template-columns:44px repeat(var(--n),minmax(0,1fr)) 40px;row-gap:6px;column-gap:4px;align-items:center;margin:-6px 0 16px;padding:10px 14px 11px;font:500 13px/1 var(--f-m);font-variant-numeric:tabular-nums;color:var(--muted);text-align:center}
+.pg-ls>span:nth-child(1),.pg-ls>span:nth-child(2){grid-column:auto}
+.pg-ls .pg-lh{font:600 9.5px/1 var(--f-b);letter-spacing:.06em;color:var(--faint)}
+.pg-ls .pg-lc{text-align:left;font:700 13px/1 var(--f-d);letter-spacing:.06em;color:var(--muted)}
+.pg-ls .pg-lt{font-weight:600;color:var(--muted);border-left:1px solid var(--line)}
+.pg-ls .pg-lc.w,.pg-ls .pg-lt.w{color:var(--ink);font-weight:700}
+/* proj toggle + key */
+.pg-togrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 2px 4px}
+.pg-tog{display:inline-flex;align-items:center;gap:8px;min-height:44px;font:600 13px/1 var(--f-b);color:var(--muted)}
+.pg-tog i{position:relative;display:inline-block;width:34px;height:20px;border-radius:999px;background:var(--grey);border:1px solid var(--line);transition:background .18s}
+.pg-tog i::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--muted);transition:transform .18s var(--ease),background .18s}
+.pg-tog.on{color:var(--ink)}
+.pg-tog.on i{background:var(--accent-deep);border-color:rgba(62,230,160,.45)}
+.pg-tog.on i::after{transform:translateX(14px);background:var(--accent)}
+.pg-key{font:500 11px/1.4 var(--f-m);color:var(--faint)}
+.pg-key b{font-weight:600;color:var(--muted)}.pg-key b.w{color:var(--pos)}.pg-key b.l{color:var(--neg)}
+.pg-note{margin:0 0 4px;padding:10px 12px;border-radius:12px;background:var(--card2);font-size:12.5px;line-height:1.4;color:var(--muted)}
+.card.empty .pg-note{margin:10px 0 0;background:transparent;padding:0}
+/* team totals */
+.pg-cmp{gap:14px}
+.pg-cmp .cmp-top .v{display:flex;flex-direction:column;gap:2px;min-width:0}
+.pg-cmp .cmp-top .v:last-of-type{align-items:flex-end}
+.pg-sub{font:500 9.5px/1 var(--f-m);color:var(--faint);letter-spacing:0}
+.pg-fold{display:block;width:100%;min-height:44px;font:600 12px/1 var(--f-b);color:var(--accent)}
+.pg-cmp .pg-fold{margin:-6px 0 -10px}
+/* player box tables: sticky name column, scroll inside the card only */
+.pg-box{padding:4px 0 2px;overflow:hidden}
+.pg-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;overscroll-behavior-x:contain}
+.pg-scroll::-webkit-scrollbar{display:none}
+.pg-tbl{width:100%;border-collapse:separate;border-spacing:0;font:500 12.5px/1.2 var(--f-m);font-variant-numeric:tabular-nums;color:var(--ink)}
+.pg-tbl th,.pg-tbl td{padding:7px 7px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+.pg-tbl thead th{padding-top:9px;padding-bottom:8px;font:600 9.5px/1.2 var(--f-b);letter-spacing:.05em;color:var(--faint);background:var(--card)}
+.pg-tbl thead th:first-child{text-align:left;font:600 10.5px/1.2 var(--f-b);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.pg-tbl th:first-child,.pg-tbl td:first-child{position:sticky;left:0;z-index:1;text-align:left;background:var(--card);padding-left:14px;max-width:150px}
+.pg-tbl th:first-child::after{content:"";position:absolute;top:0;bottom:0;right:-10px;width:10px;background:linear-gradient(90deg,rgba(10,18,16,.35),transparent);pointer-events:none}
+.pg-tbl tbody tr:last-child th,.pg-tbl tbody tr:last-child td{border-bottom:0}
+.pg-tbl td:last-child,.pg-tbl th:last-child{padding-right:14px}
+.pg-pl{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-height:30px;justify-content:center;text-align:left;min-width:0;max-width:136px}
+.pg-pl b{font:600 13px/1.15 var(--f-b);color:var(--ink);max-width:136px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pg-pl small{font:500 9.5px/1 var(--f-m);color:var(--faint)}
+.pg-pa{line-height:1}
+.pg-pa b{display:block;font-weight:700}
+.pg-pa small{display:block;margin-top:3px;font:500 10px/1 var(--f-m);color:var(--faint)}
+.pg-pa b.w{color:var(--pos)}.pg-pa b.l{color:var(--neg)}.pg-pa b.p{color:var(--amber)}
+.pg-tbl tr.pg-hl th,.pg-tbl tr.pg-hl td{background:rgba(62,230,160,.09)}
+.pg-tbl tr.pg-hl th:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+.pg-dnp{margin:0;padding:9px 14px 10px;font:500 11.5px/1.4 var(--f-m);color:var(--faint)}
+.pg-dnp i{font-style:normal;color:var(--faint);opacity:.8}
+.pg-box .pg-fold{border-top:1px solid var(--line)}
+.pg-box .pg-scroll+.pg-scroll{border-top:1px solid var(--line)}
+/* Game tab: model vs book vs final */
+.pg-ms .mvb-t b{font-size:32px}
+.pg-ms .mvb-t small{font:500 10.5px/1 var(--f-m);color:var(--faint)}
+.pg-bt .mvb-v{display:flex;flex-direction:column;gap:3px}
+.pg-mod{font:500 9.5px/1 var(--f-m);color:var(--faint)}
+/* Bets tab in Final mode: Actual / Result / Beat close rows */
+.pg-act{font-weight:700;color:var(--ink)}
+.btab.pg-fin .bt-v .res-pill{min-width:26px;justify-content:center;font-size:10.5px;padding:3px 6px}
+.res-pill.p{background:rgba(255,201,90,.14);color:var(--amber)}
+.pg-beat{font:600 11px/1 var(--f-m)}
+.pg-beat.w{color:var(--pos)}.pg-beat.l{color:var(--neg)}
+.pg-settle{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:0 12px 10px;font:500 11px/1.3 var(--f-m);color:var(--muted)}
+.pg-settle .pg-act{font-weight:600}
+/* game-log rows that open the game */
+a.gl-row{text-decoration:none;color:inherit}
+a.gl-row:active{background:var(--card2)}
+@media (max-width:340px){.pg-ls{padding:9px 10px 10px;grid-template-columns:38px repeat(var(--n),minmax(0,1fr)) 34px;font-size:12px}.pg-tbl{font-size:12px}.pg-tbl th,.pg-tbl td{padding:6px 5px}.pg-tbl th:first-child,.pg-tbl td:first-child{padding-left:10px}.pg-pl b{max-width:104px;font-size:12px}.pg-key{font-size:10px}}

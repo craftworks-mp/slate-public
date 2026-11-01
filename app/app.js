@@ -685,34 +685,27 @@
     const sg = slate && slate.games ? slate.games[g.gid] : null;
     const pr = projOf(sg);
     if (!pr) return '';
-    const { p, tag } = pr, dp = sport === 'nhl' ? 2 : 1, T = EDGE_T[sport];
+    const { p } = pr, dp = sport === 'nhl' ? 2 : 1, T = EDGE_T[sport];
     const bk = bookLines(slate, g.gid);
     const mg = isNum(p.margin) ? p.margin : p.away - p.home; // away - home
     const side = (v) => (v > 0 ? g.away : g.home);
     const book = (stat, sd) => (bk[stat] && bk[stat][sd]) || null;
     const rows = [];
-    // spread / lean sentence
+    // spread row
     let lA = book('spread', 'A') ? book('spread', 'A').line : null, lB = book('spread', 'B') ? book('spread', 'B').line : null;
     if (!isNum(lA) && isNum(lB)) lA = -lB;
     if (!isNum(lB) && isNum(lA)) lB = -lA;
     const evenM = Math.abs(mg) < 0.05;
-    let sentence = `<div class="mvb-l1">Model: ${evenM ? 'Even' : `${esc(side(mg))} by ${Math.abs(mg).toFixed(dp)}`}`;
     if (isNum(lA)) {
       const bm = -lA; // book margin, away - home
-      sentence += ` <span class="sep">·</span> Book: ${bm === 0 ? 'PK' : `${esc(side(bm))} by ${Math.abs(bm).toFixed(dp)}`}</div>`;
       const d = mg - bm, ad = Math.abs(d), lv = ad < 0.05 ? 0 : edgeLevel(ad, T.spread);
-      if (ad < 0.05) sentence += '<div class="mvb-l2 lv0">No lean</div>';
-      else {
-        const team = side(d), ln = d > 0 ? lA : lB;
-        sentence += `<div class="mvb-l2 lv${lv}">Lean ${esc(team)} ${ln === 0 ? 'PK' : sgn(ln, 1)}</div>`;
-      }
       rows.push({
         label: 'Spread',
         book: bm === 0 ? 'PK' : `${esc(side(bm))} ${MINUS}${Math.abs(bm)}`,
         model: evenM ? 'Even' : `${esc(side(mg))} ${MINUS}${Math.abs(mg).toFixed(dp)}`,
         chip: ad < 0.05 ? edgeChip('Even', 0) : edgeChip(`${esc(side(d))} +${ad.toFixed(dp)} pts`, lv),
       });
-    } else sentence += '</div>';
+    }
     // total + team totals
     const lineOf = (stat) => { const b = book(stat, 'o') || book(stat, 'u'); return b && isNum(b.line) ? b.line : null; };
     [['total', 'Total', p.total, T.total], ['ttA', g.away + ' total', p.away, T.tt], ['ttB', g.home + ' total', p.home, T.tt]].forEach(([stat, label, model, th]) => {
@@ -738,8 +731,8 @@
     const score = (code, v) => `<span class="mvb-t"><span class="pc">${esc(code)}</span><b>${v.toFixed(dp)}</b></span>`;
     const table = rows.length ? `<div class="mvb-tab"><span class="mvb-h"></span><span class="mvb-h">Book</span><span class="mvb-h">Model</span><span class="mvb-h">Edge</span>${rows.map((r) =>
       `<span class="mvb-lab">${r.label}${r.info ? infoBtn(sport, r.info, MVB_DEFS) : ''}</span><span class="mvb-v">${r.book}</span><span class="mvb-v mod">${r.model}</span>${r.chip}`).join('')}</div>` : '';
-    return `<div class="card mvb"><div class="mvb-top"><span class="lbl">Model vs book · ${tag.toUpperCase()}</span>${infoBtn(sport, 'mvb', MVB_DEFS)}</div>
-      ${infoNote(sport, 'mvb', MVB_DEFS)}${sentence}
+    return `<div class="card mvb"><div class="mvb-top"><span class="lbl">Projected score</span>${infoBtn(sport, 'mvb', MVB_DEFS)}</div>
+      ${infoNote(sport, 'mvb', MVB_DEFS)}
       <div class="mvb-score">${score(g.away, p.away)}<i>–</i>${score(g.home, p.home)}</div>${table}${rows.filter((r) => r.info).map((r) => infoNote(sport, r.info, MVB_DEFS)).join('')}</div>`;
   }
   const fmtStat = (v, kind) => (isNum(v) ? (kind === 'pct' ? (v * 100).toFixed(1) + '%' : v.toFixed(1)) : '—');
@@ -875,7 +868,12 @@
     const pros = (ph.pros || []).map((t) => `<div class="pro">${esc(t)}</div>`).join('');
     const cons = (ph.cons || []).map((t) => `<div class="con">${esc(t)}</div>`).join('');
     const ctx = pros || cons ? `<div class="bet-ctx"><div class="lbl">Context</div>${pros}${cons}</div>` : '<div class="bet-ctx"><div class="lbl">Context</div><div class="bet-none">No notes on this prop.</div></div>';
-    const add = addBtn(cur.sport || 'nba', r);
+    const add = pgCtx.final ? '' : addBtn(cur.sport || 'nba', r);
+    let fin = '';
+    if (pgCtx.final) {
+      const st = pgSettle(cur.sport || 'nba', r);
+      fin = `<span class="pg-settle"><span class="pg-act">${isNum(st.act) ? 'Actual ' + fx(st.act, Number.isInteger(st.act) ? 0 : 1) : 'Did not play'}</span>${st.res ? `<span class="res-pill ${PG_RES[st.res] || ''}">${esc(st.res)}</span>` : ''}${st.beat === null ? '' : `<span class="pg-beat ${st.beat ? 'w' : 'l'}">Beat close: ${st.beat ? 'yes' : 'no'}</span>`}</span>`;
+    }
     return `<div class="bet-wrap${open ? ' open' : ''}${showPick && !r.pick ? ' alt' : ''}${add ? ' has-add' : ''}"><button class="bet" data-bet="${esc(r.id)}" aria-expanded="${open}">
       <span class="bet-l"><span class="bet-mkt">${esc(BET_STAT[b.stat] || String(b.stat).toUpperCase())} ${b.side === 'u' ? 'U' : 'O'} ${esc(ph.line)}</span>
         <span class="bet-sub">${fmtOdds(ph.odds)} · ${r.tag.toUpperCase()}${showPick && !r.pick ? '<em class="side-tag">Other side</em>' : ''}</span></span>
@@ -883,7 +881,7 @@
         <span class="ev gap ${c}">${sgn(gap, 1)}${pct === null ? '' : ` (${sgn(pct, 0)}%)`}</span></span>
       <span class="bet-r"><span class="ev bet-ev ${c}">${sgn(ph.ev, 1)}%</span>
         ${g ? `<span class="grade-badge" data-g="${g}">${g}</span>` : ph.uncal ? UNCAL : ''}</span>
-    </button>${add}${open ? ctx : ''}</div>`;
+    </button>${fin}${add}${open ? ctx : ''}</div>`;
   }
   function playerCard(sport, grp, showPick) {
     const best = GRADE_ORDER[Math.min(...grp.rows.map(gradeIdx))];
@@ -923,10 +921,21 @@
     const bt = (id, cls, inner) => `<button class="bt-c ${cls}${state.betOpen[id] ? ' open' : ''}" data-bet="${esc(id)}" aria-expanded="${!!state.betOpen[id]}">${inner}</button>`;
     let hd = '<span class="bt-l"></span>', sr = '<span class="bt-l">Season</span>', ln = '<span class="bt-l">Line</span>',
       pj = `<span class="bt-l">Proj${first ? infoBtn(sport, 'btproj', BT_DEFS) : ''}</span>`, ev = `<span class="bt-l">EV${first ? infoBtn(sport, 'btev', BT_DEFS) : ''}</span>`;
-    let ad = '<span class="bt-l">My bets</span>';
+    const fin = pgCtx.final;
+    let ad = fin ? '' : '<span class="bt-l">My bets</span>';
+    let ac = '<span class="bt-l">Actual</span>', rs = '<span class="bt-l">Result</span>', bc = '<span class="bt-l">Beat close</span>';
     cols.forEach(([k, lab, dp]) => {
       const r = grp.cells[k], h = hl(k);
-      ad += r && k !== 'min' && addBtn(sport, r) ? `<span class="bt-ad">${addBtn(sport, r)}</span>` : '<span></span>';
+      if (fin) {
+        const act = k === 'min' ? pgActual(sport, grp.pid, 'min') : r ? pgSettle(sport, r) : null;
+        if (k === 'min') { ac += `<span class="bt-v${isNum(act) ? '' : ' nil'}">${isNum(act) ? (sport === 'nhl' ? pgToi(act) : act) : ''}</span>`; rs += '<span></span>'; bc += '<span></span>'; }
+        else if (!act) { ac += `<span class="bt-v nil${h}">—</span>`; rs += '<span></span>'; bc += '<span></span>'; }
+        else {
+          ac += `<span class="bt-v pg-act${h}">${isNum(act.act) ? fx(act.act, Number.isInteger(act.act) ? 0 : 1) : '—'}</span>`;
+          rs += `<span class="bt-v${h}">${act.res ? `<span class="res-pill ${PG_RES[act.res] || ''}">${esc(act.res)}</span>` : pgCtx.resLoading ? '<span class="bar w40"></span>' : '<span class="nil">—</span>'}</span>`;
+          bc += `<span class="bt-v${h}">${act.beat === null ? '<span class="nil">—</span>' : `<span class="pg-beat ${act.beat ? 'w' : 'l'}">${act.beat ? 'Yes' : 'No'}</span>`}</span>`;
+        }
+      } else ad += r && k !== 'min' && addBtn(sport, r) ? `<span class="bt-ad">${addBtn(sport, r)}</span>` : '<span></span>';
       hd += `<span class="bt-h${h}">${lab}</span>`;
       sr += `<span class="bt-v${h}">${fx(st[k], dp)}</span>`;
       if (k === 'min') {
@@ -960,7 +969,7 @@
       <span class="pcard-n">${grp.team ? tbadge(sport, grp.team, 's', '', true) : ''}<b>${esc(grp.name)}</b>${grp.inj ? `<i class="inj">${esc(grp.inj)}</i>` : ''}</span>
       <span class="pcard-r">${best ? `<span class="grade-badge" data-g="${best}">${best}</span>` : uncal ? UNCAL : ''}</span>
       <span class="pcard-chev" aria-hidden="true">›</span></button>
-      <div class="btab" style="--n:${cols.length}">${hd}${sr}${ln}${pj}${ev}${ad}</div>${notes}${ctx}${combo}</div>`;
+      <div class="btab${fin ? ' pg-fin' : ''}" style="--n:${cols.length}">${hd}${sr}${ln}${pj}${ev}${fin ? ac + rs + bc : ad}</div>${notes}${ctx}${combo}</div>`;
   }
   function betsTab(sport, date) {
     const e = ensureSlate(sport, date);
@@ -968,7 +977,7 @@
     if (e.st === 'err') return `<div class="card empty"><h2>Couldn’t load props</h2><p>Check your connection and try again.</p><button class="pillbtn retry" data-retry-slate="${esc(sport + '/' + date)}">Retry</button></div>`;
     const slate = e.st === 'ok' ? (e.data || {}) : {};
     const rows = e.st === 'ok' ? betRows(slate, state.betGid) : [];
-    if (!rows.length) return empty('Bets', 'No props for this game yet', 'Props show up here once the slate is published.', 0);
+    if (!rows.length) return pgCtx.past || pgCtx.final ? `<div class="card empty"><h2>No props for this game</h2>${PG_NOTE}</div>` : empty('Bets', 'No props for this game yet', 'Props show up here once the slate is published.', 0);
     const f = state.betF, mode = state.betSide;
     const table = !!TBL_COLS[sport];
     let cols = TBL_COLS[sport] || [];
@@ -1012,7 +1021,303 @@
     return `<div class="bets-head"><span class="bets-n">${n} ${n === 1 ? 'player' : 'players'} · ${shownN} ${shownN === 1 ? 'prop' : 'props'}</span>${segmented(SORTS, state.betSort, 'data-sort', 'sortseg')}</div>
       <div class="sidetog">${toggle}</div>${betChips(chipStats)}${body}`;
   }
-  const gameView = liveGameView;
+  // ======== Past games: Final mode (box score from ../box/<sp>/<date>.json; prefix pg) ========
+  store.box = {};
+  state.pgTab = 'box'; // Final mode sub-tab: box | game | bets
+  state.pgProj = true; // Box tab "Proj vs actual" toggle (modeled games)
+  state.pgOpen = {}; // folds ('<key>' -> true): bench tables, more team stats
+  const pgCtx = { final: false, box: null, res: null, resLoading: false, date: '', sgid: '', past: false }; // set while a Final-mode Bets tab renders (tblCard reads it)
+  const pgScrolled = {};
+  function pgEnsureBox(sp, date) {
+    const k = sp + '/' + date;
+    if (store.box[k]) return store.box[k];
+    const e = store.box[k] = { st: 'loading', sp, date };
+    indexP.then(() => {
+      const s = store.idx && store.idx.sports && store.idx.sports[sp];
+      if (store.idx && !(s && Array.isArray(s.box) && s.box.includes(date))) return { nf: true };
+      return getJSON('../box/' + sp + '/' + date + '.json' + ver());
+    }).then((r) => {
+      if (r.nf || !r.data || !r.data.games) e.st = '404'; else { e.st = 'ok'; e.data = r.data; }
+    }, () => { e.st = 'err'; }).then(rerender);
+    return e;
+  }
+  // a box game by its app id or any source id (NHL games open under the ESPN id from the schedule and the NHL id from the slate)
+  function pgFindBox(doc, id) {
+    const gs = (doc && doc.games) || {};
+    if (gs[id]) return Object.assign({ key: id }, gs[id]);
+    for (const k in gs) {
+      const ids = gs[k].ids || {};
+      if (Object.keys(ids).some((n) => String(ids[n]) === String(id))) return Object.assign({ key: k }, gs[k]);
+    }
+    return null;
+  }
+  const pgNum = (v) => (isNum(v) ? v : 0);
+  const pgPct = (v) => (isNum(v) ? (v * 100).toFixed(1) + '%' : '—');
+  const pgToi = (v) => { if (!isNum(v)) return '—'; const m = Math.floor(v), s = Math.round((v - m) * 60); return m + ':' + String(s).padStart(2, '0'); };
+  const pgSgn = (v) => (isNum(v) ? (v > 0 ? '+' : v < 0 ? MINUS : '') + Math.abs(v) : '—');
+  // team totals rows: [key, label, kind ('pct' = fraction), lowerIsBetter, value fn, sub-text fn]
+  const PG_TOT = {
+    nba: [['pts', 'PTS'], ['fgp', 'FG%', 'pct', 0, (t) => (t.fga ? t.fgm / t.fga : null), (t) => `${pgNum(t.fgm)}-${pgNum(t.fga)}`],
+      ['tpm', '3PM', '', 0, null, (t) => `of ${pgNum(t.tpa)}`], ['ftm', 'FTM', '', 0, null, (t) => `of ${pgNum(t.fta)}`], ['reb', 'REB', '', 0, null, (t) => `${pgNum(t.oreb)} off`], ['ast', 'AST'],
+      ['tov', 'TO', '', 1], ['stl', 'STL'], ['blk', 'BLK'], ['paint', 'Paint pts'], ['fb', 'Fast break'], ['lead', 'Largest lead']],
+    nhl: [['g', 'Goals'], ['sog', 'SOG'], ['svp', 'SV%', 'pct'], ['fo', 'FO%', 'pct'], ['hit', 'HIT'], ['blk', 'BLK'],
+      ['pim', 'PIM', '', 1], ['ppg', 'PP goals'], ['gv', 'Giveaways', '', 1], ['tk', 'Takeaways']],
+    nfl: [['pts', 'PTS'], ['tyd', 'Total yds', '', 0, (t) => pgNum(t.pyd) + pgNum(t.ryd)], ['pyd', 'Pass yds', '', 0, null, (t) => `${pgNum(t.cmp)}/${pgNum(t.att)}`], ['ryd', 'Rush yds', '', 0, null, (t) => `${pgNum(t.car)} car`],
+      ['td', 'TD', '', 0, (t) => pgNum(t.ptd) + pgNum(t.rtd)], ['sck', 'Sacks'], ['dint', 'INT'], ['fgm', 'FG', '', 0, null, (t) => `of ${pgNum(t.fga)}`]],
+  };
+  const PG_LEAD = 6; // totals rows shown before the fold
+  function pgTotals(sport, g, bg) {
+    const A = (bg.teams || {})[g.away] || {}, H = (bg.teams || {})[g.home] || {};
+    const defs = PG_TOT[sport] || [];
+    const rows = defs.map(([k, label, kind, low, fn, sub]) => {
+      const a = fn ? fn(A) : A[k], h = fn ? fn(H) : H[k];
+      if (!isNum(a) && !isNum(h)) return '';
+      const f = (v) => (kind === 'pct' ? pgPct(v) : isNum(v) ? String(v) : '—');
+      let share = 0.5, ba = false, bh = false;
+      if (isNum(a) && isNum(h) && a !== h) {
+        const tot = Math.abs(a) + Math.abs(h);
+        share = tot ? 0.5 + 0.4 * Math.tanh(4 * (a - h) / tot) : 0.5;
+        ba = low ? a < h : a > h; bh = !ba;
+      }
+      const la = isNum(a) && isNum(h) && a > h, lh = isNum(a) && isNum(h) && h > a;
+      return `<div><div class="cmp-top"><span class="v${ba ? ' best' : ''}">${f(a)}${sub ? `<small class="pg-sub">${esc(sub(A))}</small>` : ''}</span><span class="lab">${esc(label)}</span><span class="v${bh ? ' best' : ''}">${f(h)}${sub ? `<small class="pg-sub">${esc(sub(H))}</small>` : ''}</span></div>
+        <div class="split tc"><i class="${la ? 'lead' : ''}" style="flex:${share}"></i><i class="${lh ? 'lead' : ''}" style="flex:${1 - share}"></i></div></div>`;
+    }).filter(Boolean);
+    if (!rows.length) return '';
+    const fk = 'tot:' + sport + '/' + bg.key, open = !!state.pgOpen[fk];
+    const more = rows.length - PG_LEAD;
+    const shown = open || more <= 0 ? rows : rows.slice(0, PG_LEAD);
+    const fold = more > 0 ? `<button class="pg-fold" data-pgfold="${esc(fk)}" aria-expanded="${open}">${open ? 'Fewer team stats' : `${more} more team stats`}</button>` : '';
+    ensureMeta(sport);
+    const cc = cmpColors(sport, g);
+    return `${sec('Team totals')}<div class="card cmp pg-cmp" style="--ca:${cc[0]};--ch:${cc[1]}"><div class="cmp-teams"><span><b><i class="tdot a"></i>${esc(g.away)}</b></span><span><b>${esc(g.home)}<i class="tdot h"></i></b></span></div>${shown.join('')}${fold}</div>`;
+  }
+  // player box columns per sport: [label, cell fn, projection key (slate proj / bet stat) or '']
+  const pgFg = (p) => `${pgNum(p.fgm)}-${pgNum(p.fga)}`;
+  const PG_COLS = {
+    nba: [['MIN', (p) => p.min, ''], ['PTS', (p) => p.pts, 'pts'], ['REB', (p) => p.reb, 'reb'], ['AST', (p) => p.ast, 'ast'], ['3PM', (p) => p.tpm, 'tpm'], ['FG', pgFg, ''], ['STL', (p) => p.stl, ''], ['BLK', (p) => p.blk, ''], ['TO', (p) => p.tov, '']],
+    nhl: [['TOI', (p) => pgToi(p.toi), ''], ['G', (p) => p.g, 'g'], ['A', (p) => p.a, 'a'], ['PTS', (p) => p.p, 'pts'], ['SOG', (p) => p.sog, 'sog'], ['+/-', (p) => pgSgn(p.pm), '']],
+    nhlG: [['SA', (p) => p.sa, ''], ['SV', (p) => p.sv, ''], ['SV%', (p) => (isNum(p.svp) ? p.svp.toFixed(3).replace(/^0/, '') : '—'), ''], ['TOI', (p) => pgToi(p.toi), '']],
+    nfl: {
+      Passing: [['C/ATT', (p) => `${pgNum(p.cmp)}/${pgNum(p.att)}`], ['YDS', (p) => pgNum(p.pyd)], ['TD', (p) => pgNum(p.ptd)], ['INT', (p) => pgNum(p.int)], ['SK', (p) => pgNum(p.sk)]],
+      Rushing: [['CAR', (p) => pgNum(p.car)], ['YDS', (p) => pgNum(p.ryd)], ['TD', (p) => pgNum(p.rtd)]],
+      Receiving: [['TGT', (p) => pgNum(p.tgt)], ['REC', (p) => pgNum(p.rec)], ['YDS', (p) => pgNum(p.recy)], ['TD', (p) => pgNum(p.rectd)]],
+      Defense: [['TKL', (p) => pgNum(p.tkl)], ['SCK', (p) => pgNum(p.sck)], ['INT', (p) => pgNum(p.dint)], ['PD', (p) => pgNum(p.pd)], ['FF', (p) => pgNum(p.ff)]],
+      Kicking: [['FG', (p) => `${pgNum(p.fgm)}/${pgNum(p.fga)}`], ['LNG', (p) => pgNum(p.fgl)], ['XP', (p) => `${pgNum(p.xpm)}/${pgNum(p.xpa)}`]],
+    },
+  };
+  const PG_NFL_UNITS = [['Passing', (p) => pgNum(p.att) > 0, (p) => pgNum(p.pyd)], ['Rushing', (p) => pgNum(p.car) > 0, (p) => pgNum(p.ryd)], ['Receiving', (p) => pgNum(p.tgt) > 0 || pgNum(p.rec) > 0, (p) => pgNum(p.recy)],
+    ['Defense', (p) => pgNum(p.tkl) > 0 || pgNum(p.sck) > 0 || pgNum(p.dint) > 0 || pgNum(p.pd) > 0 || pgNum(p.ff) > 0, (p) => pgNum(p.tkl) + 3 * pgNum(p.sck) + 3 * pgNum(p.dint)], ['Kicking', (p) => pgNum(p.fga) > 0 || pgNum(p.xpa) > 0, (p) => pgNum(p.fgm)]];
+  const pgCell = (v) => (v === null || v === undefined ? '—' : esc(String(v)));
+  // projection + line for a player's stat (slate: close if present, else open); hit = model side right (W), wrong (L), push (P), '' = no line
+  function pgProjOf(ctx, pid, stat) {
+    const pl = ctx.slate && ctx.slate.players && ctx.slate.players[pid];
+    const pr = pl && pl.proj;
+    const ph = pr && pr.close && pr.close[stat] ? pr.close[stat] : pr && pr.open && pr.open[stat];
+    const v = ph && ph.v;
+    if (!isNum(v)) return null;
+    const r = ctx.picks[pid + '|' + stat] || null;
+    return { v, r };
+  }
+  function pgHit(r, actual) {
+    if (!r || !isNum(actual)) return '';
+    if (actual === r.ph.line) return 'p';
+    const over = actual > r.ph.line;
+    return (r.b.side === 'u') === !over ? 'w' : 'l';
+  }
+  function pgRow(sport, p, cols, ctx, hl) {
+    const dp = (k) => projDp(sport, k === 'pts' && sport === 'nhl' ? 'pts' : k);
+    const cells = cols.map(([, fn, pk]) => {
+      const v = fn(p);
+      const pj = ctx.proj && pk ? pgProjOf(ctx, String(p.id), pk) : null;
+      if (!pj) return `<td>${pgCell(v)}</td>`;
+      const hit = pgHit(pj.r, isNum(v) ? v : null);
+      return `<td class="pg-pa"><b class="${hit}">${pgCell(v)}</b><small>${pj.v.toFixed(dp(pk))}</small></td>`;
+    }).join('');
+    const nm = `<th scope="row"><button class="pg-pl" data-player="${esc(String(p.id))}"><b>${esc(p.n || p.id)}</b>${p.pos ? `<small>${esc(p.pos)}</small>` : ''}</button></th>`;
+    return `<tr${hl ? ' class="pg-hl"' : ''}${hl ? ' id="pg-hl"' : ''}>${nm}${cells}</tr>`;
+  }
+  function pgTable(sport, cols, rows, ctx, extraHead) {
+    const head = `<tr><th scope="col">${extraHead || ''}</th>${cols.map((c) => `<th scope="col">${esc(c[0])}</th>`).join('')}</tr>`;
+    return `<div class="pg-scroll"><table class="pg-tbl"><thead>${head}</thead><tbody>${rows.map((p) => pgRow(sport, p, cols, ctx, ctx.hl && String(p.id) === ctx.hl)).join('')}</tbody></table></div>`;
+  }
+  function pgTeamBox(sport, g, bg, code, ctx) {
+    const list = ((bg.players || {})[code] || []);
+    const fk = 'bench:' + sport + '/' + bg.key + '/' + code;
+    const title = `${sec(code + ' box')}`;
+    let inner = '';
+    if (sport === 'nba') {
+      const played = list.filter((p) => p.dnp === null || p.dnp === undefined);
+      const dnp = list.filter((p) => p.dnp !== null && p.dnp !== undefined);
+      const starters = played.filter((p) => p.st === 1), bench = played.filter((p) => p.st !== 1);
+      const forced = !!ctx.hl && bench.some((p) => String(p.id) === ctx.hl);
+      const open = !!state.pgOpen[fk] || forced;
+      const rows = open ? starters.concat(bench) : starters;
+      inner = pgTable(sport, PG_COLS.nba, rows, ctx, 'Starters' + (open && bench.length ? ' + bench' : ''))
+        + (bench.length ? `<button class="pg-fold" data-pgfold="${esc(fk)}" aria-expanded="${open}">${open ? 'Hide bench' : `Bench (${bench.length})`}</button>` : '')
+        + (dnp.length ? `<p class="pg-dnp">DNP: ${dnp.map((p) => esc(p.n) + (p.dnp ? ` <i>${esc(String(p.dnp).toLowerCase())}</i>` : '')).join(', ')}</p>` : '');
+    } else if (sport === 'nhl') {
+      const sk = list.filter((p) => p.pos !== 'G').slice().sort((x, y) => pgNum(y.toi) - pgNum(x.toi));
+      const gl = list.filter((p) => p.pos === 'G');
+      const LEAD = 12;
+      const forced = !!ctx.hl && sk.slice(LEAD).some((p) => String(p.id) === ctx.hl);
+      const open = !!state.pgOpen[fk] || forced;
+      const rows = open ? sk : sk.slice(0, LEAD);
+      inner = pgTable(sport, PG_COLS.nhl, rows, ctx, 'Skaters')
+        + (sk.length > LEAD ? `<button class="pg-fold" data-pgfold="${esc(fk)}" aria-expanded="${open}">${open ? 'Fewer skaters' : `${sk.length - LEAD} more skaters`}</button>` : '')
+        + (gl.length ? pgTable(sport, PG_COLS.nhlG, gl, Object.assign({}, ctx, { proj: false }), 'Goalies') : '');
+    } else {
+      inner = PG_NFL_UNITS.map(([unit, has, sortv]) => {
+        const rows = list.filter(has).sort((x, y) => sortv(y) - sortv(x));
+        if (!rows.length) return '';
+        const LEAD = unit === 'Defense' ? 8 : 99, uk = fk + '/' + unit;
+        const forced = !!ctx.hl && rows.slice(LEAD).some((p) => String(p.id) === ctx.hl);
+        const open = !!state.pgOpen[uk] || forced;
+        return pgTable(sport, PG_COLS.nfl[unit], open ? rows : rows.slice(0, LEAD), ctx, unit)
+          + (rows.length > LEAD ? `<button class="pg-fold" data-pgfold="${esc(uk)}" aria-expanded="${open}">${open ? 'Fewer players' : `${rows.length - LEAD} more players`}</button>` : '');
+      }).join('');
+    }
+    if (!inner) inner = '<p class="pg-dnp">No player box for this team.</p>';
+    return `${title}<div class="card pg-box">${inner}</div>`;
+  }
+  // period line score under the header
+  function pgLineScore(g, bg) {
+    const P = bg.periods;
+    if (!P || !Array.isArray(P.labels) || !Array.isArray(P.away) || !Array.isArray(P.home)) return '';
+    const row = (code, arr, tot, win) => `<span class="pg-lc${win ? ' w' : ''}">${esc(code)}</span>${P.labels.map((_, i) => `<span>${pgCell(arr[i])}</span>`).join('')}<span class="pg-lt${win ? ' w' : ''}">${esc(tot)}</span>`;
+    return `<div class="card pg-ls" style="--n:${P.labels.length}" aria-label="Line score"><span></span>${P.labels.map((l) => `<span class="pg-lh">${esc(l)}</span>`).join('')}<span class="pg-lh">T</span>
+      ${row(g.away, P.away, bg.sA, bg.sA > bg.sH)}${row(g.home, P.home, bg.sH, bg.sH > bg.sA)}</div>`;
+  }
+  // Game tab (modeled NBA / NHL): closing book line, our projection and the final, with the result of each market
+  function pgBookCard(sport, g, bg, slate, sg, sgid) {
+    const bk = bookLines(slate, sgid), dp = sport === 'nhl' ? 2 : 1;
+    const pr = projOf(sg), p = pr && pr.p;
+    const mg = bg.sA - bg.sH, tot = bg.sA + bg.sH;
+    const side = (v) => (v > 0 ? g.away : g.home);
+    const chip = (txt, lv) => `<span class="edge-c"><span class="edge lv${lv}">${txt}</span></span>`;
+    const rows = [];
+    let lA = bk.spread && bk.spread.A ? bk.spread.A.line : null, lB = bk.spread && bk.spread.B ? bk.spread.B.line : null;
+    if (!isNum(lA) && isNum(lB)) lA = -lB;
+    if (isNum(lA)) {
+      const bm = -lA, d = mg - bm;
+      rows.push({ label: 'Spread', book: bm === 0 ? 'PK' : `${esc(side(bm))} ${MINUS}${Math.abs(bm)}`, model: p && isNum(p.margin ?? (p.away - p.home)) ? (() => { const m = isNum(p.margin) ? p.margin : p.away - p.home; return Math.abs(m) < 0.05 ? 'Even' : `${esc(side(m))} ${MINUS}${Math.abs(m).toFixed(dp)}`; })() : '',
+        fin: mg === 0 ? 'Tie' : `${esc(side(mg))} by ${Math.abs(mg)}`, chip: d === 0 ? chip('Push', 0) : chip(`${esc(side(d))} covered`, 0) });
+    }
+    const tl = bk.total ? ((bk.total.o || {}).line ?? (bk.total.u || {}).line) : null;
+    if (isNum(tl)) {
+      const d = tot - tl;
+      rows.push({ label: 'Total', book: String(tl), model: p && isNum(p.total) ? p.total.toFixed(dp) : '', fin: String(tot), chip: d === 0 ? chip('Push', 0) : chip(`${d > 0 ? 'Over' : 'Under'} by ${Math.abs(d).toFixed(d % 1 ? 1 : 0)}`, 0) });
+    }
+    [['ttA', g.away, bg.sA, p && p.away], ['ttB', g.home, bg.sH, p && p.home]].forEach(([stat, code, act, mv]) => {
+      const b = bk[stat] && (bk[stat].o || bk[stat].u);
+      if (!b || !isNum(b.line)) return;
+      const d = act - b.line;
+      rows.push({ label: code + ' total', book: String(b.line), model: isNum(mv) ? mv.toFixed(dp) : '', fin: String(act), chip: d === 0 ? chip('Push', 0) : chip(`${d > 0 ? 'Over' : 'Under'} by ${Math.abs(d).toFixed(d % 1 ? 1 : 0)}`, 0) });
+    });
+    const oA = bk.ml && bk.ml.A ? bk.ml.A.odds : null, oB = bk.ml && bk.ml.B ? bk.ml.B.odds : null;
+    if (isNum(oA) && isNum(oB) && mg !== 0) {
+      const ia = impProb(oA), ib = impProb(oB), na = ia / (ia + ib) * 100;
+      const fav = na >= 50 ? g.away : g.home, fv = na >= 50 ? na : 100 - na, won = side(mg);
+      rows.push({ label: 'Win %', book: `${esc(fav)} ${fv.toFixed(1)}%`, model: p && isNum(p.winAway) ? `${esc(fav)} ${(fav === g.away ? p.winAway : p.winHome).toFixed(1)}%` : '', fin: `${esc(won)} won`, chip: chip(won === fav ? 'Favorite won' : 'Upset', 0) });
+    }
+    const hasModel = rows.some((r) => r.model);
+    const score = p ? `<div class="mvb-score pg-ms">${[[g.away, p.away, bg.sA], [g.home, p.home, bg.sH]].map(([c, m, a]) => `<span class="mvb-t"><span class="pc">${esc(c)}</span><b>${esc(a)}</b><small>model ${isNum(m) ? m.toFixed(dp) : '—'}</small></span>`).join('<i>–</i>')}</div>` : '';
+    if (!rows.length && !p) return '';
+    const table = rows.length ? `<div class="mvb-tab pg-bt"><span class="mvb-h"></span><span class="mvb-h">Book</span><span class="mvb-h">Final</span><span class="mvb-h">Result</span>${rows.map((r) =>
+      `<span class="mvb-lab">${r.label}</span><span class="mvb-v">${r.book}${r.model ? `<small class="pg-mod">model ${r.model}</small>` : ''}</span><span class="mvb-v mod">${r.fin}</span>${r.chip}`).join('')}</div>` : '';
+    return `<div class="card mvb pg-mvb"><div class="mvb-top"><span class="lbl">${hasModel || p ? 'Projected vs final' : 'Book vs final'}</span></div>${score}${table}</div>`;
+  }
+  const PG_NOTE = '<p class="pg-note">The model wasn’t running for this game yet.</p>';
+  function pgGameView(sport, id) {
+    ensureMeta(sport);
+    const q = cur.q || {};
+    const f = findGame(sport, id);
+    const date = f ? f.date : (q.d || '');
+    if (!date) return liveGameView(sport, id);
+    const be = pgEnsureBox(sport, date);
+    if (be.st === 'loading' || !store.idxDone || store.meta[sport].st === 'loading') return `<div class="pagehead">${backBtn}</div>${rowsGeneric(3)}`;
+    const bg = be.st === 'ok' ? pgFindBox(be.data, id) : null;
+    if (!bg) {
+      // past game without a box yet: the normal view, with honest empty states
+      pgCtx.past = !!(f && f.g.status === 'final') || date < ymd(0);
+      const html = liveGameView(sport, id);
+      pgCtx.past = false;
+      return html;
+    }
+    const g = f ? f.g : { gid: id, away: bg.away, home: bg.home, d: date, status: 'final', kickoff: '', final: { away: bg.sA, home: bg.sH }, ot: bg.ot || '', sched: true };
+    const aw = g.away || bg.away, hm = g.home || bg.home;
+    const sgid = sport === 'nhl' && bg.ids && bg.ids.nhl ? String(bg.ids.nhl) : String(bg.key);
+    // slate for the day (modeled game) only when the index lists one
+    const sx = store.idx && store.idx.sports && store.idx.sports[sport];
+    const hasSlate = !!(sx && (sx.slates || []).includes(date));
+    const se = hasSlate ? ensureSlate(sport, date) : null;
+    if (se && se.st === 'loading') return `<div class="pagehead">${backBtn}</div>${rowsGeneric(3)}`;
+    const slate = se && se.st === 'ok' ? (se.data || {}) : null;
+    const sg = slate && slate.games ? slate.games[sgid] || null : null;
+    const modeled = !!sg;
+    const tabs = [['box', 'Box'], ['game', 'Game']].concat(modeled ? [['bets', 'Bets']] : []);
+    const tab = tabs.some(([k]) => k === state.pgTab) ? state.pgTab : 'box';
+    state.betGid = sgid;
+    // header
+    const dayGames = f ? f.day : Object.keys(be.data.games).map((k) => Object.assign({ gid: k }, be.data.games[k]));
+    const chips = dayGames.map((x) => `<a class="chip ${(x.gid === g.gid || x.gid === bg.key) ? 'on' : ''}" href="#${sport}/game/${encodeURIComponent(x.gid)}${f ? '' : '?d=' + date}" ${(x.gid === g.gid || x.gid === bg.key) ? 'aria-current="true"' : ''}>${esc(x.away)} @ ${esc(x.home)}<small>${isNum(x.sA) ? `${x.sA}–${x.sH}` : x.final ? `${x.final.away}–${x.final.home}` : esc(ktxt(x))}</small></a>`).join('');
+    const wA = bg.sA > bg.sH, wH = bg.sH > bg.sA;
+    const center = `<span class="big fin pg-sc"><span class="${wA ? 'w' : 'l'}">${esc(bg.sA)}</span><i>–</i><span class="${wH ? 'w' : 'l'}">${esc(bg.sH)}</span></span><span class="lbl">Final${bg.ot ? ` <em class="pg-ot">${esc(bg.ot)}</em>` : ''}</span>`;
+    const lp = slate ? headLineParts(Object.assign({}, g, { gid: sgid }), slate).map((p) => `<span class="kline">${p}</span>`).join('') : '';
+    const team = (code, sd) => `<div class="gteam">${tbadge(sport, code, 'l', `#${sport}/team/${encodeURIComponent(code)}`, false)}
+      <span class="rec">${esc((f && recFor(sport, g, sd)) || '—')}</span><span class="tn">${esc(tinfo(sport, code).short || '')}</span></div>`;
+    const head = `<div class="pagehead">${backBtn}<div class="chips" aria-label="Games this day">${chips}</div></div>
+      <div class="ghead pg-head">${team(aw, 'away')}<div class="gcenter">${center}${lp}<span class="kline pg-date">${esc(longOf(date))}</span></div>${team(hm, 'home')}</div>${pgLineScore(g, bg)}`;
+    // body
+    const picks = {};
+    if (slate) betRows(slate, sgid).forEach((r) => { if (r.ph.pick !== false) { const k = r.b.pid + '|' + r.b.stat; if (!picks[k] || r.ph.ev > picks[k].ph.ev) picks[k] = r; } });
+    const ctx = { slate, picks, proj: modeled && state.pgProj, hl: q.p || '' };
+    let body = '';
+    if (tab === 'box') {
+      const tog = modeled ? `<div class="pg-togrow"><button class="pg-tog${state.pgProj ? ' on' : ''}" data-pgproj="1" role="switch" aria-checked="${state.pgProj}"><i></i>Proj vs actual</button>${state.pgProj ? '<span class="pg-key">actual over projection · <b class="w">green</b> model side hit · <b class="l">red</b> missed</span>' : ''}</div>` : PG_NOTE;
+      body = tog + pgTotals(sport, g, bg) + pgTeamBox(sport, g, bg, aw, ctx) + pgTeamBox(sport, g, bg, hm, ctx);
+    } else if (tab === 'game') {
+      body = (modeled && (sport === 'nba' || sport === 'nhl') ? pgBookCard(sport, g, bg, slate, sg, sgid) : PG_NOTE) + pgTotals(sport, g, bg);
+      if (sg && sg.inj && (sg.inj.A || sg.inj.B)) body += `${sec('Injuries as recorded')}<div class="card inj-card">${injCol(aw, sg.inj.A)}${injCol(hm, sg.inj.B)}</div>`;
+      if (sg && sg.goalies) body += `${sec('Goalies as recorded')}<div class="card inj-card">${goalieCol(aw, sg.goalies.A)}${goalieCol(hm, sg.goalies.B)}</div>`;
+    } else {
+      const re = ensureResults(sport, date.slice(0, 7));
+      const res = {};
+      if (re.st === 'ok') re.rows.forEach((r) => { if (r.gid === sgid) res[`${r.date}-${r.sport}-${r.gid}-${r.pid}-${r.market}-${r.side}`] = r; });
+      Object.assign(pgCtx, { final: true, box: bg, res, resLoading: re.st === 'loading', date, sgid });
+      try { body = betsTab(sport, date); } finally { Object.assign(pgCtx, { final: false, box: null, res: null, resLoading: false }); }
+    }
+    return `${head}<div class="subtabs">${segmented(tabs, tab, 'data-pgsub')}</div>${body}`;
+  }
+  // actual value of a bet stat from the box (combos summed); null when the player did not play
+  function pgActual(sport, pid, stat) {
+    const bg = pgCtx.box;
+    if (!bg) return null;
+    let p = null;
+    Object.values(bg.players || {}).forEach((l) => { l.forEach((x) => { if (String(x.id) === String(pid)) p = x; }); });
+    if (!p || (sport === 'nba' && p.dnp !== null && p.dnp !== undefined)) return null;
+    const v = (k) => (isNum(p[k]) ? p[k] : null);
+    if (sport === 'nba') {
+      const M = { pts: v('pts'), reb: v('reb'), ast: v('ast'), tpm: v('tpm'), min: v('min') };
+      if (stat in M) return M[stat];
+      const parts = { pra: ['pts', 'reb', 'ast'], pr: ['pts', 'reb'], pa: ['pts', 'ast'], ra: ['reb', 'ast'] }[stat];
+      return parts && parts.every((k) => M[k] !== null) ? parts.reduce((a, k) => a + M[k], 0) : null;
+    }
+    const N = { sog: v('sog'), g: v('g'), a: v('a'), pts: v('p'), min: v('toi') };
+    return stat in N ? N[stat] : null;
+  }
+  const PG_RES = { W: 'w', L: 'l', P: 'p' };
+  // Actual / W-L-P / Beat close cells for one bet row in Final mode (results row when graded, else computed from the box)
+  function pgSettle(sport, r) {
+    const row = pgCtx.res && pgCtx.res[r.id];
+    const act = row && isNum(row.actual) ? row.actual : pgActual(sport, r.pid, r.b.stat);
+    let res = row && row[r.tag] && PG_RES[row[r.tag].result] ? row[r.tag].result : '';
+    if (!res && row && row.status === 'void') res = 'Void';
+    if (!res && isNum(act) && row === undefined) res = act === r.ph.line ? 'P' : (act > r.ph.line) === (r.b.side !== 'u') ? 'W' : 'L';
+    const beat = row && window.RESULTS ? window.RESULTS.beat(row) : null;
+    return { act, res, beat };
+  }
+  const gameView = pgGameView;
 
   // ---- game AWAY / HOME roster tabs ----
   // log columns (after date, opp, home) are in this order in both packs; keys match the world st/l5 objects
@@ -1080,7 +1385,7 @@
     const sl = e.st === 'ok' ? (e.data || {}) : {};
     const list = Object.entries(sl.players || {}).filter(([, p]) => p && p.team === code && String(p.gid) === String(g.gid))
       .map(([id, p]) => ({ id, p, w: ensurePlayer(sport, id) }));
-    if (!list.length) return empty('Bets', 'No players for ' + code + ' yet', 'Players show up here once the slate is published.', 0);
+    if (!list.length) return pgCtx.past ? `<div class="card empty"><h2>No ${esc(code)} players</h2>${PG_NOTE}</div>` : empty('Bets', 'No players for ' + code + ' yet', 'Players show up here once the slate is published.', 0);
     const dd = (r) => (r.w.st === 'ok' ? r.w.data || {} : {});
     const mins = (r) => ((dd(r).st || {}).min);
     list.sort((x, y) => {
@@ -1141,7 +1446,8 @@
       const s = seasonOf(r.d);
       if (s !== prev) out += `<div class="gl-sea">${esc(seasonLab(s))}</div>`;
       prev = s; shown++;
-      out += `<div class="gl-row"><span>${esc(dMD(r.d))}</span><span>${r.home ? 'vs' : '@'} ${esc(r.opp)}</span><span class="gl-res">${resCell(r)}</span>${lcols.map(([k, , dp]) => `<span>${hcell(hv(h, r, k), dp, k)}</span>`).join('')}</div>`;
+      const href = r.gid ? `#${h.sp}/game/${encodeURIComponent(r.gid)}?p=${encodeURIComponent(h.pid)}&d=${r.d}` : '';
+      out += `<${href ? 'a' : 'div'} class="gl-row${href ? ' pg-link' : ''}"${href ? ` href="${href}"` : ''}><span>${esc(dMD(r.d))}</span><span>${r.home ? 'vs' : '@'} ${esc(r.opp)}</span><span class="gl-res">${resCell(r)}</span>${lcols.map(([k, , dp]) => `<span>${hcell(hv(h, r, k), dp, k)}</span>`).join('')}</${href ? 'a' : 'div'}>`;
     }
     return `<div class="glog hl" style="--n:${lcols.length}"><div class="gl-row gl-h"><span>Date</span><span>Opp</span><span class="gl-res">Result</span>${lcols.map((c) => `<span>${c[1]}</span>`).join('')}</div>${out}</div>`;
   }
@@ -1591,7 +1897,8 @@
       else if (g.status === 'live') r = '<span class="amber">LIVE</span>';
       else if (g.status === 'scheduled') r = esc(ktxt(g));
       else r = esc(g.status.toUpperCase());
-      out += `<a class="srow${g === next ? ' next' : ''}" ${g === next ? 'data-next ' : ''}href="#${sport}/day/${g.d}"><span class="sd">${dowOf(g.d)} ${mdOf(g.d)}</span>
+      const href = g.status === 'final' && g.final ? `#${sport}/game/${encodeURIComponent(g.gid)}` : `#${sport}/day/${g.d}`;
+      out += `<a class="srow${g === next ? ' next' : ''}" ${g === next ? 'data-next ' : ''}href="${href}"><span class="sd">${dowOf(g.d)} ${mdOf(g.d)}</span>
         <span class="sv"><span class="vs">${home ? 'vs' : '@'}</span>${tbadge(sport, opp, 's', '', true)}<span class="oc">${esc(opp)}</span></span><span class="sr">${r}</span></a>`;
     });
     return `<div class="sched" aria-label="${esc(code)} schedule">${out}</div>`;
@@ -1663,7 +1970,12 @@
   view.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') resultsHover(e); });
 
   function parse() {
-    const p = location.hash.slice(1).split('/').map((x) => decodeURIComponent(x));
+    const h = location.hash.slice(1), qi = h.indexOf('?');
+    const q = {};
+    if (qi >= 0) h.slice(qi + 1).split('&').forEach((kv) => { const i = kv.indexOf('='); if (i > 0) q[decodeURIComponent(kv.slice(0, i))] = decodeURIComponent(kv.slice(i + 1)); });
+    if (q.p && !/^[A-Za-z0-9_-]{1,40}$/.test(q.p)) delete q.p;
+    if (q.d && !/^\d{4}-\d{2}-\d{2}$/.test(q.d)) delete q.d;
+    const p = (qi >= 0 ? h.slice(0, qi) : h).split('/').map((x) => decodeURIComponent(x));
     const r = p[0];
     if (PAGES[r]) return { key: r, page: r };
     const sport = SPORTS[r] ? r : 'nba';
@@ -1672,7 +1984,7 @@
     let id = kind === 'game' ? (/^[A-Za-z0-9_-]{1,40}$/.test(p[2] || '') ? p[2] : '') : kind === 'player' ? (/^[A-Za-z0-9_-]{1,40}$/.test(p[2] || '') ? p[2] : '') : '';
     if (kind === 'team') id = /^[A-Za-z0-9]{1,4}$/.test(p[2] || '') ? p[2].toUpperCase() : '\u2014';
     if ((kind === 'game' || kind === 'player') && !id) return { key: sport, sport, kind: 'root', id: '' };
-    return { key: [sport, kind, id].filter(Boolean).join('/'), sport, kind, id };
+    return { key: [sport, kind, id].filter(Boolean).join('/'), sport, kind, id, q };
   }
 
   function render() {
@@ -1711,6 +2023,16 @@
       window.scrollTo(0, 0);
       view.classList.remove('enter'); void view.offsetWidth; view.classList.add('enter');
     }
+    const hlRow = view.querySelector('#pg-hl');
+    if (hlRow && c.q && c.q.p) {
+      const hk = c.key + '?' + c.q.p;
+      if (!pgScrolled[hk]) {
+        pgScrolled[hk] = true;
+        const top = document.querySelector('.topbar').offsetHeight;
+        const y = hlRow.getBoundingClientRect().top + window.scrollY - top - Math.round(window.innerHeight * 0.3);
+        window.scrollTo(0, Math.max(0, y));
+      }
+    }
     placeHl(!changed);
   }
 
@@ -1746,6 +2068,9 @@
       else if (k.startsWith('mkt:')) f.mkt = f.mkt === k.slice(4) ? '' : k.slice(4);
     }
     else if (d.sub) state.gameTab = d.sub;
+    else if (d.pgsub) state.pgTab = d.pgsub;
+    else if (d.pgproj !== undefined) state.pgProj = !state.pgProj;
+    else if (d.pgfold) { if (state.pgOpen[d.pgfold]) delete state.pgOpen[d.pgfold]; else state.pgOpen[d.pgfold] = true; }
     else if (d.cmp) state.cmpSplit = d.cmp;
     else if (d.shotv) state.shotView[sportOf() + '/' + cur.id] = d.shotv;
     else if (d.szcm) { szcOpen['m:' + d.szcm] = !szcOpen['m:' + d.szcm]; }
