@@ -631,30 +631,52 @@ button.prow{width:100%;text-align:left;align-items:flex-start;min-height:64px}
 .res-pill.w{background:rgba(62,230,160,.14);color:var(--pos)}
 .res-pill.l{background:rgba(255,122,112,.14);color:var(--neg)}
 .mb-scoring p{margin:8px 0 0;font-size:14px;color:var(--muted)}
-/* NHL anytime goal (ag-): Scoring watch panel + game Bets block */
-.ag-h{margin:0 0 8px;line-height:1.35}
-.ag-blk{margin:0 0 14px}
-.ag-note{margin:8px 2px 0;font-size:12px;color:var(--faint)}
-.ag-r{gap:3px}
-.ag-p{font:700 19px/1 var(--f-m);letter-spacing:-.01em;color:var(--ink)}
-.ag-e{font:600 11px/1.2 var(--f-m);white-space:nowrap}
-.ag-row .bet-sub{white-space:normal;flex-wrap:wrap;row-gap:2px}
-/* NBA triple-double (td3-): panel under the NHL one in Scoring watch + game Bets block */
-.td3-pn{margin-top:18px}
-.td3-h{margin:0 0 8px;line-height:1.35}
-.td3-blk{margin:0 0 14px}
-.td3-r{gap:3px}
-.td3-p{font:700 19px/1 var(--f-m);letter-spacing:-.01em;color:var(--ink)}
-.td3-e{font:600 11px/1.2 var(--f-m);white-space:nowrap}
-.td3-row .bet-sub{white-space:normal;flex-wrap:wrap;row-gap:2px}
-/* NFL anytime TD (atd-): Scoring watch panel + game Bets block */
-.atd-h{margin:14px 0 8px;line-height:1.35}
-.atd-blk{margin:0 0 14px}
-.atd-blk .atd-h{margin-top:0}
-.atd-r{gap:3px}
-.atd-p{font:700 19px/1 var(--f-m);letter-spacing:-.01em;color:var(--ink)}
-.atd-e{font:600 11px/1.2 var(--f-m);white-space:nowrap}
-.atd-row .bet-sub{white-space:normal;flex-wrap:wrap;row-gap:2px}
+/* ======== Scoring watch (sw-): layered card shell shared by the NHL anytime goal (ag-), NBA triple-double (td3-) and NFL anytime TD (atd-) panels + game Bets blocks ======== */
+.sw{display:flex;flex-direction:column;gap:14px}
+.ag-blk,.td3-blk,.atd-blk{margin:0 0 14px}
+.sw-c{--sw-t:var(--blue);--sw-tr:124,195,255;position:relative;border-radius:20px;padding:1px;
+  background:linear-gradient(180deg,rgba(var(--sw-tr),.35),rgba(var(--sw-tr),.06) 38%,rgba(255,255,255,.04));
+  box-shadow:0 18px 40px -10px rgba(0,0,0,.6),0 2px 6px rgba(0,0,0,.35)}
+.sw-in{border-radius:19px;background:linear-gradient(180deg,#152220,var(--card) 90px);overflow:hidden}
+.sw-h{position:relative;display:flex;align-items:center;gap:10px;padding:12px 14px 11px;
+  background:linear-gradient(180deg,rgba(var(--sw-tr),.16),rgba(var(--sw-tr),.04));box-shadow:inset 0 1px 0 rgba(255,255,255,.07),inset 0 -1px 0 rgba(0,0,0,.35)}
+.sw-g{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:9px;background:rgba(var(--sw-tr),.14);color:var(--sw-t);box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
+.sw-g svg{width:18px;height:18px}
+.sw-t{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.sw-t b{font:700 18px/1 var(--f-d);letter-spacing:.05em;text-transform:uppercase;color:var(--ink)}
+.sw-t small{font:500 10.5px/1.2 var(--f-m);color:#a6bcb2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sw-sc{flex:none;font:600 10.5px/1 var(--f-m);letter-spacing:.04em;color:#a6bcb2;padding:5px 8px;border-radius:999px;border:1px solid rgba(var(--sw-tr),.35);background:rgba(var(--sw-tr),.08);white-space:nowrap}
+/* rows keep the .bet-wrap / .bet.tr / .addb wiring of the ordinary bet list */
+.sw-row{background:none}
+.sw-row+.sw-row{box-shadow:inset 0 1px 0 var(--line)}
+.sw-row .bet.tr{grid-template-columns:22px minmax(0,1fr) auto;gap:10px;min-height:66px;padding:11px 12px 13px}
+.sw-row.sw-nok .bet.tr{grid-template-columns:minmax(0,1fr) auto}
+.sw-row.has-add .bet.tr{padding-right:56px}
+.sw-row .addb{top:50%;margin-top:-19px}
+.sw-k{font:600 13px/1 var(--f-d);letter-spacing:.02em;color:var(--muted);text-align:center;padding-top:2px}
+.sw-l{gap:4px}
+.sw-row .bet-mkt{white-space:normal}
+.sw-s{white-space:normal;flex-wrap:wrap;row-gap:2px;gap:0}
+.sw-sg{white-space:nowrap;margin-right:5px}
+.sw-m{position:relative;display:block;height:5px;border-radius:3px;margin-top:3px;background:rgba(0,0,0,.35);box-shadow:inset 0 1px 2px rgba(0,0,0,.5),inset 0 -1px 0 rgba(255,255,255,.03);overflow:visible}
+.sw-m i{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--sw-t);opacity:.85}
+.sw-m em{position:absolute;top:-3px;width:2px;height:11px;margin-left:-1px;border-radius:1px;background:var(--ink);opacity:.75}
+.sw-r{gap:3px;min-width:58px}
+.sw-p{font:700 20px/1 var(--f-m);letter-spacing:-.01em;color:var(--ink)}
+.sw-pl{display:block;margin-top:2px;font:600 9.5px/1 var(--f-b,inherit);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:right} /* names the lead number (user 11/01 11:27) */
+.sw-e{font:600 11px/1.2 var(--f-m);white-space:nowrap}
+.sw-f{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:7px 12px 8px;font:500 10px/1.2 var(--f-m);color:var(--muted);background:rgba(0,0,0,.18);box-shadow:inset 0 1px 0 var(--line)}
+.sw-f i{display:inline-block;width:2px;height:8px;background:var(--ink);opacity:.75;vertical-align:-1px;margin:0 4px 0 0;border-radius:1px}
+.sw-empty{background:none;border:0;border-radius:0;box-shadow:none;padding:18px 14px}
+.sw-sk{padding:10px}
+/* game Bets-tab block: same card, header band collapsed to a thin tinted rule */
+.sw-blk .sw-h{padding:9px 14px 8px;background:none;box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.sw-blk .sw-h::before{content:"";position:absolute;left:0;top:0;right:0;height:2px;background:linear-gradient(90deg,var(--sw-t),transparent 70%)}
+.sw-blk .sw-g{width:24px;height:24px;border-radius:7px}.sw-blk .sw-g svg{width:14px;height:14px}
+.sw-blk .sw-t b{font-size:15px}
+.sw-blk .sw-row .bet.tr{min-height:58px;padding-top:9px;padding-bottom:11px}
+.sw-blk .sw-p{font-size:18px}
+@media (max-width:340px){.sw-t b{font-size:16px}.sw-t small{white-space:normal}.sw-sc{display:none}.sw-e{font-size:10.5px}.sw-row .bet.tr{gap:8px;padding:10px 10px 12px;grid-template-columns:18px minmax(0,1fr) auto}.sw-row.has-add .bet.tr{padding-right:52px}.sw-p{font-size:18px}}
 .mb-open{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:14px;width:100%;text-align:left;padding:14px 16px}
 .mb-open-n{font:700 34px/1 var(--f-d);letter-spacing:.03em}
 .mb-open-n small{margin-left:6px;font:600 12px/1 var(--f-b);color:var(--muted);letter-spacing:0}

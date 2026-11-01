@@ -199,6 +199,10 @@
       e.st = 'ok'; e.cols = r.data.cols || [];
       e.ci = {}; e.cols.forEach((c, i) => { e.ci[c] = i; });
       e.rows = r.data.rows.map((x) => ({ d: x[0], gid: x[1], team: x[2], opp: x[3], home: x[4], res: x[5], ts: x[6], os: x[7], v: x.slice(8) }));
+      if (sp === 'nfl' && e.ci.ryd !== undefined && e.ci.recy !== undefined && e.ci.rry === undefined) { // derived: rush + receiving yards
+        e.ci.rry = e.cols.length;
+        e.rows.forEach((x) => { const a = x.v[e.ci.ryd], b = x.v[e.ci.recy]; x.v.push(isNum(a) && isNum(b) ? a + b : null); });
+      }
     }, () => { e.st = 'err'; }).then(rerender);
     return e;
   }
@@ -1414,7 +1418,24 @@
   const COLS = {
     nba: [['min', 'MIN', 1], ['pts', 'PTS', 1], ['reb', 'REB', 1], ['ast', 'AST', 1], ['tpm', '3PM', 1], ['tpa', '3PA', 1]],
     nhl: [['min', 'TOI', 1], ['g', 'G', 2], ['a', 'A', 2], ['sog', 'SOG', 1], ['blk', 'BLK', 2]],
+    // world log row = [week, opp, home, patt, comp, pyd, ptd, ratt, ryd, tgt, rec, recy, snap%]
+    nfl: [['patt', 'ATT', 1], ['comp', 'CMP', 1], ['pyd', 'PYD', 1], ['ptd', 'PTD', 1], ['ratt', 'CAR', 1], ['ryd', 'RYD', 1], ['tgt', 'TGT', 1], ['rec', 'REC', 1], ['recy', 'RECY', 1], ['snap', 'SNAP%', 0]],
   };
+  // NFL columns follow the position: QB passing, RB rushing + receiving, WR/TE receiving (anything else: RB set).
+  // sets: [key, label, decimals as average]; rry = rush + receiving yards (derived)
+  const nfpGrp = (pos) => (pos === 'QB' ? 'QB' : pos === 'WR' || pos === 'TE' ? 'WR' : 'RB');
+  const NFP_SET = {
+    QB: [['pyd', 'PYD', 1], ['comp', 'CMP', 1], ['patt', 'ATT', 1], ['ptd', 'PTD', 2], ['ryd', 'RYD', 1]],
+    RB: [['ryd', 'RYD', 1], ['ratt', 'CAR', 1], ['rec', 'REC', 1], ['recy', 'RECY', 1], ['rry', 'RRY', 1]],
+    WR: [['recy', 'RECY', 1], ['rec', 'REC', 1], ['tgt', 'TGT', 1], ['rry', 'RRY', 1]],
+  };
+  const NFP_CH = {
+    QB: [['pyd', 'PYD'], ['comp', 'CMP'], ['patt', 'ATT'], ['ptd', 'PTD'], ['ryd', 'RYD']],
+    RB: [['ryd', 'RYD'], ['ratt', 'CAR'], ['rec', 'REC'], ['recy', 'RECY'], ['rry', 'RRY']],
+    WR: [['recy', 'RECY'], ['rec', 'REC'], ['tgt', 'TGT'], ['rry', 'RRY']],
+  };
+  // season/L5 stats with the derived rry
+  const nfpSt = (o) => (o && isNum(o.ryd) && isNum(o.recy) ? Object.assign({}, o, { rry: Math.round((o.ryd + o.recy) * 100) / 100 }) : o);
   const fx = (v, dp) => (isNum(v) ? v.toFixed(dp) : '—');
   const projDp = (sport, stat) => (sport === 'nhl' && stat !== 'sog' ? 2 : 1);
   const initials = (name) => {
@@ -1440,15 +1461,17 @@
   const RCOLS = {
     nba: [['min', 'MIN', 1], ['pts', 'PTS', 1], ['reb', 'REB', 1], ['ast', 'AST', 1], ['tpm', '3PM', 1]],
     nhl: [['min', 'TOI', 1], ['sog', 'SOG', 1], ['g', 'G', 2], ['a', 'A', 2], ['pts', 'PTS', 2]],
+    nfl: NFP_SET.RB,
   };
+  const nfpRcolsOf = (sport, d) => (sport === 'nfl' ? NFP_SET[nfpGrp(d && d.pos)] : RCOLS[sport] || []);
   function rosterRow(sport, id, p, w, picks, ptags) {
     // tag icons only (the card itself is the button; tags are tappable on the player page)
     const ptc = (ptags || []).slice(0, 3).map((x) => `<span class="tgc tg-${tagCat(x)}" role="img" aria-label="${esc(x.label)}">${tagIcon(x)}</span>`).join('');
     const d = w.st === 'ok' ? (w.data || {}) : null;
-    const st = (d && d.st) || {};
+    const st = (sport === 'nfl' ? nfpSt((d && d.st) || {}) : (d && d.st)) || {};
     const sub = d ? roleTxt(sport, d) : '';
     const pr = p.proj || {};
-    const cols = RCOLS[sport] || [];
+    const cols = nfpRcolsOf(sport, d);
     const cell = (t, cls) => `<span class="rc${cls ? ' ' + cls : ''}">${t}</span>`;
     const head = cols.map((c) => cell(c[1], 'rh')).join('');
     const season = cols.map((c) => cell(fx(st[c[0]], c[2]))).join('');
@@ -1502,13 +1525,19 @@
   const TCOLS = {
     nba: [['min', 'MIN', 'min', 1], ['pts', 'PTS', 'pts', 1], ['reb', 'REB', 'reb', 1], ['ast', 'AST', 'ast', 1], ['tpm', '3PM', 'tpm', 1]],
     nhl: [['min', 'TOI', 'toi', 1], ['g', 'G', 'g', 2], ['a', 'A', 'a', 2], ['pts', 'PTS', 'p', 2], ['sog', 'SOG', 'sog', 1]],
+    nfl: NFP_SET.RB.map(([k, l, dp]) => [k, l, k, dp]),
   };
+  const nfpTC = {};
+  Object.keys(NFP_SET).forEach((g) => { nfpTC[g] = NFP_SET[g].map(([k, l, dp]) => [k, l, k, dp]); });
+  const nfpTcolsOf = (sport, d) => (sport === 'nfl' ? nfpTC[nfpGrp(d && d.pos)] : TCOLS[sport] || []);
   // game-list columns (hist col, label, decimals); goalies have their own set
   const LCOLS = {
     nba: [['min', 'MIN', 0], ['pts', 'PTS', 0], ['reb', 'REB', 0], ['ast', 'AST', 0], ['tpm', '3PM', 0]],
     nhl: [['toi', 'TOI', 1], ['g', 'G', 0], ['a', 'A', 0], ['sog', 'SOG', 0], ['blk', 'BLK', 0]],
     nhlG: [['toi', 'TOI', 1], ['sa', 'SA', 0], ['sv', 'SV', 0], ['ga', 'GA', 0], ['svp', 'SV%', 3]],
+    nfl: NFP_SET.RB.map(([k, l]) => [k, l, 0]),
   };
+  const nfpLcolsOf = (sport, d, goalie) => (goalie ? LCOLS.nhlG : sport === 'nfl' ? NFP_SET[nfpGrp(d && d.pos)].map(([k, l]) => [k, l, 0]) : LCOLS[sport] || []);
   const seasonOf = (d) => +d.slice(0, 4) - (+d.slice(5, 7) < 7 ? 1 : 0);
   const seasonLab = (y) => y + '-' + String(y + 1).slice(2);
   const hv = (h, r, k) => { const i = h.ci[k]; const v = i === undefined ? null : r.v[i]; return isNum(v) ? v : null; };
@@ -1532,14 +1561,14 @@
     return prev ? Math.round((dnoon(date) - dnoon(prev)) / 864e5) - 1 : null;
   }
   const restTxt = (n) => (n === null ? '' : n === 0 ? 'Back-to-back' : n + (n === 1 ? ' day rest' : ' days rest'));
-  const resCell = (r) => `<b class="wl ${r.res === 'W' ? 'w' : 'l'}">${esc(r.res)}</b> ${esc(r.ts)}–${esc(r.os)}`;
+  const resCell = (r) => `<b class="wl ${r.res === 'W' ? 'w' : r.res === 'T' ? '' : 'l'}">${esc(r.res)}</b> ${esc(r.ts)}–${esc(r.os)}`;
   // game list: Date, Opp, Result, stats; `rows` newest first; season divider rows when the season changes
   function histList(h, rows, lcols, lim) {
     let prev = seasonOf(ymd(0)), shown = 0, out = ''; // a divider also opens the list when its first game is from an earlier season
     for (const r of rows) {
       if (lim && shown >= lim) break;
       const s = seasonOf(r.d);
-      if (s !== prev) out += `<div class="gl-sea">${esc(seasonLab(s))}</div>`;
+      if (s !== prev) out += `<div class="gl-sea">${esc(h.sp === 'nfl' ? String(s) : seasonLab(s))}</div>`;
       prev = s; shown++;
       const href = r.gid ? `#${h.sp}/game/${encodeURIComponent(r.gid)}?p=${encodeURIComponent(h.pid)}&d=${r.d}` : '';
       out += `<${href ? 'a' : 'div'} class="gl-row${href ? ' pg-link' : ''}"${href ? ` href="${href}"` : ''}><span>${esc(dMD(r.d))}</span><span>${r.home ? 'vs' : '@'} ${esc(r.opp)}</span><span class="gl-res">${resCell(r)}</span>${lcols.map(([k, , dp]) => `<span>${hcell(hv(h, r, k), dp, k)}</span>`).join('')}</${href ? 'a' : 'div'}>`;
@@ -1773,9 +1802,9 @@
     const mt = tinfo(sport, team);
     const tcol = /^#[0-9a-f]{6}$/i.test(mt.color || '') ? mt.color : 'var(--grey)';
     const meta = [roleTxt(sport, d), isNum(d.gp) ? 'GP ' + d.gp : ''].filter(Boolean).join(' · ');
-    const st = d.st || {}, l5 = d.l5 || {};
+    const st = sport === 'nfl' ? nfpSt(d.st || {}) : d.st || {}, l5 = d.l5 || {};
     // stat tiles (inside the hero): season big, L5 under it with an arrow when it differs >= 10%
-    const TILES = sport === 'nba' ? [['pts', 'PTS', 1], ['reb', 'REB', 1], ['ast', 'AST', 1], ['tpm', '3PM', 1]] : [['g', 'G', 2], ['a', 'A', 2], ['pts', 'PTS', 2], ['sog', 'SOG', 1]];
+    const TILES = sport === 'nfl' ? NFP_SET[nfpGrp(d.pos)].slice(0, 4) : sport === 'nba' ? [['pts', 'PTS', 1], ['reb', 'REB', 1], ['ast', 'AST', 1], ['tpm', '3PM', 1]] : [['g', 'G', 2], ['a', 'A', 2], ['pts', 'PTS', 2], ['sog', 'SOG', 1]];
     const l5v = (k) => (sport === 'nhl' && k === 'pts' ? (isNum(l5.g) && isNum(l5.a) ? l5.g + l5.a : null) : l5[k]);
     const tiles = goalie ? '' : `<div class="stiles">${TILES.map(([k, lab, dp]) => {
       const sv = st[k], lv5 = l5v(k);
@@ -1810,7 +1839,7 @@
     const hrows = hist ? hist.rows : [];
     const cur = curSeason(sport);
     const thisSea = hrows.filter((r) => seasonOf(r.d) === cur);
-    const lcols = goalie ? LCOLS.nhlG : LCOLS[sport];
+    const lcols = nfpLcolsOf(sport, d, goalie);
     const sg = sl && sp && sl.games && sl.games[sp.gid];
     const tonightOpp = sg && team ? (sg.home === team ? sg.away : sg.home) : '';
     let body = '';
@@ -1842,12 +1871,13 @@
         body = card + props;
       }
     } else if (tab === 'trends') {
-      const CH = sport === 'nba' ? [['pts', 'PTS'], ['reb', 'REB'], ['ast', 'AST'], ['tpm', '3PM'], ['pra', 'PRA']] : [['sog', 'SOG'], ['pts', 'PTS'], ['g', 'G'], ['a', 'A']];
-      const cols = COLS[sport];
+      const CH = sport === 'nfl' ? NFP_CH[nfpGrp(d.pos)] : sport === 'nba' ? [['pts', 'PTS'], ['reb', 'REB'], ['ast', 'AST'], ['tpm', '3PM'], ['pra', 'PRA']] : [['sog', 'SOG'], ['pts', 'PTS'], ['g', 'G'], ['a', 'A']];
+      const cols = COLS[sport] || [];
       const logsAll = Array.isArray(d.logs) ? d.logs : [];
       const ci = (k) => cols.findIndex((c) => c[0] === k);
       const lval = (r, k) => {
-        const g = (x) => r[3 + ci(x)];
+        const g = (x) => (ci(x) < 0 ? null : r[3 + ci(x)]);
+        if (k === 'rry') return isNum(g('ryd')) && isNum(g('recy')) ? g('ryd') + g('recy') : null;
         if (k === 'pra') return isNum(g('pts')) && isNum(g('reb')) && isNum(g('ast')) ? g('pts') + g('reb') + g('ast') : null;
         if (sport === 'nhl' && k === 'pts') return isNum(g('g')) && isNum(g('a')) ? g('g') + g('a') : null;
         const v = g(k); return isNum(v) ? v : null;
@@ -1875,7 +1905,7 @@
             const op = hasL ? (hi ? .85 : .7) : .7;
             const lab = (x.r[2] === 1 ? 'vs ' : x.r[2] === 0 ? '@ ' : '') + (x.r[1] || '');
             return `<div class="cb"><span class="cb-v">${vf(x.v)}</span><span class="cb-bar" style="height:${Math.max(2, hOf(x.v))}px;background:${col};opacity:${op}"></span>
-              <span class="cb-x">${esc(lab)}</span><span class="cb-d">${esc(String(x.r[0] || '').replace('-', '/'))}</span></div>`;
+              <span class="cb-x">${esc(lab)}</span><span class="cb-d">${esc(sport === 'nfl' ? 'Wk ' + x.r[0] : String(x.r[0] || '').replace('-', '/'))}</span></div>`;
           }).join('');
           const lineEl = hasL ? `<span class="cline" style="bottom:${hOf(line) + 38}px"><em>Line ${esc(line)}</em></span>` : '';
           chart = sec('Recent performances') + chips + `<div class="card cchart" style="--cn:${pts.length}"><div class="ch-h">${esc(head)}</div>
@@ -1883,7 +1913,7 @@
         } else chart = sec('Recent performances') + chips + '<div class="card empty"><p>Not enough games with this stat.</p></div>';
       }
       // Season / Last 10 / Last 5 (hist, this season); without hist: world season + L5
-      const tc = TCOLS[sport];
+      const tc = nfpTcolsOf(sport, d);
       const cell = (t, cls) => `<span class="rc${cls ? ' ' + cls : ''}">${t}</span>`;
       const trow = (lab, getter) => `<span class="rl">${lab}</span>${tc.map((c) => { const v = getter(c); return isNum(v) ? cell(v.toFixed(c[3])) : cell('—', 'nil'); }).join('')}`;
       let avg;
@@ -1928,7 +1958,7 @@
           const g = hrows.filter((r) => r.opp === opp);
           if (!g.length) vs = noteCard(`No games vs ${opp} in the last two seasons.`);
           else {
-            const tc = TCOLS[sport], cell = (t, cls) => `<span class="rc${cls ? ' ' + cls : ''}">${t}</span>`;
+            const tc = nfpTcolsOf(sport, d), cell = (t, cls) => `<span class="rc${cls ? ' ' + cls : ''}">${t}</span>`;
             const arow = `<span class="rl">vs ${esc(opp)} (${g.length} GP)</span>${tc.map((c) => { const v = havg(hist, g, c[2]); return isNum(v) ? cell(v.toFixed(c[3])) : cell('—', 'nil'); }).join('')}`;
             vs = `${sec('Averages')}<div class="card spl"><span class="rtab" style="--n:${tc.length}"><span class="rl"></span>${tc.map((c) => cell(c[1], 'rh')).join('')}${arow}</span></div>
               ${sec('Games vs ' + opp)}${histList(hist, g, lcols)}`;
@@ -2358,6 +2388,75 @@
         <span class="bet-sub">${fmtOdds(b.odds)}${b.oddsEdited ? ' edited' : ''} · ${open ? uTxt(b.units) + ' · ' : ''}${esc(when)}${b.note ? `<em class="mb-note">${esc(b.note)}</em>` : ''}</span></span>
       <span class="bet-m">${res}</span><span class="bet-r">${lead}${gradeChip(b)}</span></button></div>`;
   }
+  // ======== Scoring watch shell (prefix sw): shared card + row renderer for the NHL anytime-goal, NBA triple-double and NFL anytime-TD panels and game blocks ========
+  // Layered card: sport-tinted header band, body rows with a thin chance bar (model P on a per-panel 0–scale% track) and a break-even tick at the DK price, recessed footer legend.
+  const SW_META = {
+    nhl: { title: 'Anytime goal', tint: 'var(--blue)', rgb: '124,195,255', glyph: '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="9" rx="8" ry="3.5"/><path d="M4 9v5c0 1.9 3.6 3.5 8 3.5s8-1.6 8-3.5V9"/></svg>' },
+    nba: { title: 'Triple-double', tint: 'var(--amber)', rgb: '255,201,90', glyph: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3.5 9.5c5 1 12 1 17 0M3.5 14.5c5-1 12-1 17 0M12 3v18"/></svg>' },
+    nfl: { title: 'Anytime TD', tint: 'var(--accent)', rgb: '62,230,160', glyph: '<svg viewBox="0 0 24 24"><path d="M4.5 19.5c-2-2-1.5-9 3-13.5s11.5-5 13.5-3 1.5 9-3 13.5-11.5 5-13.5 3z"/><path d="M8.5 15.5l7-7M10 10l1.5 1.5M12.5 12.5L14 14"/></svg>' },
+  };
+  // chance (%) needed to break even at American odds o: 100 / decimal odds (same payout the EV uses)
+  const swBreakeven = (o) => 100 / (1 + (o > 0 ? o / 100 : 100 / Math.abs(o)));
+  // per-panel bar scale: the first round number that leaves headroom above the largest model chance / break-even shown
+  function swScale(list) {
+    const mx = Math.max(0, ...list.map((x) => Math.max(x.r.ph.P, swBreakeven(x.r.ph.odds))));
+    return [10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 100].find((sc) => mx <= sc * 0.96) || 100;
+  }
+  // one row: rank · name + sub + chance bar · P% + EV · add button. short = game block (no tip time). link=false renders a non-link row (NFL players without a page)
+  function swRow(sport, x, short, k, sc, cls, link) {
+    const { r, sg } = x, c = evCls(r.ph.ev), scale = sc || swScale([x]);
+    const where = sg.away === r.team ? `@ ${sg.home}` : `vs ${sg.away}`;
+    const segs = [`${esc(r.team)} ${esc(where)}`].concat(!short && sg.kickoff ? [esc(fmtTime(sg.kickoff))] : [], [`DK ${fmtOdds(r.ph.odds)}`]);
+    const sub = segs.map((t, i) => `<span class="sw-sg">${i ? '· ' : ''}${t}</span>`).join('') + lsChk(r.b, r.ph);
+    const pct = (v) => `${Math.min(100, v / scale * 100).toFixed(1)}%`;
+    const add = pgCtx.final ? '' : addBtn(sport, r);
+    const inner = `${k ? `<span class="sw-k">${k}</span>` : ''}<span class="bet-l sw-l"><span class="bet-mkt">${esc(r.name)}</span><span class="bet-sub sw-s">${sub}</span>
+      <span class="sw-m" aria-hidden="true"><i style="width:${pct(r.ph.P)}"></i><em style="left:${pct(swBreakeven(r.ph.odds))}"></em></span></span>
+      <span class="bet-r sw-r"><b class="sw-p">${r.ph.P.toFixed(1)}%<small class="sw-pl">chance</small></b><span class="sw-e ev ${c}">${sgn(r.ph.ev, 1)}% EV</span></span>`;
+    const row = link === false ? `<div class="bet tr sw-tr">${inner}</div>` : `<a class="bet tr sw-tr" href="#${sport}/player/${encodeURIComponent(r.pid)}">${inner}</a>`;
+    return `<div class="bet-wrap sw-row ${cls}${k ? '' : ' sw-nok'}${add ? ' has-add' : ''}">${row}${add}</div>`;
+  }
+  // the card. o: { cls, blk, sub, sc, body } — body = rendered rows / skeleton / empty text; sc shown as the bar scale when rows are present
+  function swShell(sport, o) {
+    const m = SW_META[sport], blk = !!o.blk;
+    const title = `${blk ? '' : SPORTS[sport] + ' · '}${m.title}`;
+    const sc = o.sc ? `<span class="sw-sc">0–${o.sc}%</span>` : '';
+    const foot = o.sc ? `<div class="sw-f"><span>bar = model chance, 0–${o.sc}%</span><span><i></i>break-even at the DK price</span></div>` : '';
+    return `<section class="sw-c${blk ? ' sw-blk' : ''} ${o.cls}" style="--sw-t:${m.tint};--sw-tr:${m.rgb}"><div class="sw-in">
+      <div class="sw-h"><span class="sw-g">${m.glyph}</span><span class="sw-t"><b>${title}</b><small>${esc(o.sub)}</small></span>${sc}</div>${o.body}${foot}</div></section>`;
+  }
+  // dashboard panel: loads today's slate for the sport, keeps games not started, ranks with top(list, 5) and renders rows with row(x, false, k, sc)
+  function swPanel(sport, cls, keep, top, row, noneMsg) {
+    const sub = 'top 5 by model chance · not started';
+    const none = (msg) => swShell(sport, { cls, sub, body: `<div class="card empty sw-empty"><p>${msg}</p></div>` });
+    const sk = () => swShell(sport, { cls, sub, body: `<div class="sw-sk">${skRows(3)}</div>` });
+    if (!store.idxDone) return sk();
+    const s = store.idx && store.idx.sports && store.idx.sports[sport], today = ymd(0);
+    if (!s || !(s.slates || []).includes(today)) return none(noneMsg);
+    const e = ensureSlate(sport, today);
+    if (e.st === 'loading') return sk();
+    if (e.st === 'err') return none('Couldn’t load today’s slate. Check your connection and try again.');
+    if (e.st !== 'ok') return none(noneMsg);
+    ensureMeta(sport);
+    const now = Date.now(), list = [];
+    new Set(Object.values(e.data.bets || {}).map((b) => b && b.gid)).forEach((gid) => {
+      const sg = (e.data.games || {})[gid] || {};
+      if (!(Date.parse(sg.kickoff) > now)) return;
+      betRows(e.data, gid).forEach((r) => { if (keep(r)) list.push({ r, sg, gid }); });
+    });
+    const t = top(list, 5);
+    if (!t.length) return none(noneMsg);
+    const sc = swScale(t);
+    return swShell(sport, { cls, sub: `top ${t.length} by model chance · not started`, sc, body: t.map((x, i) => row(x, false, i + 1, sc)).join('') });
+  }
+  // game Bets-tab block: that game's top 3 by model chance (recheck rows kept, with the Check chip)
+  function swBlock(sport, cls, slate, rows, keep, by, row) {
+    const sg = (slate.games || {})[state.betGid] || {};
+    const top = rows.filter(keep).map((r) => ({ r, sg, gid: state.betGid })).sort(by).slice(0, 3);
+    if (!top.length) return '';
+    const sc = swScale(top);
+    return swShell(sport, { cls, blk: true, sub: `top ${top.length} by model chance · this game`, sc, body: top.map((x, i) => row(x, true, i + 1, sc)).join('') });
+  }
   // ======== NHL anytime goal (Scoring watch panel + game Bets block; prefix ag) ========
   // Rows: slate bets with stat g, side o, line 0.5 (over = Yes). Price = DK yes odds, chance = model P(>= 1 goal), ungraded (UNCAL).
   const agOk = (r) => r.b.stat === 'g' && r.b.side === 'o' && r.ph.line === 0.5 && isNum(r.ph.P) && isNum(r.ph.odds);
@@ -2378,91 +2477,28 @@
     }
     return out;
   }
-  function agRow(x, short) {
-    const { r, sg } = x, c = evCls(r.ph.ev);
-    const where = sg.away === r.team ? `@ ${sg.home}` : `vs ${sg.away}`;
-    const sub = `${esc(r.team)} ${esc(where)}${!short && sg.kickoff ? ` · ${esc(fmtTime(sg.kickoff))}` : ''} · DK ${fmtOdds(r.ph.odds)}${lsChk(r.b, r.ph)}`;
-    const add = pgCtx.final ? '' : addBtn('nhl', r);
-    return `<div class="bet-wrap ag-row${add ? ' has-add' : ''}"><a class="bet tr" href="#nhl/player/${encodeURIComponent(r.pid)}">
-      <span class="bet-l"><span class="bet-mkt">${esc(r.name)}</span><span class="bet-sub">${sub}</span></span>
-      <span class="bet-r ag-r"><b class="ag-p">${r.ph.P.toFixed(1)}%</b><span class="ag-e ev ${c}">${sgn(r.ph.ev, 1)}% EV</span></span></a>${add}</div>`;
-  }
-  function agPanel() {
-    const head = '<div class="lbl ag-h">NHL · Anytime goal · top model chances, games not started</div>';
-    const none = (msg) => `${head}<div class="card empty"><p>${msg}</p></div>`;
-    if (!store.idxDone) return `${head}${skRows(3)}`;
-    const s = store.idx && store.idx.sports && store.idx.sports.nhl, today = ymd(0);
-    if (!s || !(s.slates || []).includes(today)) return none('No anytime-goal prices yet for today’s games.');
-    const e = ensureSlate('nhl', today);
-    if (e.st === 'loading') return `${head}${skRows(3)}`;
-    if (e.st === 'err') return none('Couldn’t load today’s slate. Check your connection and try again.');
-    if (e.st !== 'ok') return none('No anytime-goal prices yet for today’s games.');
-    ensureMeta('nhl');
-    const now = Date.now(), list = [];
-    new Set(Object.values(e.data.bets || {}).map((b) => b && b.gid)).forEach((gid) => {
-      const sg = (e.data.games || {})[gid] || {};
-      if (!(Date.parse(sg.kickoff) > now)) return;
-      betRows(e.data, gid).forEach((r) => { if (agIs(r)) list.push({ r, sg, gid }); });
-    });
-    const top = agTop(list, 5);
-    if (!top.length) return none('No anytime-goal prices yet for today’s games.');
-    return `${head}<div class="betlist">${top.map((x) => agRow(x)).join('')}</div>`;
-  }
+  function agRow(x, short, k, sc) { return swRow('nhl', x, short, k, sc, 'ag-row'); }
+  function agPanel() { return swPanel('nhl', 'ag-pnl', agIs, agTop, agRow, 'No anytime-goal prices yet for today’s games.'); }
   // Scoring watch: NHL anytime goal, NBA triple-double, NFL anytime TD panels
   function agSection() {
-    return `${sec('Scoring watch')}<div class="ag-pn">${agPanel()}</div><div class="td3-pn">${td3Panel()}</div><div class="atd-pn">${atdSection()}</div>`;
+    return `${sec('Scoring watch')}<div class="sw"><div class="ag-pn">${agPanel()}</div><div class="td3-pn">${td3Panel()}</div><div class="atd-pn">${atdSection()}</div></div>`;
   }
   // small block at the top of an NHL game's Bets tab: that game's top 3 by model chance (only when the game has anytime-goal rows)
   function agGameBlock(sport, slate, rows) {
     if (sport !== 'nhl') return '';
-    const sg = (slate.games || {})[state.betGid] || {};
-    const top = rows.filter(agOk).map((r) => ({ r, sg, gid: state.betGid })).sort(agBy).slice(0, 3);
-    if (!top.length) return '';
-    return `<div class="ag-blk"><div class="lbl ag-h">Anytime goal · top ${top.length} by model chance</div><div class="betlist">${top.map((x) => agRow(x, true)).join('')}</div></div>`;
+    return swBlock('nhl', 'ag-blk', slate, rows, agOk, agBy, agRow);
   }
   // ======== NBA triple-double (Scoring watch panel + game Bets block; prefix td3) ========
   // Rows: slate bets with stat td3, side o (= Yes). Price = DK yes odds, chance = model P(pts, reb, ast all >= 10) after the propShrink, ungraded (UNCAL).
   // Same caps as the anytime-goal panel (top 5 by chance, 2 per team, 2 per game loosening to 3 then 4), so agTop / agBy are reused.
   const td3Ok = (r) => r.b.stat === 'td3' && r.b.side === 'o' && isNum(r.ph.P) && isNum(r.ph.odds) && isNum(r.ph.ev);
   const td3Is = (r) => td3Ok(r) && !r.ph.recheck; // panel: no recheck rows; game block: kept with a Check chip
-  function td3Row(x, short) {
-    const { r, sg } = x, c = evCls(r.ph.ev);
-    const where = sg.away === r.team ? `@ ${sg.home}` : `vs ${sg.away}`;
-    const sub = `${esc(r.team)} ${esc(where)}${!short && sg.kickoff ? ` · ${esc(fmtTime(sg.kickoff))}` : ''} · DK ${fmtOdds(r.ph.odds)}${lsChk(r.b, r.ph)}`;
-    const add = pgCtx.final ? '' : addBtn('nba', r);
-    return `<div class="bet-wrap td3-row${add ? ' has-add' : ''}"><a class="bet tr" href="#nba/player/${encodeURIComponent(r.pid)}">
-      <span class="bet-l"><span class="bet-mkt">${esc(r.name)}</span><span class="bet-sub">${sub}</span></span>
-      <span class="bet-r td3-r"><b class="td3-p">${r.ph.P.toFixed(1)}%</b><span class="td3-e ev ${c}">${sgn(r.ph.ev, 1)}% EV</span></span></a>${add}</div>`;
-  }
-  function td3Panel() {
-    const head = '<div class="lbl td3-h">NBA · Triple-double · top model chances, games not started</div>';
-    const msg = 'No triple-double prices yet for today’s games.';
-    const none = (m) => `${head}<div class="card empty"><p>${m}</p></div>`;
-    if (!store.idxDone) return `${head}${skRows(3)}`;
-    const s = store.idx && store.idx.sports && store.idx.sports.nba, today = ymd(0);
-    if (!s || !(s.slates || []).includes(today)) return none(msg);
-    const e = ensureSlate('nba', today);
-    if (e.st === 'loading') return `${head}${skRows(3)}`;
-    if (e.st === 'err') return none('Couldn’t load today’s slate. Check your connection and try again.');
-    if (e.st !== 'ok') return none(msg);
-    ensureMeta('nba');
-    const now = Date.now(), list = [];
-    new Set(Object.values(e.data.bets || {}).map((b) => b && b.gid)).forEach((gid) => {
-      const sg = (e.data.games || {})[gid] || {};
-      if (!(Date.parse(sg.kickoff) > now)) return;
-      betRows(e.data, gid).forEach((r) => { if (td3Is(r)) list.push({ r, sg, gid }); });
-    });
-    const top = agTop(list, 5);
-    if (!top.length) return none(msg);
-    return `${head}<div class="betlist">${top.map((x) => td3Row(x)).join('')}</div>`;
-  }
+  function td3Row(x, short, k, sc) { return swRow('nba', x, short, k, sc, 'td3-row'); }
+  function td3Panel() { return swPanel('nba', 'td3-pnl', td3Is, agTop, td3Row, 'No triple-double prices yet for today’s games.'); }
   // small block at the top of an NBA game's Bets tab: that game's top 3 by model chance (only when the game has triple-double rows)
   function td3GameBlock(sport, slate, rows) {
     if (sport !== 'nba') return '';
-    const sg = (slate.games || {})[state.betGid] || {};
-    const top = rows.filter(td3Ok).map((r) => ({ r, sg, gid: state.betGid })).sort(agBy).slice(0, 3);
-    if (!top.length) return '';
-    return `<div class="td3-blk"><div class="lbl td3-h">Triple-double · top ${top.length} by model chance</div><div class="betlist">${top.map((x) => td3Row(x, true)).join('')}</div></div>`;
+    return swBlock('nba', 'td3-blk', slate, rows, td3Ok, agBy, td3Row);
   }
   // ======== NFL anytime TD (Scoring watch panel + game Bets block; prefix atd; self-contained, called from agSection's note and betsTab) ========
   // Rows: slate bets with stat atd (over = Yes, line 0.5). Chance = P (model blended toward the book's fair price), price = DK yes odds, ungraded (UNCAL).
@@ -2485,42 +2521,12 @@
     }
     return out;
   }
-  function atdRow(x, short) {
-    const { r, sg } = x, c = evCls(r.ph.ev);
-    const where = sg.away === r.team ? `@ ${sg.home}` : `vs ${sg.away}`;
-    const sub = `${esc(r.team)} ${esc(where)}${!short && sg.kickoff ? ` · ${esc(fmtTime(sg.kickoff))}` : ''} · DK ${fmtOdds(r.ph.odds)}${lsChk(r.b, r.ph)}`;
-    const add = pgCtx.final ? '' : addBtn('nfl', r);
-    const inner = `<span class="bet-l"><span class="bet-mkt">${esc(r.name)}</span><span class="bet-sub">${sub}</span></span>
-      <span class="bet-r atd-r"><b class="atd-p">${r.ph.P.toFixed(1)}%</b><span class="atd-e ev ${c}">${sgn(r.ph.ev, 1)}% EV</span></span>`;
-    return `<div class="bet-wrap atd-row${add ? ' has-add' : ''}">${r.pg ? `<a class="bet tr" href="#nfl/player/${encodeURIComponent(r.pid)}">${inner}</a>` : `<div class="bet tr">${inner}</div>`}${add}</div>`;
-  }
-  function atdSection() {
-    const head = '<div class="lbl atd-h">NFL · Anytime TD · top model chances, games not started</div>';
-    const none = (msg) => `${head}<div class="card empty"><p>${msg}</p></div>`;
-    if (!store.idxDone) return `${head}${skRows(3)}`;
-    const s = store.idx && store.idx.sports && store.idx.sports.nfl, today = ymd(0);
-    if (!s || !(s.slates || []).includes(today)) return none(ATD_NONE);
-    const e = ensureSlate('nfl', today);
-    if (e.st === 'loading') return `${head}${skRows(3)}`;
-    if (e.st === 'err') return none('Couldn’t load today’s slate. Check your connection and try again.');
-    if (e.st !== 'ok') return none(ATD_NONE);
-    ensureMeta('nfl');
-    const now = Date.now(), list = [];
-    new Set(Object.values(e.data.bets || {}).map((b) => b && b.gid)).forEach((gid) => {
-      const sg = (e.data.games || {})[gid] || {};
-      if (!(Date.parse(sg.kickoff) > now)) return;
-      betRows(e.data, gid).forEach((r) => { if (atdIs(r)) list.push({ r, sg, gid }); });
-    });
-    const top = atdTop(list, 5);
-    return top.length ? `${head}<div class="betlist">${top.map((x) => atdRow(x)).join('')}</div>` : none(ATD_NONE);
-  }
+  function atdRow(x, short, k, sc) { return swRow('nfl', x, short, k, sc, 'atd-row', !!x.r.pg); } // players without a page render as a plain row
+  function atdSection() { return swPanel('nfl', 'atd-pnl', atdIs, atdTop, atdRow, ATD_NONE); }
   // block at the top of an NFL game's Bets tab: that game's top 3 by model chance (only when the game has anytime-TD rows)
   function atdGameBlock(sport, slate, rows) {
     if (sport !== 'nfl') return '';
-    const sg = (slate.games || {})[state.betGid] || {};
-    const top = rows.filter(atdOk).map((r) => ({ r, sg, gid: state.betGid })).sort(atdBy).slice(0, 3);
-    if (!top.length) return '';
-    return `<div class="atd-blk"><div class="lbl atd-h">Anytime TD · top ${top.length} by model chance</div><div class="betlist">${top.map((x) => atdRow(x, true)).join('')}</div></div>`;
+    return swBlock('nfl', 'atd-blk', slate, rows, atdOk, atdBy, atdRow);
   }
   // ---- Parlays panel (Bets > Dashboard): swipeable cross-game parlay cards built by PARLAY.build (app/parlays.js) ----
   const plKind = (c) => `${c.n}-leg ${c.kind}`;
@@ -2689,9 +2695,9 @@
   // scoring watch: the three existing panels; a panel with no rows collapses to one line, all empty = one line
   function bxScoring() {
     const spOk = (sp) => bxSpOk(sp);
-    const panels = [['nhl', agPanel], ['nba', td3Panel], ['nfl', atdSection]].filter(([sp]) => spOk(sp)).map(([sp, fn]) => { const h = fn(); return { sp, h, has: h.includes('class="betlist"') }; });
+    const panels = [['nhl', agPanel], ['nba', td3Panel], ['nfl', atdSection]].filter(([sp]) => spOk(sp)).map(([sp, fn]) => { const h = fn(); return { sp, h, has: h.includes('sw-row') }; }); // sw panels (Scoring watch shell): rows carry sw-row
     const n = panels.filter((p) => p.has).length;
-    const body = n ? panels.map((p) => (p.has ? `<div class="bx-pane">${p.h}</div>` : `<div class="bx-pane bx-quiet">${p.h.replace(/<div class="card empty"><p>(.*?)<\/p><\/div>/, '<span class="bx-dim">$1</span>')}</div>`)).join('') : bxQuiet('No prices yet for anytime goal, triple-double or anytime TD.');
+    const body = n ? panels.map((p) => (p.has ? `<div class="bx-pane">${p.h}</div>` : `<div class="bx-pane bx-quiet"><span class="bx-dim">${esc(SW_META[p.sp].title)}: ${(/<p>(.*?)<\/p>/.exec(p.h) || [, '…'])[1]}</span></div>`)).join('') : bxQuiet('No prices yet for anytime goal, triple-double or anytime TD.');
     return bxFold('scoring', 'Scoring watch', n ? `${n} of ${panels.length} markets` : '', n ? '' : '<span class="bx-dim">no prices yet</span>', gate('scoringPanels', body));
   }
   const bxOpenSort = (x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0) || (x.start || '').localeCompare(y.start || '') || (x.gid < y.gid ? -1 : x.gid > y.gid ? 1 : 0) || x.addedAt.localeCompare(y.addedAt);
