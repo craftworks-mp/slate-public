@@ -86,6 +86,27 @@ svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .bottomnav a:active{transform:scale(.94)}
 .bottomnav svg{width:22px;height:22px}
 .bottomnav a[aria-current="page"]{color:var(--accent2)}
+/* ---- desktop (>= 900px): the website is the wide experience; the app stays one clean centered column.
+   A 720px surface with hairline side rules sits under the (full-width) top bar; the bottom nav becomes a dock the
+   width of that column with rounded top corners, so nothing stretches across 1440px or floats unanchored. ---- */
+@media (min-width:900px){
+  :root{--maxw:720px;--gut:24px}
+  body::after{content:"";position:fixed;top:0;bottom:0;left:50%;z-index:-1;width:var(--maxw);transform:translateX(-50%);pointer-events:none;background:var(--bg2);border-left:1px solid var(--line);border-right:1px solid var(--line)}
+  #view{padding-top:20px}
+  .bottomnav{width:var(--maxw);border:1px solid var(--line2);border-bottom:0;border-radius:var(--r) var(--r) 0 0;height:var(--bnav-h);padding-bottom:0}
+  .bottomnav a{flex-direction:row;gap:8px;font-size:var(--fs-sm)}
+  .bottomnav svg{width:20px;height:20px}
+  .sheet{border-radius:var(--r) var(--r) 0 0;border-left:1px solid var(--line2);border-right:1px solid var(--line2)}
+  .toast{bottom:calc(var(--bnav-h) + 14px)}
+}
+@media (hover:hover) and (pointer:fine){
+  .bottomnav a:hover{color:var(--text)}
+  .pcard-h:hover,.pcard-more:hover,.bet.pbet:hover,.bt-foot:hover{background:var(--card2)}
+  .pcard-more:hover{color:var(--accent2)}
+  .addb:hover{border-color:var(--line3);color:var(--text)}
+  .chip:hover,.bchip:hover,.pills button:hover{border-color:var(--line3);color:var(--text)}
+  .chip.on:hover,.bchip.on:hover{color:var(--accent2);border-color:var(--accent-line)}
+}
 
 /* sheet */
 .backdrop{position:fixed;inset:0;z-index:20;background:var(--overlay);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);animation:fade .22s ease}
@@ -285,6 +306,8 @@ a.srow:active{background:var(--card2)}
 .bet-meta small{font:500 var(--fs-xxs)/1 var(--font);color:var(--dim);text-transform:uppercase;letter-spacing:.04em}
 .bet-ctx{display:flex;flex-direction:column;gap:7px;padding:4px 12px 12px;background:var(--card2)}
 .bet-none{font-size:var(--fs-sm);color:var(--dim)}
+.bet-gap{font:500 var(--fs-sm)/1.4 var(--font);color:var(--muted)}
+.bet-gap .ev.gap{opacity:1;font-size:var(--fs-sm)}
 /* grouped by player + filter chips */
 .bchips{display:flex;align-items:center;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 calc(-1*var(--gut)) 10px;padding:2px var(--gut)}
 .bchips::-webkit-scrollbar{display:none}
@@ -309,6 +332,36 @@ a.srow:active{background:var(--card2)}
 .bet-wrap.alt .bet{opacity:.62}
 .bet-wrap.alt.open .bet{opacity:1}
 .pcard .bet-r{gap:5px}
+/* player block (all sports): grade chip first, then the bet, then EV; other markets fold behind "+N more" */
+.pb-card .pcard-h{min-height:48px;padding:8px 12px}
+.bet.pbet{grid-template-columns:auto minmax(0,1fr) auto;gap:12px;min-height:64px;padding:10px 12px}
+.grade-badge.lg{min-width:40px;height:40px;padding:0 6px;font-size:var(--fs-md);border-radius:var(--r2);letter-spacing:0}
+.grade-badge.lg.uncal{font-size:var(--fs-md)}
+.grade-badge.lg.none{visibility:hidden}
+.pb-main{display:flex;flex-direction:column;gap:4px;min-width:0}
+.pb-main .bet-mkt{white-space:normal;line-height:1.25}
+.pb-main .bet-sub{white-space:normal;flex-wrap:wrap;gap:3px 10px;row-gap:3px;line-height:1.3}
+.pb-proj{font:500 var(--fs-xs)/1.3 var(--font);color:var(--text);white-space:nowrap}
+.pb-proj.ev{font-weight:600}
+.pb-arr{font-style:normal;font-size:8px;margin-left:3px;vertical-align:1px}
+.pb-szn{font:500 var(--fs-xs)/1.3 var(--font);color:var(--muted);white-space:nowrap}
+.bet-ev.pb-ev{align-self:center;font-size:var(--fs-md);min-width:58px;text-align:right}
+.pb-card .bet-wrap{border-top:1px solid var(--line)}
+.pb-card .pcard-h+.bet-wrap{border-top:0}
+.pcard-more{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;min-height:44px;padding:0 12px;border-top:1px solid var(--line);font:600 var(--fs-sm)/1 var(--font);color:var(--accent2);transition:background .18s}
+.pcard-more:active{background:var(--card2)}
+.pcard-fold{width:16px;height:16px;stroke-width:2.2;transition:transform .18s var(--ease)}
+.pcard-more[aria-expanded="true"] .pcard-fold{transform:rotate(180deg)}
+.pb.has-add .addb{top:10px;margin-top:0} /* pinned to the row, not the wrap (the wrap grows with Context) */
+.pb-meta{display:flex;flex-direction:column;gap:6px;padding:10px 12px 12px;border-top:1px solid var(--line);background:var(--bubble)}
+.pb-mi{display:flex;align-items:baseline;gap:10px;font:500 var(--fs-sm)/1.3 var(--font);color:var(--muted)}
+.pb-mi b{flex:none;min-width:34px;font:600 var(--fs-xs)/1.3 var(--font);letter-spacing:.04em;color:var(--text)}
+.pb-legend{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:12px;padding:0 0 6px 12px;font:600 var(--fs-xs)/1 var(--font);letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.pb-legend span{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.pb-legend span:last-child{justify-content:flex-end;min-width:58px;padding-right:60px}
+.pb-legend .info{width:18px;height:18px}
+.pb-card .bt-foot{border-top:1px solid var(--line)}
+@media (max-width:340px){.bet.pbet{gap:8px;padding:10px}.grade-badge.lg{min-width:36px;height:36px;font-size:var(--fs-base)}.bet-ev.pb-ev{min-width:50px;font-size:var(--fs-base)}.pb-legend{grid-template-columns:44px minmax(0,1fr) auto;gap:8px;padding:0 0 6px 10px}.pb-legend span:last-child{padding-right:54px}}
 .card.empty .pillbtn{margin-top:10px}
 @media (max-width:340px){.bet{gap:6px;padding:10px}.bet-ev{font-size:var(--fs-base)}.sortseg{width:158px}.sortseg button{font-size:var(--fs-xs)}.bets-n{white-space:normal;line-height:1.3}.pcard-h{padding:10px}}
 
@@ -568,30 +621,10 @@ button.prow{width:100%;text-align:left;align-items:flex-start;min-height:64px}
 .sidetog{margin:0 0 10px}
 .sideseg{width:100%}
 .sideseg button{min-height:40px;font-size:var(--fs-sm)}
-.btab{display:grid;grid-template-columns:52px repeat(var(--n),minmax(0,1fr));column-gap:2px;align-items:center;padding:6px 8px 8px 0;table-layout:fixed}
-.btab>*{min-width:0;min-height:30px}
-.bt-l{display:flex;align-items:center;gap:3px;padding-left:12px;font:600 var(--fs-xxs)/1 var(--font);letter-spacing:.04em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
-.bt-l .info{width:16px;height:16px;font-size:9px;line-height:14px}
-.bt-h{text-align:center;font:600 var(--fs-xxs)/1 var(--font);letter-spacing:.04em;color:var(--muted);align-self:center;padding:2px 0}
-.bt-v,.bt-c{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-align:center;font:600 var(--fs-sm)/1.1 var(--font);color:var(--text);white-space:nowrap;border-radius:var(--r3);padding:2px 0}
-.bt-v.nil{color:var(--dim);font-weight:500}
-.bt-c{width:100%;min-height:40px}
-.bt-c:active,.bt-c.open{background:var(--card2)}
-.bt-c.open{box-shadow:inset 0 0 0 1px var(--accent-line)}
-.bt-line b{font-weight:600}
-.bt-line small{font:500 var(--fs-xs)/1 var(--font);color:var(--muted)}
-.bt-pj i{font-style:normal;font-size:8px;margin-left:2px;vertical-align:1px;display:inline}
-.bt-pj{display:block;line-height:30px}
-.bt-pj.ev{font:600 var(--fs-sm)/30px var(--font)}
-.bt-ev .ev{font-size:var(--fs-sm)}
-.bt-ev .grade-badge{font-size:var(--fs-xs);min-width:22px;padding:2px 6px 1px}
-.btab .hl{background:var(--accent-faint)}
-.bt-h.hl{color:var(--text)}
 .pcard .info-note{margin:0 12px 8px}
 .pcard .bet-ctx{border-top:1px solid var(--line)}
 .bt-foot{display:block;width:100%;min-height:44px;padding:0 12px;border-top:1px solid var(--line);text-align:left;font:600 var(--fs-sm)/1 var(--font);color:var(--accent2)}
 .bt-foot:active{background:var(--card2)}
-@media (max-width:340px){.btab{padding-right:6px}.bt-v,.bt-c{font-size:var(--fs-xs)}.bt-l{padding-left:10px}}
 
 /* ======== My Bets: add button, add sheet, Bets tab ======== */
 .sheet{max-height:92vh;overflow-y:auto}
@@ -609,8 +642,6 @@ button.prow{width:100%;text-align:left;align-items:flex-start;min-height:64px}
 .bet.tr{grid-template-columns:minmax(0,1fr) auto;text-decoration:none;color:inherit}
 .bet.tr .bet-sub{white-space:normal;flex-wrap:wrap;row-gap:2px}
 .bet.tr .bet-mkt{white-space:normal}
-.bt-ad{display:flex;justify-content:center}
-.bt-ad .addb{position:relative;right:auto;top:auto;margin-top:0;width:44px;height:44px}
 .bseg{margin:0 0 4px}
 .mb-tiles{margin-top:14px;grid-template-columns:repeat(2,minmax(0,1fr))}
 .mb-tiles .tile{padding:14px}
@@ -873,7 +904,6 @@ button.prow{width:100%;text-align:left;align-items:flex-start;min-height:64px}
 .pg-mod{font:500 var(--fs-xxs)/1 var(--font);color:var(--dim)}
 /* Bets tab in Final mode: Actual / Result / Beat close rows */
 .pg-act{font-weight:700;color:var(--text)}
-.btab.pg-fin .bt-v .res-pill{min-width:26px;justify-content:center;font-size:var(--fs-xxs);padding:3px 6px}
 .res-pill.p{background:var(--amber-soft);border-color:var(--amber-line);color:var(--amber)}
 .pg-beat{font:600 var(--fs-xs)/1 var(--font)}
 .pg-beat.w{color:var(--green)}.pg-beat.l{color:var(--red)}

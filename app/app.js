@@ -29,6 +29,7 @@
     betF: { ga: false, mkt: '' }, // game Bets tab filters, kept across games
     betSide: 'model', // game Bets tab side toggle: model (pick side) | o | u
     betOpen: {}, // expanded bet rows (bet id -> true), kept in memory
+    betMore: {}, // game Bets tab player blocks unfolded ('<sport>/<gid>/<pid>' -> true), kept in memory
     cmpSplit: 'season', // game Game tab comparison: season | l5 | ha
     playerTab: '', // player page tab (tonight | trends | matchup | recent); '' = default by props, kept across players
     pmore: {}, // player Recent tab 'Show all' ('<sport>/<pid>' -> true)
@@ -863,6 +864,7 @@
   // yes/no longshot markets (anytime goal, triple-double, anytime TD) whose EV is above the RECHECK line: muted "Check" chip next to the price (prefix ls)
   const lsChk = (b, ph) => (ph.recheck && ph.uncal && (b.stat === 'td3' || b.stat === 'atd' || (b.stat === 'g' && ph.line === 0.5)) ? '<em class="ls-chk" title="EV above the re-check line: confirm the price, the lineup and the player\u2019s status before trusting it">Check</em>' : '');
   const UNCAL = '<span class="grade-badge uncal" role="img" aria-label="Not graded yet: model not calibrated">\u2013</span>'; // NFL until its calibration gate passes: no grade (gray dash), EV shown
+  const UNCAL_LG = UNCAL.replace('grade-badge uncal', 'grade-badge lg uncal');
   const gradeIdx = (r) => { const i = GRADE_ORDER.indexOf(r.ph.grade); return i < 0 ? 99 : i; };
   const byEv = (x, y) => y.ph.ev - x.ph.ev;
   function betGroups(rows, how) {
@@ -877,39 +879,61 @@
         : (x, y) => y.ev - x.ev;
     return groups.sort(cmp);
   }
-  function betRow(r, showPick) {
+  // ---- one bet row (all sports): grade chip first, then market / side / line, price + phase + projection, EV, add button ----
+  // meta: optional { season } (table sports: season average of the stat)
+  function betRow(r, showPick, meta) {
     const { b, ph } = r, open = !!state.betOpen[r.id];
     const td3 = b.stat === 'td3' || b.stat === 'atd'; // triple-double / anytime TD: model chance instead of Proj / gap
-    const gap = td3 ? 0 : ph.proj - ph.line, pct = !td3 && ph.line ? gap / ph.line * 100 : null;
     const c = evCls(ph.ev);
     const g = GRADE_ORDER.includes(ph.grade) ? ph.grade : '';
     const pros = (ph.pros || []).map((t) => `<div class="pro">${esc(t)}</div>`).join('');
     const cons = (ph.cons || []).map((t) => `<div class="con">${esc(t)}</div>`).join('');
-    const ctx = pros || cons ? `<div class="bet-ctx"><div class="lbl">Context</div>${pros}${cons}</div>` : '<div class="bet-ctx"><div class="lbl">Context</div><div class="bet-none">No notes on this prop.</div></div>';
+    const gap = td3 ? 0 : ph.proj - ph.line, pct = !td3 && ph.line ? gap / ph.line * 100 : null;
+    const gapLine = td3 ? '' : `<div class="bet-gap">Proj ${ph.proj.toFixed(1)} vs line ${esc(ph.line)}: <span class="ev gap ${c}">${sgn(gap, 1)}${pct === null ? '' : ` (${sgn(pct, 0)}%)`}</span></div>`;
+    const ctx = `<div class="bet-ctx"><div class="lbl">Context</div>${gapLine}${pros || cons ? pros + cons : '<div class="bet-none">No notes on this prop.</div>'}</div>`;
     const add = pgCtx.final ? '' : addBtn(cur.sport || 'nba', r);
     let fin = '';
     if (pgCtx.final) {
       const st = pgSettle(cur.sport || 'nba', r);
       fin = `<span class="pg-settle"><span class="pg-act">${isNum(st.act) ? 'Actual ' + (td3 ? (st.act ? 'Yes' : 'No') : fx(st.act, Number.isInteger(st.act) ? 0 : 1)) : 'Did not play'}</span>${st.res ? `<span class="res-pill ${PG_RES[st.res] || ''}">${esc(st.res)}</span>` : ''}${st.beat === null ? '' : `<span class="pg-beat ${st.beat ? 'w' : 'l'}">Beat close: ${st.beat ? 'yes' : 'no'}</span>`}</span>`;
     }
-    return `<div class="bet-wrap${open ? ' open' : ''}${showPick && !r.pick ? ' alt' : ''}${add ? ' has-add' : ''}"><button class="bet" data-bet="${esc(r.id)}" aria-expanded="${open}">
-      <span class="bet-l"><span class="bet-mkt">${esc(betLbl(b.stat, b.side, ph.line))}</span>
-        <span class="bet-sub">${fmtOdds(ph.odds)} · ${r.tag.toUpperCase()}${showPick && !r.pick ? '<em class="side-tag">Other side</em>' : ''}${lsChk(b, ph)}</span></span>
-      <span class="bet-m">${td3 ? `<span class="bet-proj">Model ${isNum(ph.P) ? ph.P.toFixed(1) + '%' : '—'}</span>` : `<span class="bet-proj">Proj ${ph.proj.toFixed(1)}</span>
-        <span class="ev gap ${c}">${sgn(gap, 1)}${pct === null ? '' : ` (${sgn(pct, 0)}%)`}</span>`}</span>
-      <span class="bet-r"><span class="ev bet-ev ${c}">${sgn(ph.ev, 1)}%</span>
-        ${g ? `<span class="grade-badge" data-g="${g}">${g}</span>` : ph.uncal ? UNCAL : ''}</span>
+    const arrow = td3 ? '' : ph.proj > ph.line ? '<i class="pb-arr" aria-label="above the line">▲</i>' : ph.proj < ph.line ? '<i class="pb-arr" aria-label="below the line">▼</i>' : '';
+    const proj = td3 ? `<span class="pb-proj">Model ${isNum(ph.P) ? ph.P.toFixed(1) + '%' : '—'}</span>` : `<span class="pb-proj ev ${c}">Proj ${ph.proj.toFixed(1)}${arrow}</span>`;
+    const season = meta && isNum(meta.season) ? `<span class="pb-szn">Season ${fx(meta.season, meta.dp)}</span>` : '';
+    const grade = g ? `<span class="grade-badge lg" data-g="${g}">${g}</span>` : ph.uncal ? UNCAL_LG : '<span class="grade-badge lg none" aria-hidden="true"></span>';
+    return `<div class="bet-wrap pb${open ? ' open' : ''}${showPick && !r.pick ? ' alt' : ''}${add ? ' has-add' : ''}"><button class="bet pbet" data-bet="${esc(r.id)}" aria-expanded="${open}">
+      ${grade}<span class="pb-main"><span class="bet-mkt">${esc(betLbl(b.stat, b.side, ph.line))}</span>
+        <span class="bet-sub"><span>${fmtOdds(ph.odds)} · ${r.tag.toUpperCase()}</span>${proj}${season}${showPick && !r.pick ? '<em class="side-tag">Other side</em>' : ''}${lsChk(b, ph)}</span></span>
+      <span class="ev bet-ev pb-ev ${c}">${sgn(ph.ev, 1)}%</span>
     </button>${fin}${add}${open ? ctx : ''}</div>`;
   }
-  function playerCard(sport, grp, showPick) {
-    const best = GRADE_ORDER[Math.min(...grp.rows.map(gradeIdx))];
-    const n = grp.rows.length;
+  // player block: header (team disc, name, markets count), the lead row, then "+N more" folding the other rows (+ a meta line) per player
+  const foldKey = (sport, pid) => sport + '/' + state.betGid + '/' + pid;
+  function pbCard(sport, grp, rows, showPick, extra) {
+    const n = rows.length;
     const pgOk = grp.pg !== false; // a player only the anytime-TD market covers has no player page
-    return `<div class="pcard"><button class="pcard-h"${pgOk ? ` data-player="${esc(grp.pid)}" aria-label="${esc(grp.name)} player page"` : ' tabindex="-1"'}>
+    const more = state.betMore[foldKey(sport, grp.pid)];
+    const lead = rows.slice(0, 1), rest = rows.slice(1);
+    const hidden = rest.length;
+    const meta = extra && extra.meta ? `<div class="pb-meta">${extra.meta}</div>` : '';
+    const foot = extra && extra.foot ? extra.foot : '';
+    const fold = hidden || meta || foot
+      ? `<button class="pcard-more" data-bfold="${esc(grp.pid)}" aria-expanded="${!!more}">${more ? 'Show less' : hidden ? `+${hidden} more ${hidden === 1 ? 'market' : 'markets'}` : 'Details'}<svg class="pcard-fold" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>` : '';
+    return `<div class="pcard pb-card"><button class="pcard-h"${pgOk ? ` data-player="${esc(grp.pid)}" aria-label="${esc(grp.name)} player page"` : ' tabindex="-1"'}>
       <span class="pcard-n">${grp.team ? tbadge(sport, grp.team, 's', '', true) : ''}<b>${esc(grp.name)}</b>${grp.inj ? `<i class="inj">${esc(grp.inj)}</i>` : ''}</span>
-      <span class="pcard-r">${best ? `<span class="grade-badge" data-g="${best}">${best}</span>` : ''}<small>${n} ${n === 1 ? 'prop' : 'props'}</small></span>
+      <span class="pcard-r"><small>${n} ${n === 1 ? 'market' : 'markets'}</small></span>
       ${pgOk ? '<span class="pcard-chev" aria-hidden="true">›</span>' : ''}</button>
-      ${grp.rows.map((r) => betRow(r, showPick)).join('')}</div>`;
+      ${lead.map((r) => betRow(r, showPick, extra && extra.metaOf ? extra.metaOf(r) : null)).join('')}
+      ${more ? rest.map((r) => betRow(r, showPick, extra && extra.metaOf ? extra.metaOf(r) : null)).join('') + meta + foot : ''}${fold}</div>`;
+  }
+  // rows with the active market filter first (so the lead row is the filtered market), then by EV (the group order itself is unchanged)
+  const leadOrder = (rows) => {
+    const f = state.betF;
+    const hit = (r) => (f.mkt && r.b.stat === f.mkt ? 0 : 1) + (f.ga && !isGA(r) ? 2 : 0);
+    return rows.slice().sort((x, y) => hit(x) - hit(y) || y.ph.ev - x.ph.ev);
+  };
+  function playerCard(sport, grp, showPick) {
+    return pbCard(sport, grp, leadOrder(grp.rows), showPick, null);
   }
   const COMBOS = ['pra', 'pr', 'pa', 'ra'];
   // table columns per sport [stat, label, decimals]; MIN/TOI first (season average + projected minutes only, no line)
@@ -929,66 +953,30 @@
   }
   const isGA = (r) => r.ph.grade === 'S+' || r.ph.grade === 'A';
   const latestMin = (pl) => { const m = pl && pl.min; const v = m && (isNum(m.close) ? m.close : m.open); return isNum(v) ? v : null; };
-  // NBA / NHL: one table card per player. cells = { stat: row } (the shown side of each base stat)
-  function tblCard(sport, grp, cols, slate, first) {
+  // NBA / NHL: one block per player. cells = { stat: row } (the shown side of each base stat). Rows carry the season average;
+  // the fold also lists minutes / TOI (season, projected, actual when Final) and the stats that have a projection but no line.
+  function tblCard(sport, grp, cols, slate) {
     const w = ensurePlayer(sport, grp.pid), st = (w.st === 'ok' && w.data && w.data.st) || {};
     const pl = (slate.players || {})[grp.pid] || {};
-    const hl = (k) => (state.betF.mkt === k ? ' hl' : '');
-    const cellsAll = Object.values(grp.cells);
-    const best = GRADE_ORDER[Math.min(...cellsAll.map(gradeIdx))];
-    const uncal = !best && cellsAll.some((r) => r.ph.uncal);
-    const bt = (id, cls, inner) => `<button class="bt-c ${cls}${state.betOpen[id] ? ' open' : ''}" data-bet="${esc(id)}" aria-expanded="${!!state.betOpen[id]}">${inner}</button>`;
-    let hd = '<span class="bt-l"></span>', sr = '<span class="bt-l">Season</span>', ln = '<span class="bt-l">Line</span>',
-      pj = `<span class="bt-l">Proj${first ? infoBtn(sport, 'btproj', BT_DEFS) : ''}</span>`, ev = `<span class="bt-l">EV${first ? infoBtn(sport, 'btev', BT_DEFS) : ''}</span>`;
     const fin = pgCtx.final;
-    let ad = fin ? '' : '<span class="bt-l">My bets</span>';
-    let ac = '<span class="bt-l">Actual</span>', rs = '<span class="bt-l">Result</span>', bc = '<span class="bt-l">Beat close</span>';
+    const dpOf = {}; cols.forEach(([k, , dp]) => { dpOf[k] = dp; });
+    const metaOf = (r) => ({ season: st[r.b.stat], dp: dpOf[r.b.stat] === undefined ? 1 : dpOf[r.b.stat] });
+    const items = [];
     cols.forEach(([k, lab, dp]) => {
-      const r = grp.cells[k], h = hl(k);
-      if (fin) {
-        const act = k === 'min' ? pgActual(sport, grp.pid, 'min') : r ? pgSettle(sport, r) : null;
-        if (k === 'min') { ac += `<span class="bt-v${isNum(act) ? '' : ' nil'}">${isNum(act) ? (sport === 'nhl' ? pgToi(act) : act) : ''}</span>`; rs += '<span></span>'; bc += '<span></span>'; }
-        else if (!act) { ac += `<span class="bt-v nil${h}">—</span>`; rs += '<span></span>'; bc += '<span></span>'; }
-        else {
-          ac += `<span class="bt-v pg-act${h}">${isNum(act.act) ? fx(act.act, Number.isInteger(act.act) ? 0 : 1) : '—'}</span>`;
-          rs += `<span class="bt-v${h}">${act.res ? `<span class="res-pill ${PG_RES[act.res] || ''}">${esc(act.res)}</span>` : pgCtx.resLoading ? '<span class="bar w40"></span>' : '<span class="nil">—</span>'}</span>`;
-          bc += `<span class="bt-v${h}">${act.beat === null ? '<span class="nil">—</span>' : `<span class="pg-beat ${act.beat ? 'w' : 'l'}">${act.beat ? 'Yes' : 'No'}</span>`}</span>`;
-        }
-      } else ad += r && k !== 'min' && addBtn(sport, r) ? `<span class="bt-ad">${addBtn(sport, r)}</span>` : '<span></span>';
-      hd += `<span class="bt-h${h}">${lab}</span>`;
-      sr += `<span class="bt-v${h}">${fx(st[k], dp)}</span>`;
       if (k === 'min') {
-        ln += '<span class="bt-v"></span>';
-        const m = latestMin(pl);
-        pj += `<span class="bt-v">${m === null ? '' : m.toFixed(1)}</span>`;
-        ev += '<span class="bt-v"></span>';
+        const m = latestMin(pl), act = fin ? pgActual(sport, grp.pid, 'min') : null;
+        const parts = [`Season ${fx(st[k], dp)}`, m === null ? '' : `Proj ${m.toFixed(1)}`, fin ? `Actual ${isNum(act) ? (sport === 'nhl' ? pgToi(act) : act) : '—'}` : ''].filter(Boolean);
+        items.push(`<span class="pb-mi"><b>${esc(lab)}</b>${parts.join(' · ')}</span>`);
         return;
       }
-      if (!r) {
-        const pp = pl.proj && ((pl.proj.close && pl.proj.close[k]) || (pl.proj.open && pl.proj.open[k]));
-        ln += `<span class="bt-v nil${h}">—</span>`;
-        pj += isNum(pp && pp.v) ? `<span class="bt-v${h}">${pp.v.toFixed(dp)}</span>` : `<span class="bt-v nil${h}">—</span>`;
-        ev += `<span class="bt-v nil${h}">—</span>`;
-        return;
-      }
-      const c = evCls(r.ph.ev), g = GRADE_ORDER.includes(r.ph.grade) ? r.ph.grade : '';
-      const arrow = r.ph.proj > r.ph.line ? '<i aria-label="over">▲</i>' : r.ph.proj < r.ph.line ? '<i aria-label="under">▼</i>' : '';
-      ln += bt(r.id, 'bt-line' + h, `<b>${r.b.side === 'u' ? 'U' : 'O'} ${esc(r.ph.line)}</b><small>${fmtOdds(r.ph.odds)}</small>`);
-      pj += bt(r.id, 'bt-pj ev ' + c + h, `${r.ph.proj.toFixed(dp)}${arrow}`);
-      ev += bt(r.id, 'bt-ev' + h, `<span class="ev ${c}">${sgn(r.ph.ev, 1)}%</span>${g ? `<span class="grade-badge" data-g="${g}">${g}</span>` : r.ph.uncal ? UNCAL : ''}`);
+      if (grp.cells[k]) return; // has a line: shown as a row
+      const pp = pl.proj && ((pl.proj.close && pl.proj.close[k]) || (pl.proj.open && pl.proj.open[k]));
+      const act = fin ? pgActual(sport, grp.pid, k) : null;
+      const parts = [`Season ${fx(st[k], dp)}`, isNum(pp && pp.v) ? `Proj ${pp.v.toFixed(dp)}` : '', fin ? `Actual ${fx(act, Number.isInteger(act) ? 0 : 1)}` : 'No line'].filter(Boolean);
+      items.push(`<span class="pb-mi"><b>${esc(lab)}</b>${parts.join(' · ')}</span>`);
     });
-    const ctx = cellsAll.filter((r) => state.betOpen[r.id]).map((r) => {
-      const pros = (r.ph.pros || []).map((t) => `<div class="pro">${esc(t)}</div>`).join('');
-      const cons = (r.ph.cons || []).map((t) => `<div class="con">${esc(t)}</div>`).join('');
-      return `<div class="bet-ctx"><div class="lbl">${esc(betLbl(r.b.stat, r.b.side, r.ph.line))} · ${fmtOdds(r.ph.odds)} · ${r.tag.toUpperCase()}</div>${pros || cons ? pros + cons : '<div class="bet-none">No notes on this prop.</div>'}</div>`;
-    }).join('');
-    const notes = !first ? '' : ['btproj', 'btev'].map((k) => infoNote(sport, k, BT_DEFS)).join('');
-    const combo = grp.combos ? `<button class="bt-foot" data-player="${esc(grp.pid)}">${grp.combos} combo ${grp.combos === 1 ? 'line' : 'lines'} on profile ›</button>` : '';
-    return `<div class="pcard"><button class="pcard-h" data-player="${esc(grp.pid)}" aria-label="${esc(grp.name)} player page">
-      <span class="pcard-n">${grp.team ? tbadge(sport, grp.team, 's', '', true) : ''}<b>${esc(grp.name)}</b>${grp.inj ? `<i class="inj">${esc(grp.inj)}</i>` : ''}</span>
-      <span class="pcard-r">${best ? `<span class="grade-badge" data-g="${best}">${best}</span>` : uncal ? UNCAL : ''}</span>
-      <span class="pcard-chev" aria-hidden="true">›</span></button>
-      <div class="btab${fin ? ' pg-fin' : ''}" style="--n:${cols.length}">${hd}${sr}${ln}${pj}${ev}${fin ? ac + rs + bc : ad}</div>${notes}${ctx}${combo}</div>`;
+    const foot = grp.combos ? `<button class="bt-foot" data-player="${esc(grp.pid)}">${grp.combos} combo ${grp.combos === 1 ? 'line' : 'lines'} on profile ›</button>` : '';
+    return pbCard(sport, grp, leadOrder(Object.values(grp.cells)), false, { metaOf, meta: items.join(''), foot });
   }
   // ======== Night-before projections ("preline" slate: players[pid].pre, games[gid].proj_pre, no bets; prefix pre) ========
   // Neutral wording only: no EV, grades, odds or advice until the lines land.
@@ -1104,7 +1092,7 @@
         : how === 'player' ? (x, y) => (x.name < y.name ? -1 : x.name > y.name ? 1 : 0) || y.ev - x.ev
           : (x, y) => y.ev - x.ev);
       n = groups.length; shownN = groups.reduce((a, gp) => a + Object.keys(gp.cells).length, 0);
-      body = n ? `<div class="pcards">${groups.map((gp, i) => tblCard(sport, gp, cols, slate, i === 0)).join('')}</div>` : empt;
+      body = n ? `<div class="pcards">${groups.map((gp) => tblCard(sport, gp, cols, slate)).join('')}</div>` : empt;
     } else {
       const shown = rows.filter((r) => sideOk(r) && (!f.ga || isGA(r)) && (!f.mkt || r.b.stat === f.mkt));
       const groups = betGroups(shown, state.betSort);
@@ -1112,7 +1100,7 @@
       body = n ? `<div class="pcards">${groups.map((gp) => playerCard(sport, gp, false)).join('')}</div>` : empt;
     }
     return `${agGameBlock(sport, slate, allRows)}${td3GameBlock(sport, slate, allRows)}${atdGameBlock(sport, slate, allRows)}<div class="bets-head"><span class="bets-n">${n} ${n === 1 ? 'player' : 'players'} · ${shownN} ${shownN === 1 ? 'prop' : 'props'}</span>${segmented(SORTS, state.betSort, 'data-sort', 'sortseg')}</div>
-      <div class="sidetog">${toggle}</div>${betChips(chipStats)}${body}`;
+      <div class="sidetog">${toggle}</div>${betChips(chipStats)}<div class="pb-legend"><span>Grade</span><span>Bet · price · proj${infoBtn(sport, 'btproj', BT_DEFS)}</span><span>EV${infoBtn(sport, 'btev', BT_DEFS)}</span></div>${['btproj', 'btev'].map((k) => infoNote(sport, k, BT_DEFS)).join('')}${body}`;
   }
   // ======== Past games: Final mode (box score from ../box/<sp>/<date>.json; prefix pg) ========
   store.box = {};
@@ -2205,6 +2193,7 @@
     if (d.pmore) { state.pmore[d.pmore] = true; render(); return; }
     if (d.retryPlayer) { delete store.players[d.retryPlayer]; render(); return; }
     if (d.bet) { if (state.betOpen[d.bet]) delete state.betOpen[d.bet]; else state.betOpen[d.bet] = true; }
+    else if (d.bfold) { const k = foldKey(sportOf(), d.bfold); if (state.betMore[k]) delete state.betMore[k]; else state.betMore[k] = true; }
     else if (d.sort) state.betSort = d.sort;
     else if (d.bside) state.betSide = d.bside;
     else if (d.bf) {
