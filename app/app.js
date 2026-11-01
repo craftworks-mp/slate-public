@@ -2358,33 +2358,6 @@
         <span class="bet-sub">${fmtOdds(b.odds)}${b.oddsEdited ? ' edited' : ''} · ${open ? uTxt(b.units) + ' · ' : ''}${esc(when)}${b.note ? `<em class="mb-note">${esc(b.note)}</em>` : ''}</span></span>
       <span class="bet-m">${res}</span><span class="bet-r">${lead}${gradeChip(b)}</span></button></div>`;
   }
-  function myBetsView() {
-    const all = Object.values(mb.bets), s = MB.summary(mb), D = mbDefs();
-    if (!all.length) return empty('Bets', 'No bets yet', 'Tap the + on any bet row to track it here. Pick 0.5 to 2 units, change the odds if yours differ, and results settle on their own.', 0);
-    const settledN = s.w + s.l + s.p;
-    const tile = (lab, key, num, sub) => `<div class="tile"><div class="lbl">${lab}${key ? infoBtn('mybets', key, D) : ''}</div><div class="num">${num}</div><small class="tsub">${sub}</small></div>`;
-    const tiles = `<div class="tiles mb-tiles">
-      ${tile('Open', '', s.open, s.open ? `${uTxt(s.atRisk)} at risk` : 'none')}
-      ${tile('Record', 'record', `${s.w}-${s.l}-${s.p}`, s.voided ? `${s.voided} void` : 'W-L-P')}
-      ${tile('Units', 'units', settledN ? `<span class="${plCls(s.units)}">${uSgn(s.units)}</span>` : '<span class="u-n">—</span>', settledN ? `${uTxt(s.staked)} staked` : 'no settled bets')}
-      ${tile('ROI', 'roi', s.roi === null ? '<span class="u-n">—</span>' : `<span class="${plCls(s.roi)}">${sgn(s.roi, 1)}%</span>`, 'on settled stakes')}</div>
-      ${['record', 'units', 'roi'].map((k) => infoNote('mybets', k, D)).join('')}`;
-    const open = all.filter((b) => b.status === 'open').sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0) || (x.start || '').localeCompare(y.start || '') || (x.gid < y.gid ? -1 : x.gid > y.gid ? 1 : 0) || x.addedAt.localeCompare(y.addedAt));
-    let openH = '';
-    if (open.length) {
-      let lastD = '', lastG = '', inList = false;
-      open.forEach((b) => {
-        if (b.date !== lastD) { if (inList) openH += '</div>'; inList = false; openH += sec(longOf(b.date) + (b.date === ymd(0) ? ' · Today' : '')); lastD = b.date; lastG = ''; }
-        if (b.gid !== lastG) { if (inList) openH += '</div>'; openH += `<div class="mb-g">${esc(b.away && b.home ? `${b.away} @ ${b.home}` : [b.team, b.opp].filter(Boolean).join(' vs '))}${b.start ? ` · ${esc(fmtTime(b.start))}` : ''}</div><div class="betlist">`; inList = true; lastG = b.gid; }
-        openH += mbRow(b);
-      });
-      if (inList) openH += '</div>';
-    } else openH = `${sec('Open')}<div class="card empty"><p>No open bets. Tap + on a bet row to add one.</p></div>`;
-    const done = all.filter((b) => b.status !== 'open').sort((x, y) => (y.settledAt || '').localeCompare(x.settledAt || '') || (y.date < x.date ? -1 : 1));
-    const shown = state.mbMore ? done : done.slice(0, 10);
-    const setH = done.length ? `${sec('Settled')}<div class="betlist">${shown.map(mbRow).join('')}</div>${done.length > 10 && !state.mbMore ? `<button class="pillbtn" data-bmore="1">Show all ${done.length}</button>` : ''}` : '';
-    return tiles + openH + setH;
-  }
   // ======== NHL anytime goal (Scoring watch panel + game Bets block; prefix ag) ========
   // Rows: slate bets with stat g, side o, line 0.5 (over = Yes). Price = DK yes odds, chance = model P(>= 1 goal), ungraded (UNCAL).
   const agOk = (r) => r.b.stat === 'g' && r.b.side === 'o' && r.ph.line === 0.5 && isNum(r.ph.P) && isNum(r.ph.odds);
@@ -2548,9 +2521,6 @@
     const top = rows.filter(atdOk).map((r) => ({ r, sg, gid: state.betGid })).sort(atdBy).slice(0, 3);
     if (!top.length) return '';
     return `<div class="atd-blk"><div class="lbl atd-h">Anytime TD · top ${top.length} by model chance</div><div class="betlist">${top.map((x) => atdRow(x, true)).join('')}</div></div>`;
-  }  function dashView() {
-    const scoring = gate('scoringPanels', agSection());
-    return `${scoring}${gate('parlays', plSection())}${sec('Top rated today')}${topRated()}${sec('My open bets')}${openSummary()}`;
   }
   // ---- Parlays panel (Bets > Dashboard): swipeable cross-game parlay cards built by PARLAY.build (app/parlays.js) ----
   const plKind = (c) => `${c.n}-leg ${c.kind}`;
@@ -2623,44 +2593,175 @@
     const k = car && car.children[i];
     if (k) car.style.height = k.offsetHeight + 2 + 'px';
   }
-  function topRated() {
-    if (!store.idxDone) return skRows(3);
-    const today = ymd(0), cand = [];
-    let loading = false, failed = false;
-    ['nfl', 'nba', 'nhl'].forEach((sp) => {
+  // ======== Bets tab v2 (prefix bx): sticky sport chips, status strip, folding feed, My Bets hero + timeline (user-approved 11/01 09:30) ========
+  const BX_SPORTS = ['nba', 'nhl', 'nfl'];
+  const BX_LS = 'sp.bets.ui.v1';
+  const bxLoadUi = () => { try { const o = JSON.parse(localStorage.getItem(BX_LS) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } };
+  const bxUi = bxLoadUi();
+  state.bxSport = BX_SPORTS.includes(bxUi.sport) ? bxUi.sport : 'all'; // dashboard sport chip: all | nba | nhl | nfl
+  state.bxFold = Object.assign({ splus: true, agrade: true, parlays: true, scoring: false, mine: true }, bxUi.fold && typeof bxUi.fold === 'object' ? bxUi.fold : {}); // fold open state
+  state.bxMore = {}; // expanders (key -> true), memory only
+  state.bxPl = {}; // expanded parlay rows (index -> true), memory only
+  state.bxTab = 'open'; // My Bets: open | settled
+  const bxSaveUi = () => { try { localStorage.setItem(BX_LS, JSON.stringify({ sport: state.bxSport, fold: state.bxFold })); } catch (e) { /* storage blocked: memory only */ } };
+  const bxDefs = () => (window.GLOSSARY || {}).bets || {};
+  const bxTease = '<div class="bx-tease"><span class="bx-lockico" aria-hidden="true">&#128274;</span>S+ projections are premium · track record stays free</div>';
+
+  // today's model-side S+/A rows per sport (the same rows the old Top rated used) + slate status
+  function bxToday() {
+    const today = ymd(0), out = { rows: [], loading: false, failed: false, pre: false, sports: {}, any: false };
+    BX_SPORTS.forEach((sp) => {
       const s = store.idx && store.idx.sports && store.idx.sports[sp];
       if (!s || !(s.slates || []).includes(today)) return;
       const e = ensureSlate(sp, today);
-      if (e.st === 'loading') { loading = true; return; }
-      if (e.st === 'err') { failed = true; return; }
+      out.any = true;
+      const info = out.sports[sp] = { games: 0, pre: false, st: e.st };
+      if (e.st === 'loading') { out.loading = true; return; }
+      if (e.st === 'err') { out.failed = true; return; }
       if (e.st !== 'ok') return;
       ensureMeta(sp);
+      info.games = Object.keys(e.data.games || {}).length;
+      if (isPre(e.data)) { info.pre = true; out.pre = true; return; }
       const gids = new Set(Object.values(e.data.bets || {}).map((b) => b && b.gid));
       gids.forEach((gid) => betRows(e.data, gid).forEach((r) => {
-        if (r.ph.pick !== false && (r.ph.grade === 'S+' || r.ph.grade === 'A') && isNum(r.ph.odds)) cand.push({ sp, r, sg: (e.data.games || {})[gid] || {} });
+        if (r.ph.pick !== false && (r.ph.grade === 'S+' || r.ph.grade === 'A') && isNum(r.ph.odds)) out.rows.push({ sp, r, sg: (e.data.games || {})[gid] || {} });
       }));
     });
-    if (loading && !cand.length) return skRows(3);
-    cand.sort((x, y) => gradeIdx(x.r) - gradeIdx(y.r) || y.r.ph.ev - x.r.ph.ev);
-    const top = cand.slice(0, 5);
-    if (!top.length) return `<div class="card empty"><p>${failed ? 'Couldn’t load today’s slates. Check your connection and try again.' : 'No S+ or A bets on today’s slates yet.'}</p></div>`;
-    const rows = top.map(({ sp, r, sg }) => {
-      const c = evCls(r.ph.ev), opp = sg.away === r.team ? `vs ${sg.home}` : `@ ${sg.away}`, where = sg.away === r.team ? `@ ${sg.home}` : `vs ${sg.away}`;
-      const html = `<div class="bet-wrap has-add"><a class="bet tr" href="#${sp}/player/${encodeURIComponent(r.pid)}">
-        <span class="bet-l"><span class="bet-mkt">${esc(r.name)} ${esc(betText(r))}</span><span class="bet-sub">${fmtOdds(r.ph.odds)} · ${sp.toUpperCase()} ${esc(r.team)} ${esc(where)}${sg.kickoff ? ` · ${esc(fmtTime(sg.kickoff))}` : ''}</span></span>
-        <span class="bet-r"><span class="ev bet-ev ${c}">${sgn(r.ph.ev, 1)}%</span><span class="grade-badge" data-g="${r.ph.grade}">${r.ph.grade}</span></span></a>${addBtn(sp, r)}</div>`;
-      return r.ph.grade === 'S+' ? gate('sPlus', html) : html;
-    }).join('');
-    return `<div class="betlist">${rows}</div>`;
+    out.rows.sort((x, y) => gradeIdx(x.r) - gradeIdx(y.r) || y.r.ph.ev - x.r.ph.ev);
+    return out;
   }
-  function openSummary() {
-    const open = Object.values(mb.bets).filter((b) => b.status === 'open');
-    if (!open.length) return `<div class="card empty"><p>No open bets. Tap + on a bet row to track one.</p></div>`;
-    const risk = open.reduce((a, b) => a + b.units, 0), now = Date.now();
-    const next = open.map((b) => b.start).filter((t) => t && new Date(t) > now).sort()[0];
-    const nt = next ? (etDay(next) === ymd(0) ? fmtTime(next) : `${dowOf(etDay(next))} ${fmtTime(next)}`) : '';
-    return `<button class="card mb-open" data-bgo="mine" aria-label="Open My Bets"><span class="mb-open-n">${open.length}<small>open</small></span>
-      <span class="mb-open-r"><b>${uTxt(risk)} at risk</b>${nt ? `<span>Next start ${esc(nt)}</span>` : ''}</span><span class="pcard-chev" aria-hidden="true">›</span></button>`;
+  const bxSpOk = (sp) => state.bxSport === 'all' || state.bxSport === sp;
+  function bxChips(T) {
+    const items = [['all', 'All', '']].concat(BX_SPORTS.map((sp) => { const i = T.sports[sp]; return [sp, sp.toUpperCase(), i ? (i.games ? `${i.games}` : '') : '']; }));
+    return `<div class="bx-chips" role="group" aria-label="Sport">${items.map(([k, lab, n]) => `<button class="bchip${k === state.bxSport ? ' on' : ''}" data-bxsp="${k}" aria-pressed="${k === state.bxSport}">${lab}${n ? `<small>${n}</small>` : ''}</button>`).join('')}</div>`;
+  }
+  function bxStrip(sp, a, open, risk) {
+    return `<div class="bx-strip"><div><b class="bx-gold">${sp}</b><small>S+ today</small></div><div><b>${a}</b><small>A grade</small></div><div><b>${open}${open ? `<span class="bx-dim"> · ${uTxt(risk)}</span>` : ''}</b><small>${open ? 'at risk' : 'open bets'}</small></div></div>`;
+  }
+  // fold: header (label · count · lead value · chevron) + body when open
+  function bxFold(key, label, count, lead, body, info) {
+    const open = !!state.bxFold[key];
+    // the ⓘ sits between two halves of the header (a button cannot contain a button); both halves toggle the fold
+    const half = (cls, inner) => `<button class="bx-fh ${cls}" data-bxfold="${key}" aria-expanded="${open}" aria-label="${esc(label)}">${inner}</button>`;
+    return `<section class="bx-fold${open ? '' : ' closed'}"><div class="bx-fhw">${half('bx-fh-l', `<span class="bx-fl">${esc(label)}</span>`)}${info || ''}${half('bx-fh-r', `${count ? `<span class="bx-fc">${count}</span>` : ''}<span class="bx-flead">${lead || ''}</span><span class="bx-chev" aria-hidden="true">&#8964;</span>`)}</div>${open ? `<div class="bx-fb">${body}</div>` : ''}</section>`;
+  }
+  const bxQuiet = (msg) => `<div class="bx-quiet">${msg}</div>`;
+  function bxRow({ sp, r, sg }) {
+    const c = evCls(r.ph.ev), where = sg.away === r.team ? `@ ${sg.home}` : `vs ${sg.away}`;
+    return `<div class="bet-wrap has-add bx-row${r.ph.grade === 'S+' ? ' bx-sp' : ''}"><a class="bet tr" href="#${sp}/player/${encodeURIComponent(r.pid)}">
+      <span class="bet-l"><span class="bet-mkt">${esc(r.name)} ${esc(betText(r))}</span><span class="bet-sub">${fmtOdds(r.ph.odds)} · ${sp.toUpperCase()} ${esc(r.team)} ${esc(where)}${sg.kickoff ? ` · ${esc(fmtTime(sg.kickoff))}` : ''}</span></span>
+      <span class="bet-r"><span class="ev bet-ev ${c}">${sgn(r.ph.ev, 1)}%</span><span class="grade-badge" data-g="${r.ph.grade}">${r.ph.grade}</span></span></a>${addBtn(sp, r)}</div>`;
+  }
+  const bxBest = (rows) => (rows.length ? `<span class="ev ${evCls(rows[0].r.ph.ev)}">best ${sgn(rows[0].r.ph.ev, 1)}%</span>` : '');
+  function bxSplus(rows, T) {
+    const lock = rows.length ? `<div class="bx-lock"><div class="betlist bx-blur" aria-hidden="true">${bxRow(rows[0])}</div>${bxTease}</div>` : bxQuiet(bxTease);
+    const html = rows.length ? `<div class="betlist">${rows.map(bxRow).join('')}</div>` : bxQuiet(T.loading ? 'Loading today’s slates…' : T.failed ? 'Couldn’t load today’s slates. Check your connection and try again.' : T.pre ? 'Waiting for lines.' : 'No S+ rows on today’s slates yet.');
+    const locked = gate('sPlus', '', 'x') === 'x'; // gating on: no EV in the header either
+    return bxFold('splus', 'S+ today', rows.length ? `${rows.length}` : '', locked ? '' : bxBest(rows), gate('sPlus', html, lock));
+  }
+  function bxAgrade(rows, T) {
+    const more = !!state.bxMore.agrade, shown = more ? rows : rows.slice(0, 3);
+    const body = rows.length ? `<div class="betlist">${shown.map(bxRow).join('')}</div>${rows.length > 3 && !more ? `<button class="pillbtn bx-more" data-bxmore="agrade">${rows.length - 3} more A ›</button>` : ''}`
+      : bxQuiet(T.loading ? 'Loading today’s slates…' : T.pre ? 'Waiting for lines.' : 'No A-grade rows on today’s slates yet.');
+    return bxFold('agrade', 'A grade', rows.length ? `${rows.length}` : '', bxBest(rows), body);
+  }
+  // parlays: compact rows; a tapped row expands to the full existing card (plCard)
+  function bxParlays() {
+    if (!store.idxDone && !plWait) { plWait = true; indexP.then(rerender); }
+    let cards = [], loading = !store.idxDone, failed = false;
+    if (store.idxDone) {
+      const L = plLegs(); loading = L.loading && !L.legs.length; failed = L.failed;
+      const legs = state.bxSport === 'all' ? L.legs : L.legs.filter((l) => l.sp === state.bxSport);
+      cards = loading ? [] : PARLAY.build(legs, new Date(Date.now()));
+    }
+    const defs = (window.GLOSSARY || {}).parlays || {};
+    const info = infoBtn('parlays', 'combined', defs), note = infoNote('parlays', 'combined', defs);
+    const top = cards.reduce((m, c) => (m === null || c.ev > m ? c.ev : m), null);
+    const lead = top === null ? '' : `<span class="ev ${evCls(top)}">best ${sgn(top, 1)}%</span>`;
+    const rows = cards.map((c, i) => {
+      const open = !!state.bxPl[i], legs = c.legs.map((l) => `${PARLAY.lastName(l.name)} ${betText({ b: { stat: l.stat, side: l.side }, ph: { line: l.line } })}`).join(' · ');
+      return `<div class="bx-plw${open ? ' open' : ''}"><button class="bx-pl" data-bxpl="${i}" aria-expanded="${open}"><span class="bx-plk"><b>${esc(plKind(c))}</b><span>${fmtOdds(c.american)}</span></span><span class="bx-pll">${esc(legs)}</span>
+        <span class="bx-pln"><span class="ev ${evCls(c.ev)}">${sgn(c.ev, 1)}%</span><small>P ${c.chance.toFixed(1)}%</small></span></button>${open ? plCard(c, i, cards.length) : ''}</div>`;
+    }).join('');
+    const body = note + (cards.length ? `<div class="bx-feed">${rows}</div>` : bxQuiet(loading ? 'Loading today’s slates…' : failed ? 'Couldn’t load today’s slates. Check your connection and try again.' : 'No parlays right now: not enough positive-EV legs in games that haven’t started.'));
+    return bxFold('parlays', 'Parlays', cards.length ? `${cards.length} cross-game` : '', lead, body, info);
+  }
+  // scoring watch: the three existing panels; a panel with no rows collapses to one line, all empty = one line
+  function bxScoring() {
+    const spOk = (sp) => bxSpOk(sp);
+    const panels = [['nhl', agPanel], ['nba', td3Panel], ['nfl', atdSection]].filter(([sp]) => spOk(sp)).map(([sp, fn]) => { const h = fn(); return { sp, h, has: h.includes('class="betlist"') }; });
+    const n = panels.filter((p) => p.has).length;
+    const body = n ? panels.map((p) => (p.has ? `<div class="bx-pane">${p.h}</div>` : `<div class="bx-pane bx-quiet">${p.h.replace(/<div class="card empty"><p>(.*?)<\/p><\/div>/, '<span class="bx-dim">$1</span>')}</div>`)).join('') : bxQuiet('No prices yet for anytime goal, triple-double or anytime TD.');
+    return bxFold('scoring', 'Scoring watch', n ? `${n} of ${panels.length} markets` : '', n ? '' : '<span class="bx-dim">no prices yet</span>', gate('scoringPanels', body));
+  }
+  const bxOpenSort = (x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0) || (x.start || '').localeCompare(y.start || '') || (x.gid < y.gid ? -1 : x.gid > y.gid ? 1 : 0) || x.addedAt.localeCompare(y.addedAt);
+  function bxMine(s) {
+    const open = Object.values(mb.bets).filter((b) => b.status === 'open' && bxSpOk(b.sport)).sort(bxOpenSort);
+    const now = Date.now(), next = open.map((b) => b.start).filter((t) => t && new Date(t) > now).sort()[0];
+    const nt = next ? `next ${etDay(next) === ymd(0) ? fmtTime(next) : `${dowOf(etDay(next))} ${fmtTime(next)}`}` : '';
+    const rec = `${s.w}-${s.l}${s.p ? `-${s.p}` : ''}`, un = s.w + s.l + s.p ? `<span class="${plCls(s.units)}">${uSgn(s.units)}</span>` : '';
+    const link = `<button class="pillbtn bx-more" data-bgo="mine">My Bets · ${rec}${un ? ` · ${un}` : ''} ›</button>`;
+    const body = open.length ? `<div class="betlist">${open.slice(0, 3).map(mbRow).join('')}</div>${link}` : `${bxQuiet('No open bets. Tap + on a bet row to track one.')}${Object.keys(mb.bets).length ? link : ''}`;
+    const risk = open.reduce((a, b) => a + b.units, 0);
+    return bxFold('mine', 'My open bets', open.length ? `${open.length} · ${uTxt(risk)} at risk` : '', nt ? `<span class="bx-dim">${esc(nt)}</span>` : '', body);
+  }
+  function dashView() {
+    if (!store.idxDone && !plWait) { plWait = true; indexP.then(rerender); } // a cold load straight onto #bets has nothing else that re-renders once index.json arrives
+    const T = bxToday(), s = MB.summary(mb);
+    const rows = T.rows.filter((x) => bxSpOk(x.sp)), sp = rows.filter((x) => x.r.ph.grade === 'S+'), a = rows.filter((x) => x.r.ph.grade === 'A');
+    const openAll = Object.values(mb.bets).filter((b) => b.status === 'open');
+    const head = bxChips(T) + bxStrip(sp.length, a.length, openAll.length, openAll.reduce((q, b) => q + b.units, 0));
+    const preOnly = T.pre && !rows.length && !T.loading; // a night-before day: projections only, no prices anywhere
+    const pre = preOnly ? preBanner('bets') : '';
+    if (!store.idxDone) return `${head}${skRows(4)}`;
+    if (!T.any) return `${head}${bxQuiet('No slates today.')}${bxMine(s)}`;
+    return `${head}${pre}${bxSplus(sp, T)}${bxAgrade(a, T)}${gate('parlays', bxParlays())}${bxScoring()}${bxMine(s)}`;
+  }
+  // ---- My Bets: hero (record, units, ROI, exposure, cumulative-units sparkline) + Open | Settled timeline ----
+  function bxSpark(done) {
+    const pts = [0]; let acc = 0;
+    done.slice().sort((x, y) => (x.settledAt || '').localeCompare(y.settledAt || '')).forEach((b) => { if (b.status !== 'void') { acc += b.pl; pts.push(acc); } });
+    if (pts.length < 2) return '';
+    const W = 300, H = 46, mn = Math.min(0, ...pts), mx = Math.max(0, ...pts), span = mx - mn || 1;
+    const X = (i) => (i / (pts.length - 1) * (W - 4) + 2).toFixed(1), Y = (v) => (H - 4 - (v - mn) / span * (H - 8)).toFixed(1);
+    const d = pts.map((v, i) => `${i ? 'L' : 'M'}${X(i)} ${Y(v)}`).join(' ');
+    const last = pts[pts.length - 1];
+    return `<svg class="bx-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Cumulative units by settled bet"><line x1="0" x2="${W}" y1="${Y(0)}" y2="${Y(0)}" class="bx-zero"/><path d="${d}" class="bx-line ${plCls(last)}"/><circle cx="${X(pts.length - 1)}" cy="${Y(last)}" r="2.5" class="bx-dot ${plCls(last)}"/></svg>`;
+  }
+  function bxHero(s, done) {
+    const D = mbDefs(), settled = s.w + s.l + s.p;
+    const big = settled ? `<span class="${plCls(s.units)}">${uSgn(s.units)}</span>` : '<span class="u-n">—</span>';
+    return `<div class="bx-hero"><div class="bx-ht"><span class="lbl">Units${infoBtn('mybets', 'units', D)}</span><span class="lbl">all time</span></div>
+      <div class="bx-big">${big}<small>${settled ? `${uTxt(s.staked)} staked` : 'no settled bets'}</small></div>
+      <div class="bx-hg"><div><b>${s.w}-${s.l}-${s.p}</b><small>Record${infoBtn('mybets', 'record', D)}</small></div><div><b>${s.roi === null ? '<span class="u-n">—</span>' : `<span class="${plCls(s.roi)}">${sgn(s.roi, 1)}%</span>`}</b><small>ROI${infoBtn('mybets', 'roi', D)}</small></div><div><b>${s.open}<span class="bx-dim"> ${s.open ? uTxt(s.atRisk) : ''}</span></b><small>Open${infoBtn('bets', 'exposure', bxDefs())}</small></div></div>
+      ${['record', 'units', 'roi'].map((k) => infoNote('mybets', k, D)).join('')}${infoNote('bets', 'exposure', bxDefs())}${bxSpark(done)}${s.voided ? `<div class="bx-dim bx-void">${s.voided} void</div>` : ''}</div>`;
+  }
+  function bxTl(list, open) {
+    let out = '', last = '';
+    list.forEach((b) => {
+      const k = `${b.date}|${b.start || ''}`;
+      if (k !== last) {
+        last = k;
+        const when = open ? (b.date === ymd(0) ? '' : `${dowOf(b.date)} ${mdOf(b.date)} · `) + (b.start ? fmtTime(b.start) : 'time TBD') : `${dowOf(b.date)} ${mdOf(b.date)}${b.start ? ` · ${fmtTime(b.start)}` : ''}`;
+        out += `<div class="bx-t${open ? '' : ' done'}">${esc(when)}</div>`;
+      }
+      out += mbRow(b);
+    });
+    return `<div class="bx-tl">${out}</div>`;
+  }
+  function myBetsView() {
+    const all = Object.values(mb.bets), s = MB.summary(mb);
+    if (!all.length) return empty('Bets', 'No bets yet', 'Tap the + on any bet row to track it here. Pick 0.5 to 2 units, change the odds if yours differ, and results settle on their own.', 0);
+    const open = all.filter((b) => b.status === 'open').sort(bxOpenSort);
+    const done = all.filter((b) => b.status !== 'open').sort((x, y) => (y.date < x.date ? -1 : y.date > x.date ? 1 : 0) || (y.start || '').localeCompare(x.start || '') || (y.settledAt || '').localeCompare(x.settledAt || ''));
+    const tabs = `<div class="bx-tabs" role="group" aria-label="My Bets view"><button class="${state.bxTab === 'open' ? 'on' : ''}" data-bxtab="open" aria-pressed="${state.bxTab === 'open'}">Open${open.length ? ` <small>${open.length}</small>` : ''}</button><button class="${state.bxTab === 'settled' ? 'on' : ''}" data-bxtab="settled" aria-pressed="${state.bxTab === 'settled'}">Settled${done.length ? ` <small>${done.length}</small>` : ''}</button></div>`;
+    let body;
+    if (state.bxTab === 'open') body = open.length ? bxTl(open, true) : bxQuiet('No open bets. Tap + on a bet row to add one.');
+    else {
+      const shown = state.mbMore ? done : done.slice(0, 10);
+      body = done.length ? `${bxTl(shown, false)}${done.length > 10 && !state.mbMore ? `<button class="pillbtn" data-bmore="1">Show all ${done.length}</button>` : ''}` : bxQuiet('No settled bets yet.');
+    }
+    return bxHero(s, done) + tabs + body;
   }
   view.addEventListener('click', (e) => {
     const b = e.target.closest('button');
@@ -2670,6 +2771,11 @@
     else if (d.bseg) { state.betSeg = d.bseg; render(); }
     else if (d.bgo) { state.betSeg = d.bgo; render(); }
     else if (d.bmore) { state.mbMore = true; render(); }
+    else if (d.bxsp) { state.bxSport = d.bxsp; bxSaveUi(); render(); }
+    else if (d.bxfold) { state.bxFold[d.bxfold] = !state.bxFold[d.bxfold]; bxSaveUi(); render(); }
+    else if (d.bxmore) { state.bxMore[d.bxmore] = true; render(); }
+    else if (d.bxpl) { if (state.bxPl[d.bxpl]) delete state.bxPl[d.bxpl]; else state.bxPl[d.bxpl] = true; render(); plFit(view.querySelector('.pl-car'), 0); }
+    else if (d.bxtab) { state.bxTab = d.bxtab; render(); }
   });
 
   // ---- backup (settings sheet) ----

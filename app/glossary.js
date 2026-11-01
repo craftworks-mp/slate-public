@@ -34,6 +34,10 @@ window.GLOSSARY = {
     units: 'Profit or loss in units, at the odds you saved. A win pays by those odds, a loss costs the units you picked.',
     roi: 'Return on investment: units won or lost divided by units staked on settled bets. Void bets are left out.',
   },
+  // Bets tab dashboard + My Bets hero (prefix bx)
+  bets: {
+    exposure: 'Open exposure: units staked on bets that have not settled yet. It is what you can still lose today, not what you have won or lost.',
+  },
   parlays: {
     combined: 'Combined EV = (1 + EV₁) × (1 + EV₂) × … − 1. Exact for parlays across different games, which books pay at the multiplied odds. Each leg is the model’s own side with EV between 0% and 8%; same-game parlays are left out because the legs move together. Model P = the model’s chance that every leg hits (the legs’ chances multiplied). The notes under it are built from these numbers; the amber one is the leg with the least room over its price.',
   },
