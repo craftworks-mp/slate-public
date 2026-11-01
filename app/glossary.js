@@ -45,6 +45,10 @@ window.GLOSSARY = {
     roi: 'Units won per unit staked, flat 1u at the odds taken: a win pays the odds, a loss costs 1, a push 0.',
     beat: 'How often the open price was better than the close on the same side: the line moved your way, or the line held and the odds shortened. Needs both prices; bets without both are not counted.',
     grades: 'Did a better grade win more than its odds required? Edge and ROI should fall from S+ to F. Ungraded: game lines (grades not published) and sports without live grades.',
+    mrecord: 'Wins-losses-pushes of your settled bets in the filters. A push returns your stake. Void bets (player did not play) count as never placed.',
+    munits: 'Your profit or loss in units at the odds you saved, added up by the day each bet settled. A win pays by those odds, a loss costs the units you picked.',
+    mroi: 'Return on investment: your units won or lost divided by the units you staked on settled bets. Void bets are left out.',
+    mbeat: 'How often your odds were better than the closing price on the same side and the same line. Bets with a different line than the close, or no close price, are not counted.',
     units: 'Running total of units won, 1u flat at the odds taken, for each grade group. Ungraded bets are not charted.',
   },
 };

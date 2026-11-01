@@ -630,6 +630,30 @@ button.prow{width:100%;text-align:left;align-items:flex-start;min-height:64px}
 .res-pill.w{background:rgba(62,230,160,.14);color:var(--pos)}
 .res-pill.l{background:rgba(255,122,112,.14);color:var(--neg)}
 .mb-scoring p{margin:8px 0 0;font-size:14px;color:var(--muted)}
+/* NHL anytime goal (ag-): Scoring watch panel + game Bets block */
+.ag-h{margin:0 0 8px;line-height:1.35}
+.ag-blk{margin:0 0 14px}
+.ag-note{margin:8px 2px 0;font-size:12px;color:var(--faint)}
+.ag-r{gap:3px}
+.ag-p{font:700 19px/1 var(--f-m);letter-spacing:-.01em;color:var(--ink)}
+.ag-e{font:600 11px/1.2 var(--f-m);white-space:nowrap}
+.ag-row .bet-sub{white-space:normal;flex-wrap:wrap;row-gap:2px}
+/* NBA triple-double (td3-): panel under the NHL one in Scoring watch + game Bets block */
+.td3-pn{margin-top:18px}
+.td3-h{margin:0 0 8px;line-height:1.35}
+.td3-blk{margin:0 0 14px}
+.td3-r{gap:3px}
+.td3-p{font:700 19px/1 var(--f-m);letter-spacing:-.01em;color:var(--ink)}
+.td3-e{font:600 11px/1.2 var(--f-m);white-space:nowrap}
+.td3-row .bet-sub{white-space:normal;flex-wrap:wrap;row-gap:2px}
+/* NFL anytime TD (atd-): Scoring watch panel + game Bets block */
+.atd-h{margin:14px 0 8px;line-height:1.35}
+.atd-blk{margin:0 0 14px}
+.atd-blk .atd-h{margin-top:0}
+.atd-r{gap:3px}
+.atd-p{font:700 19px/1 var(--f-m);letter-spacing:-.01em;color:var(--ink)}
+.atd-e{font:600 11px/1.2 var(--f-m);white-space:nowrap}
+.atd-row .bet-sub{white-space:normal;flex-wrap:wrap;row-gap:2px}
 .mb-open{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:14px;width:100%;text-align:left;padding:14px 16px}
 .mb-open-n{font:700 34px/1 var(--f-d);letter-spacing:.03em}
 .mb-open-n small{margin-left:6px;font:600 12px/1 var(--f-b);color:var(--muted);letter-spacing:0}
@@ -683,6 +707,7 @@ button.prow{width:100%;text-align:left;align-items:flex-start;min-height:64px}
 .card.empty.rs-card{margin-top:14px;padding:20px 16px}
 .rs-tiles .tile{padding:14px}
 .rs-tiles .tile:last-child{grid-column:1/-1}
+.rm-tiles .tile:last-child{grid-column:auto}
 .rs-tile .num{margin:8px 0 6px;font-size:38px}
 .rs-lbl{display:flex;align-items:flex-start;gap:6px}
 .rs-lbl .info{margin-top:-1px}

@@ -123,6 +123,21 @@
     return s;
   }
 
+  // ---- closing line value ----
+  // Did the odds you took beat the closing price on the same side and the same line? row = the results row the bet grades against.
+  // impliedDiff = close implied % - your implied %, in percentage points; positive = beat (you paid less than the close price implies).
+  // { beat: null, impliedDiff: null } when the row has no close price, or the close line differs from the bet's line.
+  const impl = (o) => (o > 0 ? 100 / (o + 100) : -o / (-o + 100));
+  function clvOf(bet, row) {
+    const none = { beat: null, impliedDiff: null };
+    const c = row && typeof row === 'object' ? row.close : null;
+    if (!c || typeof c !== 'object' || !isNum(c.odds) || Math.abs(c.odds) < 100 || !bet || !isNum(bet.odds)) return none;
+    const sameLine = bet.line === null || bet.line === undefined ? !isNum(c.line) : c.line === bet.line;
+    if (!sameLine) return none;
+    const d = (impl(c.odds) - impl(bet.odds)) * 100;
+    return { beat: d > 0, impliedDiff: d };
+  }
+
   // ---- export / import (the account-ready format) ----
   const exportName = (d) => 'slate-projector-bets-' + (d || new Date().toISOString().slice(0, 10)) + '.json';
   const exportText = (st) => JSON.stringify(st, null, 2);
@@ -144,6 +159,6 @@
     return { store: out, added, skipped, invalid };
   }
 
-  root.MyBets = { KEY, SCHEMA, UNIT_CHOICES, emptyStore, load, save, validBet, cleanBet, parseOdds, calcPL, matchPhase, gradeBet, applyGrades, resultsPath, summary, exportName, exportText, mergeImport };
+  root.MyBets = { KEY, SCHEMA, UNIT_CHOICES, emptyStore, load, save, validBet, cleanBet, parseOdds, calcPL, matchPhase, gradeBet, applyGrades, resultsPath, summary, clvOf, exportName, exportText, mergeImport };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.MyBets;
 }(typeof window !== 'undefined' ? window : globalThis));

@@ -35,7 +35,7 @@
     chartStat: {}, // player page chart stat ('<sport>/<pid>' -> stat key)
     shotView: {}, // player Matchup tab shot matchup toggle ('<sport>/<pid>' -> 'his' | 'def')
     infoOpen: {}, // open definition notes ('<sport>/<key>' -> true)
-    res: { view: 'model', ph: 'close', range: 'season', fold: false, mkt: '', ou: '', fd: '', ha: '' }, // Results tab, Model view (app/results.js)
+    res: { view: 'model', ph: 'close', range: 'season', fold: false, mkt: '', ou: '', fd: '', ha: '', mmkt: '', mou: '', mfd: '', mgr: '' }, // Results tab, Model view (app/results.js)
   };
   let cur = { key: '', sport: null, kind: 'root', id: '' };
 
@@ -825,8 +825,11 @@
     return out;
   }
   // ---- game Bets tab: projections list ----
-  const BET_STAT = { pts: 'PTS', reb: 'REB', ast: 'AST', tpm: '3PM', pra: 'PRA', pr: 'P+R', pa: 'P+A', ra: 'R+A', sog: 'SOG', g: 'G', a: 'A' };
+  const BET_STAT = { pts: 'PTS', reb: 'REB', ast: 'AST', tpm: '3PM', pra: 'PRA', pr: 'P+R', pa: 'P+A', ra: 'R+A', sog: 'SOG', g: 'G', a: 'A', td3: 'Triple-double', atd: 'Anytime TD' };
   const GRADE_ORDER = ['S+', 'A', 'B', 'C', 'D', 'F'];
+  // NHL anytime goal (stat g, line 0.5, over = Yes) reads as one phrase wherever a bet is named
+  // NBA triple-double (stat td3, over = Yes) and NFL anytime TD (stat atd) likewise
+  const betLbl = (stat, side, line) => (stat === 'atd' ? 'Anytime TD' : stat === 'g' && side !== 'u' && Number(line) === 0.5 ? 'Anytime goal' : stat === 'td3' && side !== 'u' ? 'Triple-double' : `${BET_STAT[stat] || String(stat).toUpperCase()} ${side === 'u' ? 'U' : 'O'} ${line}`);
   const SORTS = [['ev', 'EV'], ['grade', 'Grade'], ['player', 'Player']];
   const isNum = (v) => typeof v === 'number' && isFinite(v);
   const sgn = (v, dp) => { // signed fixed string off the rounded value, real minus
@@ -840,9 +843,9 @@
     return Object.entries(slate.bets || {}).map(([id, b]) => {
       if (!b || b.type !== 'prop' || b.gid !== gid) return null;
       const ph = b.close || b.open;
-      if (!ph || !isNum(ph.ev) || !isNum(ph.line) || !isNum(ph.proj)) return null;
+      if (!ph || !isNum(ph.ev) || !isNum(ph.line) || (!isNum(ph.proj) && b.stat !== 'td3' && b.stat !== 'atd')) return null; // td3 / atd: yes/no markets, no single-stat projection
       const p = players[b.pid] || {};
-      return { id, b, ph, tag: b.close ? 'close' : 'open', pid: String(b.pid), team: p.team || '', pick: ph.pick !== false, name: p.name || String(b.pid), inj: p.inj || '' };
+      return { id, b, ph, tag: b.close ? 'close' : 'open', pid: String(b.pid), team: p.team || '', pick: ph.pick !== false, name: p.name || String(b.pid), inj: p.inj || '', pg: p.pg !== false };
     }).filter(Boolean);
   }
   const UNCAL = '<span class="grade-badge uncal" role="img" aria-label="Not graded yet: model not calibrated">\u2013</span>'; // NFL until its calibration gate passes: no grade (gray dash), EV shown
@@ -853,7 +856,7 @@
     rows.forEach((r) => { if (!m.has(r.pid)) m.set(r.pid, []); m.get(r.pid).push(r); });
     const groups = [...m.values()].map((rs) => {
       rs.sort(byEv);
-      return { pid: rs[0].pid, name: rs[0].name, team: rs[0].team, inj: rs[0].inj, rows: rs, ev: rs[0].ph.ev, gi: Math.min(...rs.map(gradeIdx)) };
+      return { pid: rs[0].pid, name: rs[0].name, team: rs[0].team, inj: rs[0].inj, pg: rs[0].pg, rows: rs, ev: rs[0].ph.ev, gi: Math.min(...rs.map(gradeIdx)) };
     });
     const cmp = how === 'grade' ? (x, y) => x.gi - y.gi || y.ev - x.ev
       : how === 'player' ? (x, y) => (x.name < y.name ? -1 : x.name > y.name ? 1 : 0) || y.ev - x.ev
@@ -862,7 +865,8 @@
   }
   function betRow(r, showPick) {
     const { b, ph } = r, open = !!state.betOpen[r.id];
-    const gap = ph.proj - ph.line, pct = ph.line ? gap / ph.line * 100 : null;
+    const td3 = b.stat === 'td3' || b.stat === 'atd'; // triple-double / anytime TD: model chance instead of Proj / gap
+    const gap = td3 ? 0 : ph.proj - ph.line, pct = !td3 && ph.line ? gap / ph.line * 100 : null;
     const c = evCls(ph.ev);
     const g = GRADE_ORDER.includes(ph.grade) ? ph.grade : '';
     const pros = (ph.pros || []).map((t) => `<div class="pro">${esc(t)}</div>`).join('');
@@ -872,13 +876,13 @@
     let fin = '';
     if (pgCtx.final) {
       const st = pgSettle(cur.sport || 'nba', r);
-      fin = `<span class="pg-settle"><span class="pg-act">${isNum(st.act) ? 'Actual ' + fx(st.act, Number.isInteger(st.act) ? 0 : 1) : 'Did not play'}</span>${st.res ? `<span class="res-pill ${PG_RES[st.res] || ''}">${esc(st.res)}</span>` : ''}${st.beat === null ? '' : `<span class="pg-beat ${st.beat ? 'w' : 'l'}">Beat close: ${st.beat ? 'yes' : 'no'}</span>`}</span>`;
+      fin = `<span class="pg-settle"><span class="pg-act">${isNum(st.act) ? 'Actual ' + (td3 ? (st.act ? 'Yes' : 'No') : fx(st.act, Number.isInteger(st.act) ? 0 : 1)) : 'Did not play'}</span>${st.res ? `<span class="res-pill ${PG_RES[st.res] || ''}">${esc(st.res)}</span>` : ''}${st.beat === null ? '' : `<span class="pg-beat ${st.beat ? 'w' : 'l'}">Beat close: ${st.beat ? 'yes' : 'no'}</span>`}</span>`;
     }
     return `<div class="bet-wrap${open ? ' open' : ''}${showPick && !r.pick ? ' alt' : ''}${add ? ' has-add' : ''}"><button class="bet" data-bet="${esc(r.id)}" aria-expanded="${open}">
-      <span class="bet-l"><span class="bet-mkt">${esc(BET_STAT[b.stat] || String(b.stat).toUpperCase())} ${b.side === 'u' ? 'U' : 'O'} ${esc(ph.line)}</span>
+      <span class="bet-l"><span class="bet-mkt">${esc(betLbl(b.stat, b.side, ph.line))}</span>
         <span class="bet-sub">${fmtOdds(ph.odds)} · ${r.tag.toUpperCase()}${showPick && !r.pick ? '<em class="side-tag">Other side</em>' : ''}</span></span>
-      <span class="bet-m"><span class="bet-proj">Proj ${ph.proj.toFixed(1)}</span>
-        <span class="ev gap ${c}">${sgn(gap, 1)}${pct === null ? '' : ` (${sgn(pct, 0)}%)`}</span></span>
+      <span class="bet-m">${td3 ? `<span class="bet-proj">Model ${isNum(ph.P) ? ph.P.toFixed(1) + '%' : '—'}</span>` : `<span class="bet-proj">Proj ${ph.proj.toFixed(1)}</span>
+        <span class="ev gap ${c}">${sgn(gap, 1)}${pct === null ? '' : ` (${sgn(pct, 0)}%)`}</span>`}</span>
       <span class="bet-r"><span class="ev bet-ev ${c}">${sgn(ph.ev, 1)}%</span>
         ${g ? `<span class="grade-badge" data-g="${g}">${g}</span>` : ph.uncal ? UNCAL : ''}</span>
     </button>${fin}${add}${open ? ctx : ''}</div>`;
@@ -886,10 +890,11 @@
   function playerCard(sport, grp, showPick) {
     const best = GRADE_ORDER[Math.min(...grp.rows.map(gradeIdx))];
     const n = grp.rows.length;
-    return `<div class="pcard"><button class="pcard-h" data-player="${esc(grp.pid)}" aria-label="${esc(grp.name)} player page">
+    const pgOk = grp.pg !== false; // a player only the anytime-TD market covers has no player page
+    return `<div class="pcard"><button class="pcard-h"${pgOk ? ` data-player="${esc(grp.pid)}" aria-label="${esc(grp.name)} player page"` : ' tabindex="-1"'}>
       <span class="pcard-n">${grp.team ? tbadge(sport, grp.team, 's', '', true) : ''}<b>${esc(grp.name)}</b>${grp.inj ? `<i class="inj">${esc(grp.inj)}</i>` : ''}</span>
       <span class="pcard-r">${best ? `<span class="grade-badge" data-g="${best}">${best}</span>` : ''}<small>${n} ${n === 1 ? 'prop' : 'props'}</small></span>
-      <span class="pcard-chev" aria-hidden="true">›</span></button>
+      ${pgOk ? '<span class="pcard-chev" aria-hidden="true">›</span>' : ''}</button>
       ${grp.rows.map((r) => betRow(r, showPick)).join('')}</div>`;
   }
   const COMBOS = ['pra', 'pr', 'pa', 'ra'];
@@ -961,7 +966,7 @@
     const ctx = cellsAll.filter((r) => state.betOpen[r.id]).map((r) => {
       const pros = (r.ph.pros || []).map((t) => `<div class="pro">${esc(t)}</div>`).join('');
       const cons = (r.ph.cons || []).map((t) => `<div class="con">${esc(t)}</div>`).join('');
-      return `<div class="bet-ctx"><div class="lbl">${esc(BET_STAT[r.b.stat] || r.b.stat)} ${r.b.side === 'u' ? 'U' : 'O'} ${esc(r.ph.line)} · ${fmtOdds(r.ph.odds)} · ${r.tag.toUpperCase()}</div>${pros || cons ? pros + cons : '<div class="bet-none">No notes on this prop.</div>'}</div>`;
+      return `<div class="bet-ctx"><div class="lbl">${esc(betLbl(r.b.stat, r.b.side, r.ph.line))} · ${fmtOdds(r.ph.odds)} · ${r.tag.toUpperCase()}</div>${pros || cons ? pros + cons : '<div class="bet-none">No notes on this prop.</div>'}</div>`;
     }).join('');
     const notes = !first ? '' : ['btproj', 'btev'].map((k) => infoNote(sport, k, BT_DEFS)).join('');
     const combo = grp.combos ? `<button class="bt-foot" data-player="${esc(grp.pid)}">${grp.combos} combo ${grp.combos === 1 ? 'line' : 'lines'} on profile ›</button>` : '';
@@ -1018,7 +1023,7 @@
       n = groups.length; shownN = shown.length;
       body = n ? `<div class="pcards">${groups.map((gp) => playerCard(sport, gp, false)).join('')}</div>` : empt;
     }
-    return `<div class="bets-head"><span class="bets-n">${n} ${n === 1 ? 'player' : 'players'} · ${shownN} ${shownN === 1 ? 'prop' : 'props'}</span>${segmented(SORTS, state.betSort, 'data-sort', 'sortseg')}</div>
+    return `${agGameBlock(sport, slate, rows)}${td3GameBlock(sport, slate, rows)}${atdGameBlock(sport, slate, rows)}<div class="bets-head"><span class="bets-n">${n} ${n === 1 ? 'player' : 'players'} · ${shownN} ${shownN === 1 ? 'prop' : 'props'}</span>${segmented(SORTS, state.betSort, 'data-sort', 'sortseg')}</div>
       <div class="sidetog">${toggle}</div>${betChips(chipStats)}${body}`;
   }
   // ======== Past games: Final mode (box score from ../box/<sp>/<date>.json; prefix pg) ========
@@ -1299,6 +1304,7 @@
     const v = (k) => (isNum(p[k]) ? p[k] : null);
     if (sport === 'nba') {
       const M = { pts: v('pts'), reb: v('reb'), ast: v('ast'), tpm: v('tpm'), min: v('min') };
+      if (stat === 'td3') return M.pts === null || M.reb === null || M.ast === null ? null : (M.pts >= 10 && M.reb >= 10 && M.ast >= 10 ? 1 : 0);
       if (stat in M) return M[stat];
       const parts = { pra: ['pts', 'reb', 'ast'], pr: ['pts', 'reb'], pa: ['pts', 'ast'], ra: ['reb', 'ast'] }[stat];
       return parts && parts.every((k) => M[k] !== null) ? parts.reduce((a, k) => a + M[k], 0) : null;
@@ -1928,7 +1934,16 @@
     const ctx = { s, sport: state.filter, info, gate };
     if (!R) { ctx.err = true; return `<div class="seg-wrap">${segmented(FILTERS, state.filter, 'data-filter')}</div>`; }
     const head = segmented(FILTERS, state.filter, 'data-filter');
-    if (s.view === 'mine') return head + R.view(ctx);
+    if (s.view === 'mine') {
+      gradeMine();
+      const all = Object.values(mb.bets), today = ymd(0), rg = R.range(s.range, today);
+      let wait = false;
+      all.forEach((b) => { if (b.status === 'void' || b.date > today) return; const e = resStore[b.sport + '/' + b.date.slice(0, 7)] || ensureMyResults(b.sport, b.date.slice(0, 7)); if (e.st === 'loading') wait = true; });
+      ctx.total = all.length; ctx.loading = wait;
+      if (!wait) ctx.M = R.rmBuild(all, { from: rg.from, to: rg.to, sports: state.filter === 'All' ? null : [state.filter.toLowerCase()], mkt: s.mmkt, ou: s.mou, fd: s.mfd, gr: s.mgr },
+        (b) => { const e = resStore[b.sport + '/' + b.date.slice(0, 7)]; return e && e.st === 'ok' ? e.rows[b.id] : undefined; });
+      return head + R.view(ctx);
+    }
     if (!store.idxDone) {
       if (!resWait) { resWait = true; indexP.then(rerender); }
       ctx.loading = true; return head + R.view(ctx);
@@ -1952,7 +1967,7 @@
   function resultsClick(v) {
     const i = v.indexOf(':'), k = v.slice(0, i), x = v.slice(i + 1), s = state.res;
     if (k === 'fold') s.fold = !s.fold;
-    else if (k === 'reset') { s.mkt = s.ou = s.fd = s.ha = ''; s.range = 'season'; }
+    else if (k === 'reset') { s.mkt = s.ou = s.fd = s.ha = s.mmkt = s.mou = s.mfd = s.mgr = ''; s.range = 'season'; }
     else if (k === 'retry') { Object.keys(store.res).forEach((q) => { if (store.res[q].st === 'err') delete store.res[q]; }); }
     else if (k in s && k !== 'fold') s[k] = x;
   }
@@ -2090,7 +2105,7 @@
   state.betSeg = 'dash'; // Bets tab segment: dash | mine
   state.mbMore = false; // My Bets 'Show all settled'
   const idDate = (id) => { const m = /^(\d{4}-\d{2}-\d{2})-/.exec(String(id)); return m ? m[1] : ''; };
-  const betText = (r) => `${BET_STAT[r.b.stat] || String(r.b.stat).toUpperCase()} ${r.b.side === 'u' ? 'U' : 'O'} ${r.ph.line}`;
+  const betText = (r) => betLbl(r.b.stat, r.b.side, r.ph.line);
   const uTxt = (u) => `${+Number(u).toFixed(2)}u`;
   const uSgn = (v) => `${sgn(v, 2)}u`;
   const plCls = (v) => (v > 0.004 ? 'u-pos' : v < -0.004 ? 'u-neg' : 'u-n');
@@ -2271,8 +2286,168 @@
     const setH = done.length ? `${sec('Settled')}<div class="betlist">${shown.map(mbRow).join('')}</div>${done.length > 10 && !state.mbMore ? `<button class="pillbtn" data-bmore="1">Show all ${done.length}</button>` : ''}` : '';
     return tiles + openH + setH;
   }
-  function dashView() {
-    const scoring = gate('scoringPanels', `<div class="card mb-scoring"><div class="lbl">Scoring watch</div><p>Anytime TD · Anytime goal · Triple-double panels arrive next</p></div>`);
+  // ======== NHL anytime goal (Scoring watch panel + game Bets block; prefix ag) ========
+  // Rows: slate bets with stat g, side o, line 0.5 (over = Yes). Price = DK yes odds, chance = model P(>= 1 goal), ungraded (UNCAL).
+  const agIs = (r) => r.b.stat === 'g' && r.b.side === 'o' && r.ph.line === 0.5 && isNum(r.ph.P) && isNum(r.ph.odds);
+  const agBy = (x, y) => y.r.ph.P - x.r.ph.P || y.r.ph.ev - x.r.ph.ev;
+  // top n by model chance, at most 2 per team and 2 per game; fewer than n qualify -> game cap 3, then 4 (team cap stays 2)
+  function agTop(list, n) {
+    let out = [];
+    for (const gcap of [2, 3, 4]) {
+      const pt = {}, pg = {};
+      out = [];
+      for (const x of list.slice().sort(agBy)) {
+        if ((pt[x.r.team] || 0) >= 2 || (pg[x.gid] || 0) >= gcap) continue;
+        pt[x.r.team] = (pt[x.r.team] || 0) + 1; pg[x.gid] = (pg[x.gid] || 0) + 1;
+        out.push(x);
+        if (out.length >= n) return out;
+      }
+    }
+    return out;
+  }
+  function agRow(x, short) {
+    const { r, sg } = x, c = evCls(r.ph.ev);
+    const where = sg.away === r.team ? `@ ${sg.home}` : `vs ${sg.away}`;
+    const sub = `${esc(r.team)} ${esc(where)}${!short && sg.kickoff ? ` · ${esc(fmtTime(sg.kickoff))}` : ''} · DK ${fmtOdds(r.ph.odds)}`;
+    const add = pgCtx.final ? '' : addBtn('nhl', r);
+    return `<div class="bet-wrap ag-row${add ? ' has-add' : ''}"><a class="bet tr" href="#nhl/player/${encodeURIComponent(r.pid)}">
+      <span class="bet-l"><span class="bet-mkt">${esc(r.name)}</span><span class="bet-sub">${sub}</span></span>
+      <span class="bet-r ag-r"><b class="ag-p">${r.ph.P.toFixed(1)}%</b><span class="ag-e ev ${c}">${sgn(r.ph.ev, 1)}% EV</span></span></a>${add}</div>`;
+  }
+  function agPanel() {
+    const head = '<div class="lbl ag-h">NHL · Anytime goal · top model chances, games not started</div>';
+    const none = (msg) => `${head}<div class="card empty"><p>${msg}</p></div>`;
+    if (!store.idxDone) return `${head}${skRows(3)}`;
+    const s = store.idx && store.idx.sports && store.idx.sports.nhl, today = ymd(0);
+    if (!s || !(s.slates || []).includes(today)) return none('No anytime-goal prices yet for today’s games.');
+    const e = ensureSlate('nhl', today);
+    if (e.st === 'loading') return `${head}${skRows(3)}`;
+    if (e.st === 'err') return none('Couldn’t load today’s slate. Check your connection and try again.');
+    if (e.st !== 'ok') return none('No anytime-goal prices yet for today’s games.');
+    ensureMeta('nhl');
+    const now = Date.now(), list = [];
+    new Set(Object.values(e.data.bets || {}).map((b) => b && b.gid)).forEach((gid) => {
+      const sg = (e.data.games || {})[gid] || {};
+      if (!(Date.parse(sg.kickoff) > now)) return;
+      betRows(e.data, gid).forEach((r) => { if (agIs(r)) list.push({ r, sg, gid }); });
+    });
+    const top = agTop(list, 5);
+    if (!top.length) return none('No anytime-goal prices yet for today’s games.');
+    return `${head}<div class="betlist">${top.map((x) => agRow(x)).join('')}</div>`;
+  }
+  // Scoring watch: NHL anytime goal, NBA triple-double, NFL anytime TD panels
+  function agSection() {
+    return `${sec('Scoring watch')}<div class="ag-pn">${agPanel()}</div><div class="td3-pn">${td3Panel()}</div><div class="atd-pn">${atdSection()}</div>`;
+  }
+  // small block at the top of an NHL game's Bets tab: that game's top 3 by model chance (only when the game has anytime-goal rows)
+  function agGameBlock(sport, slate, rows) {
+    if (sport !== 'nhl') return '';
+    const sg = (slate.games || {})[state.betGid] || {};
+    const top = rows.filter(agIs).map((r) => ({ r, sg, gid: state.betGid })).sort(agBy).slice(0, 3);
+    if (!top.length) return '';
+    return `<div class="ag-blk"><div class="lbl ag-h">Anytime goal · top ${top.length} by model chance</div><div class="betlist">${top.map((x) => agRow(x, true)).join('')}</div></div>`;
+  }
+  // ======== NBA triple-double (Scoring watch panel + game Bets block; prefix td3) ========
+  // Rows: slate bets with stat td3, side o (= Yes). Price = DK yes odds, chance = model P(pts, reb, ast all >= 10) after the propShrink, ungraded (UNCAL).
+  // Same caps as the anytime-goal panel (top 5 by chance, 2 per team, 2 per game loosening to 3 then 4), so agTop / agBy are reused.
+  const td3Is = (r) => r.b.stat === 'td3' && r.b.side === 'o' && isNum(r.ph.P) && isNum(r.ph.odds) && isNum(r.ph.ev);
+  function td3Row(x, short) {
+    const { r, sg } = x, c = evCls(r.ph.ev);
+    const where = sg.away === r.team ? `@ ${sg.home}` : `vs ${sg.away}`;
+    const sub = `${esc(r.team)} ${esc(where)}${!short && sg.kickoff ? ` · ${esc(fmtTime(sg.kickoff))}` : ''} · DK ${fmtOdds(r.ph.odds)}`;
+    const add = pgCtx.final ? '' : addBtn('nba', r);
+    return `<div class="bet-wrap td3-row${add ? ' has-add' : ''}"><a class="bet tr" href="#nba/player/${encodeURIComponent(r.pid)}">
+      <span class="bet-l"><span class="bet-mkt">${esc(r.name)}</span><span class="bet-sub">${sub}</span></span>
+      <span class="bet-r td3-r"><b class="td3-p">${r.ph.P.toFixed(1)}%</b><span class="td3-e ev ${c}">${sgn(r.ph.ev, 1)}% EV</span></span></a>${add}</div>`;
+  }
+  function td3Panel() {
+    const head = '<div class="lbl td3-h">NBA · Triple-double · top model chances, games not started</div>';
+    const msg = 'No triple-double prices yet for today’s games.';
+    const none = (m) => `${head}<div class="card empty"><p>${m}</p></div>`;
+    if (!store.idxDone) return `${head}${skRows(3)}`;
+    const s = store.idx && store.idx.sports && store.idx.sports.nba, today = ymd(0);
+    if (!s || !(s.slates || []).includes(today)) return none(msg);
+    const e = ensureSlate('nba', today);
+    if (e.st === 'loading') return `${head}${skRows(3)}`;
+    if (e.st === 'err') return none('Couldn’t load today’s slate. Check your connection and try again.');
+    if (e.st !== 'ok') return none(msg);
+    ensureMeta('nba');
+    const now = Date.now(), list = [];
+    new Set(Object.values(e.data.bets || {}).map((b) => b && b.gid)).forEach((gid) => {
+      const sg = (e.data.games || {})[gid] || {};
+      if (!(Date.parse(sg.kickoff) > now)) return;
+      betRows(e.data, gid).forEach((r) => { if (td3Is(r)) list.push({ r, sg, gid }); });
+    });
+    const top = agTop(list, 5);
+    if (!top.length) return none(msg);
+    return `${head}<div class="betlist">${top.map((x) => td3Row(x)).join('')}</div>`;
+  }
+  // small block at the top of an NBA game's Bets tab: that game's top 3 by model chance (only when the game has triple-double rows)
+  function td3GameBlock(sport, slate, rows) {
+    if (sport !== 'nba') return '';
+    const sg = (slate.games || {})[state.betGid] || {};
+    const top = rows.filter(td3Is).map((r) => ({ r, sg, gid: state.betGid })).sort(agBy).slice(0, 3);
+    if (!top.length) return '';
+    return `<div class="td3-blk"><div class="lbl td3-h">Triple-double · top ${top.length} by model chance</div><div class="betlist">${top.map((x) => td3Row(x, true)).join('')}</div></div>`;
+  }
+  // ======== NFL anytime TD (Scoring watch panel + game Bets block; prefix atd; self-contained, called from agSection's note and betsTab) ========
+  // Rows: slate bets with stat atd (over = Yes, line 0.5). Chance = P (model blended toward the book's fair price), price = DK yes odds, ungraded (UNCAL).
+  const ATD_NONE = 'No anytime TD prices yet for today’s games.';
+  const atdIs = (r) => r.b.stat === 'atd' && r.b.side === 'o' && isNum(r.ph.P) && isNum(r.ph.odds);
+  const atdBy = (x, y) => y.r.ph.P - x.r.ph.P || y.r.ph.ev - x.r.ph.ev;
+  // top n by model chance, at most 2 per team and 2 per game; fewer than n qualify -> game cap 3, then 4 (team cap stays 2)
+  function atdTop(list, n) {
+    let out = [];
+    for (const gcap of [2, 3, 4]) {
+      const pt = {}, pg = {};
+      out = [];
+      for (const x of list.slice().sort(atdBy)) {
+        if ((pt[x.r.team] || 0) >= 2 || (pg[x.gid] || 0) >= gcap) continue;
+        pt[x.r.team] = (pt[x.r.team] || 0) + 1; pg[x.gid] = (pg[x.gid] || 0) + 1;
+        out.push(x);
+        if (out.length >= n) return out;
+      }
+    }
+    return out;
+  }
+  function atdRow(x, short) {
+    const { r, sg } = x, c = evCls(r.ph.ev);
+    const where = sg.away === r.team ? `@ ${sg.home}` : `vs ${sg.away}`;
+    const sub = `${esc(r.team)} ${esc(where)}${!short && sg.kickoff ? ` · ${esc(fmtTime(sg.kickoff))}` : ''} · DK ${fmtOdds(r.ph.odds)}`;
+    const add = pgCtx.final ? '' : addBtn('nfl', r);
+    const inner = `<span class="bet-l"><span class="bet-mkt">${esc(r.name)}</span><span class="bet-sub">${sub}</span></span>
+      <span class="bet-r atd-r"><b class="atd-p">${r.ph.P.toFixed(1)}%</b><span class="atd-e ev ${c}">${sgn(r.ph.ev, 1)}% EV</span></span>`;
+    return `<div class="bet-wrap atd-row${add ? ' has-add' : ''}">${r.pg ? `<a class="bet tr" href="#nfl/player/${encodeURIComponent(r.pid)}">${inner}</a>` : `<div class="bet tr">${inner}</div>`}${add}</div>`;
+  }
+  function atdSection() {
+    const head = '<div class="lbl atd-h">NFL · Anytime TD · top model chances, games not started</div>';
+    const none = (msg) => `${head}<div class="card empty"><p>${msg}</p></div>`;
+    if (!store.idxDone) return `${head}${skRows(3)}`;
+    const s = store.idx && store.idx.sports && store.idx.sports.nfl, today = ymd(0);
+    if (!s || !(s.slates || []).includes(today)) return none(ATD_NONE);
+    const e = ensureSlate('nfl', today);
+    if (e.st === 'loading') return `${head}${skRows(3)}`;
+    if (e.st === 'err') return none('Couldn’t load today’s slate. Check your connection and try again.');
+    if (e.st !== 'ok') return none(ATD_NONE);
+    ensureMeta('nfl');
+    const now = Date.now(), list = [];
+    new Set(Object.values(e.data.bets || {}).map((b) => b && b.gid)).forEach((gid) => {
+      const sg = (e.data.games || {})[gid] || {};
+      if (!(Date.parse(sg.kickoff) > now)) return;
+      betRows(e.data, gid).forEach((r) => { if (atdIs(r)) list.push({ r, sg, gid }); });
+    });
+    const top = atdTop(list, 5);
+    return top.length ? `${head}<div class="betlist">${top.map((x) => atdRow(x)).join('')}</div>` : none(ATD_NONE);
+  }
+  // block at the top of an NFL game's Bets tab: that game's top 3 by model chance (only when the game has anytime-TD rows)
+  function atdGameBlock(sport, slate, rows) {
+    if (sport !== 'nfl') return '';
+    const sg = (slate.games || {})[state.betGid] || {};
+    const top = rows.filter(atdIs).map((r) => ({ r, sg, gid: state.betGid })).sort(atdBy).slice(0, 3);
+    if (!top.length) return '';
+    return `<div class="atd-blk"><div class="lbl atd-h">Anytime TD · top ${top.length} by model chance</div><div class="betlist">${top.map((x) => atdRow(x, true)).join('')}</div></div>`;
+  }  function dashView() {
+    const scoring = gate('scoringPanels', agSection());
     return `${scoring}${gate('parlays', plSection())}${sec('Top rated today')}${topRated()}${sec('My open bets')}${openSummary()}`;
   }
   // ---- Parlays panel (Bets > Dashboard): swipeable cross-game parlay cards built by PARLAY.build (app/parlays.js) ----
