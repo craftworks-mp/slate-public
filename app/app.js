@@ -538,7 +538,7 @@
     const d = ensureDay(sport, date);
     if (d.st === 'loading' || m.st === 'loading') return skList(sport);
     if (d.st === 'err') return `<div class="card empty"><h2>Couldn’t load games</h2><p>Check your connection and try again.</p><button class="pillbtn retry" data-retry="${esc(sport + '/' + date)}">Retry</button></div>`;
-    const games = d.st === 'ok' ? ((d.data && d.data.games) || []) : [];
+    const games = d.st === 'ok' ? ((d.data && d.data.games) || []).map((g) => (d.data.preline ? Object.assign({}, g, { preline: true }) : g)) : [];
     if (games.length) return `<div class="glist">${games.map((g) => gameCard(sport, g)).join('')}</div>`;
     const sg = schedGames(sport, date);
     if (sg.length) return `<div class="glist">${sg.map((g) => gameCard(sport, g)).join('')}</div>`;
@@ -570,9 +570,9 @@
     return `<span class="tline">${tbadge(sport, code, '', '', true)}<span class="rec">${esc(rec || '—')}</span><span class="tn">${esc(t.short || '')}</span>${chips}${score}</span>`;
   }
   function gameCard(sport, g) {
-    const b = g.bets || {}, n = b.n || 0, sp = b['S+'] || 0;
+    const b = g.bets || {}, n = g.preline ? 0 : b.n || 0, sp = g.preline ? 0 : b['S+'] || 0;
     const rated = sp + (b.A || 0) + (b.B || 0);
-    const bline = n ? `<span class="bline">${esc(n)} bets${rated ? ` · ${esc(rated)} rated` : ''}</span>` : '';
+    const bline = g.preline ? '<span class="bline pre-chip">Projections</span>' : n ? `<span class="bline">${esc(n)} bets${rated ? ` · ${esc(rated)} rated` : ''}</span>` : '';
     const acc = sp > 0 ? `<span class="acc-badge" role="img" aria-label="S+ value in this game">★ S+</span>` : '';
     let ta = null, th = null;
     if (sport !== 'nfl' && g.status !== 'final' && g.status !== 'post') {
@@ -623,7 +623,7 @@
       <span class="rec">${esc(recFor(sport, g, side) || '—')}</span><span class="tn">${esc(tinfo(sport, code).short || '')}</span></div>`;
     return `<div class="pagehead">${backBtn}<div class="chips" aria-label="Games this day">${chips}</div></div>
       <div class="ghead">${team(aw, 'away')}<div class="gcenter">${center}${lp}</div>${team(hm, 'home')}</div>
-      ${mvbCard(sport, g, mvbSlate(sport, f.date))}
+      ${isPre(mvbSlate(sport, f.date)) ? preScoreCard(sport, g, mvbSlate(sport, f.date)) : mvbCard(sport, g, mvbSlate(sport, f.date))}
       <div class="subtabs">${segmented(TABS.map(([k, l]) => [k, k === 'away' ? aw : k === 'home' ? hm : l]), tab, 'data-sub')}</div>
       ${body}`;
   }
@@ -976,11 +976,84 @@
       <span class="pcard-chev" aria-hidden="true">›</span></button>
       <div class="btab${fin ? ' pg-fin' : ''}" style="--n:${cols.length}">${hd}${sr}${ln}${pj}${ev}${fin ? ac + rs + bc : ad}</div>${notes}${ctx}${combo}</div>`;
   }
+  // ======== Night-before projections ("preline" slate: players[pid].pre, games[gid].proj_pre, no bets; prefix pre) ========
+  // Neutral wording only: no EV, grades, odds or advice until the lines land.
+  const PRE_NOTE = 'Lines post around 8 AM ET. EV and grades appear then.';
+  const PRE_BOOK = 'Book lines post around 8 AM ET.';
+  const isPre = (slate) => !!(slate && slate.preline);
+  // lead stats per sport: [stat, label, decimals]; the first one sorts the lists
+  const PRE_COLS = {
+    nba: [['pts', 'PTS', 1], ['reb', 'REB', 1], ['ast', 'AST', 1], ['tpm', '3PM', 1], ['pra', 'PRA', 1]],
+    nhl: [['sog', 'SOG', 1], ['pts', 'PTS', 2], ['g', 'G', 2], ['a', 'A', 2]],
+    nfl: [['pyd', 'PASS YDS', 0], ['ryd', 'RUSH YDS', 0], ['recy', 'REC YDS', 0], ['rec', 'REC', 1]],
+  };
+  const PRE_DEFS = { pre: 'Our model’s projection for each player tonight, built from the latest injury report, rest and matchup. Book lines, EV and grades fill in once the sportsbooks post lines (around 8 AM ET).' };
+  const preV = (p, k) => { const x = p && p.pre && p.pre[k]; return x && isNum(x.v) ? x.v : null; };
+  // NFL: a player's projected stats are the ones his position produces (QB passing, RB rushing, WR/TE receiving)
+  const preColsFor = (sport, p) => {
+    const cols = PRE_COLS[sport] || [];
+    if (sport !== 'nfl') return cols;
+    const has = cols.filter((c) => preV(p, c[0]) !== null);
+    return has.length ? has.slice(0, 3) : cols.slice(0, 3);
+  };
+  const preLead = (sport, p) => { const c = preColsFor(sport, p)[0]; return c ? preV(p, c[0]) : null; };
+  const preBanner = (sport) => `<div class="card pre-note"><span class="pre-dot" aria-hidden="true"></span><span class="pre-txt">${esc(PRE_NOTE)}</span>${infoBtn(sport, 'pre', PRE_DEFS)}</div>${infoNote(sport, 'pre', PRE_DEFS)}`;
+  // one player row: name + injury + projected lead stats (tap = player page)
+  const preHasPages = (sport) => { const s = store.idx && store.idx.sports && store.idx.sports[sport]; return !!(s && s.players); }; // a sport without published player files (NFL today) gets no player link
+  function preRow(sport, id, p, ptags) {
+    const cols = preColsFor(sport, p);
+    const link = preHasPages(sport);
+    const ptc = (ptags || []).slice(0, 3).map((x) => `<span class="tgc tg-${tagCat(x)}" role="img" aria-label="${esc(x.label)}">${tagIcon(x)}</span>`).join('');
+    const cells = cols.map((c) => { const v = preV(p, c[0]); return `<span class="pre-c"><b class="${v === null ? 'nil' : ''}">${v === null ? '—' : v.toFixed(c[2])}</b><small>${esc(c[1])}</small></span>`; }).join('');
+    const sub = [p.pos, sport === 'nba' ? ({ S: 'Starter', B: 'Bench' }[p.role] || '') : sport === 'nhl' ? p.role : p.role].filter(Boolean).join(' · ');
+    return `<${link ? 'button' : 'div'} class="prow pre-row${link ? '' : ' nolink'}"${link ? ` data-player="${esc(id)}" aria-label="${esc(p.name || id)} player page"` : ''}>
+      <span class="ini sm" aria-hidden="true">${esc(initials(p.name))}</span>
+      <span class="pr-name"><b>${esc(p.name || id)}</b>${p.inj ? `<i class="inj">${esc(p.inj)}</i>` : ''}${sub ? `<small>${esc(sub)}</small>` : ''}</span>${ptc ? `<span class="tchips">${ptc}</span>` : ''}
+      <span class="pre-cells">${cells}</span>${link ? '<span class="chev" aria-hidden="true">›</span>' : ''}</${link ? 'button' : 'div'}>`;
+  }
+  const prePlayers = (sl, gid, code) => Object.entries(sl.players || {})
+    .filter(([, p]) => p && String(p.gid) === String(gid) && (!code || p.team === code))
+    .sort((x, y) => (preLead(cur.sport || 'nba', y[1]) || -1) - (preLead(cur.sport || 'nba', x[1]) || -1) || (x[1].name < y[1].name ? -1 : 1));
+  // Bets tab while the slate is preline: banner + per-team projections lists
+  function preBetsTab(sport, slate, g) {
+    const sgm = (slate.games || {})[g.gid] || null;
+    const team = (code) => {
+      const list = prePlayers(slate, g.gid, code);
+      const rows = list.map(([id, p]) => preRow(sport, id, p, playerTags(sport, id, slate.date, sgm, p.inj, p.team))).join('');
+      return `${sec(code + ' projections')}${rows ? `<div class="plist">${rows}</div>` : '<div class="card empty"><p>No projected players.</p></div>'}`;
+    };
+    const n = prePlayers(slate, g.gid).length;
+    return `${preBanner(sport)}<div class="bets-head"><span class="bets-n">${n} ${n === 1 ? 'player' : 'players'} projected</span></div>${team(g.away)}${team(g.home)}`;
+  }
+  // Game tab card while preline: the model's projected score / total / win % (no book rows)
+  function preScoreCard(sport, g, slate) {
+    const sg = slate && slate.games ? slate.games[g.gid] : null;
+    const p = sg && sg.proj_pre;
+    if (!p || p.err || !isNum(p.away) || !isNum(p.home)) return '';
+    const dp = sport === 'nhl' ? 2 : 1;
+    const score = (code, v) => `<span class="mvb-t"><span class="pc">${esc(code)}</span><b>${v.toFixed(dp)}</b></span>`;
+    const rows = [];
+    if (isNum(p.total)) rows.push(['Total', p.total.toFixed(dp)]);
+    if (isNum(p.winAway) && isNum(p.winHome)) { const fa = p.winAway >= p.winHome; rows.push(['Win %', `${esc(fa ? g.away : g.home)} ${(fa ? p.winAway : p.winHome).toFixed(1)}%`]); }
+    const tab = rows.length ? `<div class="pre-tab">${rows.map(([l, v]) => `<span class="mvb-lab">${l}</span><span class="mvb-v mod">${v}</span>`).join('')}</div>` : '';
+    return `<div class="card mvb pre-mvb"><div class="mvb-top"><span class="lbl">Model projected score</span>${infoBtn(sport, 'pre', PRE_DEFS)}</div>${infoNote(sport, 'pre', PRE_DEFS)}
+      <div class="mvb-score">${score(g.away, p.away)}<i>–</i>${score(g.home, p.home)}</div>${tab}<div class="pre-book">${esc(PRE_BOOK)}</div></div>`;
+  }
+  // player Tonight while preline: projection tiles (lead stats), minutes when projected
+  function preTonight(sport, p) {
+    const cols = preColsFor(sport, p);
+    const tiles = cols.map((c) => { const v = preV(p, c[0]); return `<div class="stile"><span class="st-lab">${esc(c[1])}</span><span class="st-v${v === null ? ' nil' : ''}">${v === null ? '—' : v.toFixed(c[2])}</span></div>`; }).join('');
+    const m = p.min && isNum(p.min.pre) ? p.min.pre : null;
+    const mins = m === null ? '' : `<div class="pre-min">${sport === 'nhl' ? 'Projected ice time' : 'Projected minutes'} <b>${m.toFixed(1)}</b></div>`;
+    if (!cols.some((c) => preV(p, c[0]) !== null)) return `${sec('Projections')}<div class="card empty"><p>${esc(p.preErr ? 'No projection yet: ' + p.preErr : 'No projection yet.')}</p></div>`;
+    return `${sec('Projections')}<div class="card pre-tiles"><div class="stiles pre-st" style="--n:${cols.length}">${tiles}</div>${mins}<div class="pre-book">${esc(PRE_NOTE)}</div></div>`;
+  }
   function betsTab(sport, date) {
     const e = ensureSlate(sport, date);
     if (e.st === 'loading') return skRows(4);
     if (e.st === 'err') return `<div class="card empty"><h2>Couldn’t load props</h2><p>Check your connection and try again.</p><button class="pillbtn retry" data-retry-slate="${esc(sport + '/' + date)}">Retry</button></div>`;
     const slate = e.st === 'ok' ? (e.data || {}) : {};
+    if (isPre(slate) && !pgCtx.final) { const fg = findGame(sport, state.betGid); if (fg) return preBetsTab(sport, slate, fg.g); }
     const rows = e.st === 'ok' ? betRows(slate, state.betGid) : [];
     if (!rows.length) return pgCtx.past || pgCtx.final ? `<div class="card empty"><h2>No props for this game</h2>${PG_NOTE}</div>` : empty('Bets', 'No props for this game yet', 'Props show up here once the slate is published.', 0);
     const f = state.betF, mode = state.betSide;
@@ -1389,6 +1462,11 @@
     if (e.st === 'loading') return skRows(4);
     if (e.st === 'err') return `<div class="card empty"><h2>Couldn’t load players</h2><p>Check your connection and try again.</p><button class="pillbtn retry" data-retry-slate="${esc(sport + '/' + date)}">Retry</button></div>`;
     const sl = e.st === 'ok' ? (e.data || {}) : {};
+    if (isPre(sl)) {
+      const sgm = (sl.games || {})[g.gid] || null;
+      const rows = prePlayers(sl, g.gid, code).map(([id, p]) => preRow(sport, id, p, playerTags(sport, id, date, sgm, p.inj, p.team))).join('');
+      return rows ? `${preBanner(sport)}<div class="plist">${rows}</div>` : empty('Bets', 'No players for ' + code + ' yet', 'Players show up here once the slate is published.', 0);
+    }
     const list = Object.entries(sl.players || {}).filter(([, p]) => p && p.team === code && String(p.gid) === String(g.gid))
       .map(([id, p]) => ({ id, p, w: ensurePlayer(sport, id) }));
     if (!list.length) return pgCtx.past ? `<div class="card empty"><h2>No ${esc(code)} players</h2>${PG_NOTE}</div>` : empty('Bets', 'No players for ' + code + ' yet', 'Players show up here once the slate is published.', 0);
@@ -1706,7 +1784,7 @@
     const allRows = sp ? betRows(sl, sp.gid).filter((r) => String(r.b.pid) === String(pid)) : [];
     const mine = Object.values(bestSides(allRows)).sort((x, y) => y.ph.ev - x.ph.ev);
     const tabs = goalie ? PTABS.filter(([k]) => k === 'tonight' || k === 'recent') : PTABS;
-    const dflt = mine.length ? 'tonight' : goalie ? 'recent' : 'trends';
+    const dflt = mine.length || (sl && isPre(sl) && sp) ? 'tonight' : goalie ? 'recent' : 'trends';
     const explicit = tabs.some(([k]) => k === state.playerTab);
     // the default depends on the slate: wait for it (tab bar without a selection) unless the user already chose
     const waiting = !explicit && se.st === 'loading';
@@ -1747,7 +1825,8 @@
           const ng = tgames.find((g) => g.d > date && g.status !== 'post');
           const nxt = ng ? `Next game: ${F_LONG.format(dnoon(ng.d))} ${ng.home === team ? 'vs' : '@'} ${oppOf(ng, team)}` : '';
           props = `<div class="card empty pn-off"><p>No game today</p>${nxt ? `<small class="pn-next">${esc(nxt)}</small>` : ''}<button class="pillbtn" data-ptab="trends">See trends</button></div>`;
-        } else props = mine.length ? `${sec('Props')}<div class="betlist">${mine.map(betRow).join('')}</div>`
+        } else if (sl && isPre(sl) && sp) props = preTonight(sport, sp);
+        else props = mine.length ? `${sec('Props')}<div class="betlist">${mine.map(betRow).join('')}</div>`
           : `<div class="card empty"><p>No props for him tonight.</p><button class="pillbtn" data-ptab="trends">See trends</button></div>`;
         body = card + props;
       }
