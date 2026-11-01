@@ -2003,6 +2003,7 @@
 
     if (c.page === 'bets') {
       view.innerHTML = betsPage();
+      plFit(view.querySelector('.pl-car'), 0);
     } else if (c.page === 'results') {
       view.innerHTML = resultsView();
     } else if (c.kind === 'standings') view.innerHTML = standings(c.sport);
@@ -2272,7 +2273,71 @@
   }
   function dashView() {
     const scoring = gate('scoringPanels', `<div class="card mb-scoring"><div class="lbl">Scoring watch</div><p>Anytime TD · Anytime goal · Triple-double panels arrive next</p></div>`);
-    return `${scoring}${sec('Top rated today')}${topRated()}${sec('My open bets')}${openSummary()}`;
+    return `${scoring}${gate('parlays', plSection())}${sec('Top rated today')}${topRated()}${sec('My open bets')}${openSummary()}`;
+  }
+  // ---- Parlays panel (Bets > Dashboard): swipeable cross-game parlay cards built by PARLAY.build (app/parlays.js) ----
+  const plKind = (c) => `${c.n}-leg ${c.kind}`;
+  function plLegs() {
+    const today = ymd(0), legs = [];
+    let loading = false, failed = false;
+    ['nfl', 'nba', 'nhl'].forEach((sp) => {
+      const s = store.idx && store.idx.sports && store.idx.sports[sp];
+      if (!s || !(s.slates || []).includes(today)) return;
+      const e = ensureSlate(sp, today);
+      if (e.st === 'loading') { loading = true; return; }
+      if (e.st === 'err') { failed = true; return; }
+      if (e.st !== 'ok') return;
+      ensureMeta(sp);
+      const gids = new Set(Object.values(e.data.bets || {}).map((b) => b && b.gid));
+      gids.forEach((gid) => betRows(e.data, gid).forEach((r) => {
+        const sg = (e.data.games || {})[gid] || {};
+        legs.push({ key: sp + '|' + r.id, sp, gid, pid: r.pid, name: r.name, team: r.team, label: `${r.name} ${betText(r)}`, odds: r.ph.odds, P: r.ph.P, ev: r.ph.ev,
+          kickoff: sg.kickoff, recheck: !!r.ph.recheck, uncal: !!r.ph.uncal, pick: r.ph.pick, away: sg.away, home: sg.home });
+      }));
+    });
+    return { legs, loading, failed };
+  }
+  function plLeg(l) {
+    const where = l.away === l.team ? `@ ${l.home}` : `vs ${l.away}`;
+    return `<a class="pl-leg" href="#${l.sp}/player/${encodeURIComponent(l.pid)}"><span class="pl-leg-l"><span class="pl-leg-n">${esc(l.label)}</span>
+      <span class="pl-leg-s">${fmtOdds(l.odds)} · ${l.sp.toUpperCase()} ${esc(l.team)} ${esc(where)}${l.kickoff ? ` · ${esc(fmtTime(l.kickoff))}` : ''}</span></span>
+      <span class="ev pl-leg-ev ${evCls(l.ev)}">${sgn(l.ev, 1)}%</span></a>`;
+  }
+  function plCard(c, i, n) {
+    return `<div class="card pl-card" role="group" aria-label="Parlay ${i + 1} of ${n}"><div class="pl-top"><span class="lbl">${esc(plKind(c))}</span><span class="pl-odds">${fmtOdds(c.american)}</span></div>
+      <div class="ev pl-ev ${evCls(c.ev)}">${sgn(c.ev, 1)}% EV</div><div class="pl-ch">Model chance ${c.chance.toFixed(1)}%</div>
+      <div class="pl-legs">${c.legs.map(plLeg).join('')}</div><div class="pl-foot">1 leg per game · paid at multiplied odds</div></div>`;
+  }
+  let plWait = false;
+  function plPanel() {
+    if (!store.idxDone && !plWait) { plWait = true; indexP.then(rerender); } // a cold load straight onto #bets has nothing else that re-renders once index.json arrives
+    if (!store.idxDone) return `<div class="card pl-sk" aria-hidden="true">${skRows(3)}</div>`;
+    const { legs, loading, failed } = plLegs();
+    if (loading && !legs.length) return `<div class="card pl-sk" aria-hidden="true">${skRows(3)}</div>`;
+    const cards = PARLAY.build(legs, new Date(Date.now()));
+    if (!cards.length) return failed ? `<div class="card empty"><p>Couldn’t load today’s slates. Check your connection and try again.</p></div>`
+      : `<div class="card empty"><p>No parlays right now: not enough positive-EV legs in games that haven’t started.</p></div>`;
+    return `<div class="pl-car" tabindex="0" aria-label="Parlays, swipe sideways">${cards.map((c, i) => plCard(c, i, cards.length)).join('')}</div>
+      <div class="pl-dots" aria-hidden="true">${cards.map((c, i) => `<i${i ? '' : ' class="on"'}></i>`).join('')}</div>`;
+  }
+  function plSection() {
+    const defs = (window.GLOSSARY || {}).parlays || {};
+    return `<div class="sec">Parlays${infoBtn('parlays', 'combined', defs)}</div>${infoNote('parlays', 'combined', defs)}${plPanel()}`;
+  }
+  view.addEventListener('scroll', (e) => {
+    const car = e.target;
+    if (!car || !car.classList || !car.classList.contains('pl-car')) return;
+    const dots = car.nextElementSibling && car.nextElementSibling.children, first = car.firstElementChild, nx = first && first.nextElementSibling;
+    if (!dots || !dots.length || !first) return;
+    const step = nx ? nx.offsetLeft - first.offsetLeft : first.offsetWidth;
+    const i = car.scrollLeft + car.clientWidth >= car.scrollWidth - 2 ? dots.length - 1 : Math.max(0, Math.min(dots.length - 1, Math.round(car.scrollLeft / (step || 1))));
+    Array.prototype.forEach.call(dots, (d, k) => d.classList.toggle('on', k === i));
+    plFit(car, i);
+  }, true);
+  // carousel height follows the card in view, so short cards don't leave a gap above the dots
+  function plFit(car, i) {
+    const k = car && car.children[i];
+    if (k) car.style.height = k.offsetHeight + 2 + 'px';
   }
   function topRated() {
     if (!store.idxDone) return skRows(3);

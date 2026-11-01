@@ -845,3 +845,25 @@ button.prow{width:100%;text-align:left;align-items:flex-start;min-height:64px}
 a.gl-row{text-decoration:none;color:inherit}
 a.gl-row:active{background:var(--card2)}
 @media (max-width:340px){.pg-ls{padding:9px 10px 10px;grid-template-columns:38px repeat(var(--n),minmax(0,1fr)) 34px;font-size:12px}.pg-tbl{font-size:12px}.pg-tbl th,.pg-tbl td{padding:6px 5px}.pg-tbl th:first-child,.pg-tbl td:first-child{padding-left:10px}.pg-pl b{max-width:104px;font-size:12px}.pg-key{font-size:10px}}
+
+/* Parlays panel (Bets > Dashboard) */
+.pl-car{display:flex;align-items:flex-start;transition:height .2s ease;gap:10px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;overscroll-behavior-x:contain;margin:0;padding:0 0 2px}
+.pl-car::-webkit-scrollbar{display:none}
+.pl-car:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:18px}
+.pl-card{flex:0 0 86%;min-width:0;scroll-snap-align:start;padding:14px 14px 12px}
+.pl-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.pl-top .lbl{text-transform:none;letter-spacing:.02em;font-size:12px}
+.pl-odds{font:600 14px/1 var(--f-m);color:var(--ink)}
+.pl-ev{margin-top:8px;font:700 34px/1 var(--f-d);letter-spacing:.01em}
+.pl-ch{margin-top:4px;font-size:12px;color:var(--muted)}
+.pl-legs{display:flex;flex-direction:column;margin-top:10px;border-top:1px solid var(--line)}
+.pl-leg{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 0;border-bottom:1px solid var(--line);color:inherit;text-decoration:none;min-width:0}
+.pl-leg-l{display:flex;flex-direction:column;gap:3px;min-width:0}
+.pl-leg-n{font-size:14px;font-weight:600;line-height:1.2;overflow-wrap:anywhere}
+.pl-leg-s{font:500 11px/1.3 var(--f-m);color:var(--muted)}
+.pl-leg-ev{flex:none;font:700 15px/1 var(--f-d)}
+.pl-foot{margin-top:9px;font-size:11px;color:var(--faint)}
+.pl-dots{display:flex;justify-content:center;gap:6px;margin-top:10px}
+.pl-dots i{width:6px;height:6px;border-radius:50%;background:var(--line);transition:background .2s,transform .2s}
+.pl-dots i.on{background:var(--accent);transform:scale(1.25)}
+.pl-sk{padding:10px}

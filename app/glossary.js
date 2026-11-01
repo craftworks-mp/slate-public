@@ -34,6 +34,9 @@ window.GLOSSARY = {
     units: 'Profit or loss in units, at the odds you saved. A win pays by those odds, a loss costs the units you picked.',
     roi: 'Return on investment: units won or lost divided by units staked on settled bets. Void bets are left out.',
   },
+  parlays: {
+    combined: 'Combined EV = (1 + EV₁) × (1 + EV₂) × … − 1. Exact for parlays across different games, which books pay at the multiplied odds. Each leg is the model’s own side with EV between 0% and 8%; same-game parlays are left out because the legs move together.',
+  },
   // Results tab (Model view). Shown with the ⓘ button; keep each to 1-2 lines.
   results: {
     graded: 'Every graded bet in the filters, counted as stored. Both sides of every prop are in the data (over and under), so each line adds two bets. Flagged, void and DNP rows are left out.',
