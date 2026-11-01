@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1bc0c46">
+<link rel="stylesheet" href="style.css?v=287abb9">
 </head>
 <body>
 <header class="topbar">
@@ -58,9 +58,19 @@
   <div class="row"><span class="lbl">Book</span><span class="val">DraftKings</span></div>
   <div class="row"><span class="lbl">Unit label</span><span class="val">1u</span></div>
   <div class="row"><span class="lbl">Default sort</span><span class="val">EV</span></div>
+  <div class="bk">
+    <div class="row"><span class="lbl">My bets backup</span></div>
+    <div class="bk-btns"><button class="btn" id="bk-export">Export JSON</button><label class="btn" for="bk-file" tabindex="0">Import JSON</label></div>
+    <input type="file" id="bk-file" accept="application/json,.json" hidden>
+    <p class="bk-msg" id="bk-msg" role="status"></p>
+  </div>
   <button class="btn" id="close">Close</button>
 </section>
-<script src="glossary.js?v=1bc0c46"></script>
-<script src="app.js?v=1bc0c46"></script>
+<section class="sheet" id="bet-sheet" role="dialog" aria-modal="true" aria-labelledby="bs-title" hidden></section>
+<script src="glossary.js?v=287abb9"></script>
+<script src="tiers.js?v=287abb9"></script>
+<script src="mybets.js?v=287abb9"></script>
+<script src="results.js?v=287abb9"></script>
+<script src="app.js?v=287abb9"></script>
 </body>
 </html>

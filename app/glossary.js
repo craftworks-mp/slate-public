@@ -29,4 +29,19 @@ window.GLOSSARY = {
     steady: 'Bottom 10% of players for game-to-game swing in his main stat (PRA in the NBA, shots on goal in the NHL), measured against what is normal for his volume. Needs 8+ games.',
     new: 'Played for a different team last season.',
   },
+  mybets: {
+    record: 'Wins-losses-pushes of your settled bets. A push returns your stake. Void bets (player did not play) count as never placed.',
+    units: 'Profit or loss in units, at the odds you saved. A win pays by those odds, a loss costs the units you picked.',
+    roi: 'Return on investment: units won or lost divided by units staked on settled bets. Void bets are left out.',
+  },
+  // Results tab (Model view). Shown with the ⓘ button; keep each to 1-2 lines.
+  results: {
+    graded: 'Every graded bet in the filters, counted as stored. Both sides of every prop are in the data (over and under), so each line adds two bets. Flagged, void and DNP rows are left out.',
+    win: 'Won divided by won plus lost; pushes are left out. On its own it misleads, because longer odds need fewer wins: compare it with the break-even % under it.',
+    edge: 'Win % minus break-even %. Break-even is the win rate the odds you took need to pay off (-110 needs 52.4%), averaged over the bets. Above 0 means the bets won more than their price required.',
+    roi: 'Units won per unit staked, flat 1u at the odds taken: a win pays the odds, a loss costs 1, a push 0.',
+    beat: 'How often the open price was better than the close on the same side: the line moved your way, or the line held and the odds shortened. Needs both prices; bets without both are not counted.',
+    grades: 'Did a better grade win more than its odds required? Edge and ROI should fall from S+ to F. Ungraded: game lines (grades not published) and sports without live grades.',
+    units: 'Running total of units won, 1u flat at the odds taken, for each grade group. Ungraded bets are not charted.',
+  },
 };

@@ -35,6 +35,7 @@
     chartStat: {}, // player page chart stat ('<sport>/<pid>' -> stat key)
     shotView: {}, // player Matchup tab shot matchup toggle ('<sport>/<pid>' -> 'his' | 'def')
     infoOpen: {}, // open definition notes ('<sport>/<key>' -> true)
+    res: { view: 'model', ph: 'close', range: 'season', fold: false, mkt: '', ou: '', fd: '', ha: '' }, // Results tab, Model view (app/results.js)
   };
   let cur = { key: '', sport: null, kind: 'root', id: '' };
 
@@ -95,7 +96,7 @@
       const on = seg.querySelector('button.on');
       if (!hl || !on) return;
       const b0 = seg.querySelector('button').dataset;
-      const kind = b0.sub !== undefined ? 'sub' : b0.sort !== undefined ? 'sort' : b0.cmp !== undefined ? 'cmp' : b0.shotv !== undefined ? 'shotv' : b0.ptab !== undefined ? 'ptab' : b0.bside !== undefined ? 'bside' : 'filter';
+      const kind = b0.bseg !== undefined ? 'bseg' : b0.sub !== undefined ? 'sub' : b0.sort !== undefined ? 'sort' : b0.cmp !== undefined ? 'cmp' : b0.shotv !== undefined ? 'shotv' : b0.ptab !== undefined ? 'ptab' : b0.bside !== undefined ? 'bside' : 'filter';
       const x = on.offsetLeft, w = on.offsetWidth;
       const prev = lastHl[kind];
       lastHl[kind] = { x, w };
@@ -874,14 +875,15 @@
     const pros = (ph.pros || []).map((t) => `<div class="pro">${esc(t)}</div>`).join('');
     const cons = (ph.cons || []).map((t) => `<div class="con">${esc(t)}</div>`).join('');
     const ctx = pros || cons ? `<div class="bet-ctx"><div class="lbl">Context</div>${pros}${cons}</div>` : '<div class="bet-ctx"><div class="lbl">Context</div><div class="bet-none">No notes on this prop.</div></div>';
-    return `<div class="bet-wrap${open ? ' open' : ''}${showPick && !r.pick ? ' alt' : ''}"><button class="bet" data-bet="${esc(r.id)}" aria-expanded="${open}">
+    const add = addBtn(cur.sport || 'nba', r);
+    return `<div class="bet-wrap${open ? ' open' : ''}${showPick && !r.pick ? ' alt' : ''}${add ? ' has-add' : ''}"><button class="bet" data-bet="${esc(r.id)}" aria-expanded="${open}">
       <span class="bet-l"><span class="bet-mkt">${esc(BET_STAT[b.stat] || String(b.stat).toUpperCase())} ${b.side === 'u' ? 'U' : 'O'} ${esc(ph.line)}</span>
         <span class="bet-sub">${fmtOdds(ph.odds)} · ${r.tag.toUpperCase()}${showPick && !r.pick ? '<em class="side-tag">Other side</em>' : ''}</span></span>
       <span class="bet-m"><span class="bet-proj">Proj ${ph.proj.toFixed(1)}</span>
         <span class="ev gap ${c}">${sgn(gap, 1)}${pct === null ? '' : ` (${sgn(pct, 0)}%)`}</span></span>
       <span class="bet-r"><span class="ev bet-ev ${c}">${sgn(ph.ev, 1)}%</span>
         ${g ? `<span class="grade-badge" data-g="${g}">${g}</span>` : ph.uncal ? UNCAL : ''}</span>
-    </button>${open ? ctx : ''}</div>`;
+    </button>${add}${open ? ctx : ''}</div>`;
   }
   function playerCard(sport, grp, showPick) {
     const best = GRADE_ORDER[Math.min(...grp.rows.map(gradeIdx))];
@@ -921,8 +923,10 @@
     const bt = (id, cls, inner) => `<button class="bt-c ${cls}${state.betOpen[id] ? ' open' : ''}" data-bet="${esc(id)}" aria-expanded="${!!state.betOpen[id]}">${inner}</button>`;
     let hd = '<span class="bt-l"></span>', sr = '<span class="bt-l">Season</span>', ln = '<span class="bt-l">Line</span>',
       pj = `<span class="bt-l">Proj${first ? infoBtn(sport, 'btproj', BT_DEFS) : ''}</span>`, ev = `<span class="bt-l">EV${first ? infoBtn(sport, 'btev', BT_DEFS) : ''}</span>`;
+    let ad = '<span class="bt-l">My bets</span>';
     cols.forEach(([k, lab, dp]) => {
       const r = grp.cells[k], h = hl(k);
+      ad += r && k !== 'min' && addBtn(sport, r) ? `<span class="bt-ad">${addBtn(sport, r)}</span>` : '<span></span>';
       hd += `<span class="bt-h${h}">${lab}</span>`;
       sr += `<span class="bt-v${h}">${fx(st[k], dp)}</span>`;
       if (k === 'min') {
@@ -956,7 +960,7 @@
       <span class="pcard-n">${grp.team ? tbadge(sport, grp.team, 's', '', true) : ''}<b>${esc(grp.name)}</b>${grp.inj ? `<i class="inj">${esc(grp.inj)}</i>` : ''}</span>
       <span class="pcard-r">${best ? `<span class="grade-badge" data-g="${best}">${best}</span>` : uncal ? UNCAL : ''}</span>
       <span class="pcard-chev" aria-hidden="true">›</span></button>
-      <div class="btab" style="--n:${cols.length}">${hd}${sr}${ln}${pj}${ev}</div>${notes}${ctx}${combo}</div>`;
+      <div class="btab" style="--n:${cols.length}">${hd}${sr}${ln}${pj}${ev}${ad}</div>${notes}${ctx}${combo}</div>`;
   }
   function betsTab(sport, date) {
     const e = ensureSlate(sport, date);
@@ -1212,12 +1216,21 @@
       return (h === 'g' ? 'rgba(62,230,160,' : 'rgba(255,122,112,') + (.10 + t * .45).toFixed(3) + ')';
     });
   }
-  function szCourt(F, T) {
+  // Option C presentation (design approved 10/31 20:29): lead verdict, one shaded court / rink, ranked zone list.
+  const szcOpen = {}; // 'm:<sport>/<pid>' = zone list unfolded, 't:<sport>/<pid>' = NHL shot types open
+  // F = fill per zone, T = printed label per zone ('' = none), hl = zone index to outline (mismatch zone)
+  function szcCourt(F, T, hl) {
     const B = (shape, i) => `${shape.replace('/>', ' class="szb"/>')}${shape.replace('/>', ` style="fill:${F[i]}"/>`)}`;
     const ab = ['170,40 100,236 0,236 0,0 170,0', '170,40 100,236 240,236', '170,40 240,236 340,236 340,0 170,0'];
     const poly = (pts, i) => B(`<polygon points="${pts}"/>`, i);
-    const txt = (x, y, i, sz) => `<text x="${x}" y="${y}"${sz ? ` style="font-size:${sz}px"` : ''}>${T[i]}</text>`;
-    return `<svg class="szsvg" viewBox="0 0 340 226" role="img" aria-label="Half court with the make percentage in each of 10 zones" preserveAspectRatio="xMidYMin meet">
+    const txt = (x, y, i, sz) => (T[i] === '' ? '' : `<text x="${x}" y="${y}"${sz ? ` style="font-size:${sz}px"` : ''}>${T[i]}</text>`);
+    // outline of the mismatch zone, drawn after every fill so no later zone paints over it
+    const hs = [['<circle cx="170" cy="40" r="36"/>'], ['<rect x="120" y="0" width="100" height="124"/>'],
+      [`<polygon points="${ab[0]}"/>`, 1], [`<polygon points="${ab[1]}"/>`, 1], [`<polygon points="${ab[2]}"/>`, 1],
+      ['<rect x="0" y="0" width="56" height="110"/>'], ['<rect x="284" y="0" width="56" height="110"/>'],
+      [`<polygon points="${ab[0]}"/>`], [`<polygon points="${ab[1]}"/>`], [`<polygon points="${ab[2]}"/>`]];
+    const h = hl >= 0 && hs[hl] ? (hs[hl][1] ? `<g clip-path="url(#szc-arc)">` : '<g>') + hs[hl][0].replace('/>', ' class="szchl"/>') + '</g>' : '';
+    return `<svg class="szsvg" viewBox="0 0 340 226" role="img" aria-label="Half court with 10 shot zones shaded by make percentage versus league" preserveAspectRatio="xMidYMin meet">
       <defs><clipPath id="szc-out"><path d="M12,0 H328 Q340,0 340,12 V110 A183.8 183.8 0 0 1 0,110 V12 Q0,0 12,0 Z"/></clipPath>
       <clipPath id="szc-arc"><path d="M56,0 L56,110 A133.8,133.8 0 0 0 284,110 L284,0 Z"/></clipPath></defs>
       <g clip-path="url(#szc-out)">
@@ -1228,15 +1241,19 @@
         <path class="szl" d="M56,0 V110 A133.8,133.8 0 0 0 284,110 V0 M0,110 H56 M284,110 H340 M140,124 L108.1,213.1 M200,124 L231.9,213.1 M120,0 V124 H220 V0"/>
         <circle class="szl" cx="170" cy="40" r="36"/>
         <path class="szh" d="M158,8 H182"/><circle class="szh" cx="170" cy="13" r="4"/>
+        ${h}
       </g>
       ${txt(170, 54, 0)}${txt(170, 104, 1)}${txt(88, 64, 2)}${txt(170, 158, 3)}${txt(252, 64, 4)}${txt(28, 61, 5, 16)}${txt(312, 61, 6, 16)}${txt(58, 162, 7)}${txt(170, 206, 8)}${txt(282, 162, 9)}
     </svg>`;
   }
-  function szRink(F, T) {
+  function szcRink(F, T, hl) {
     const B = (shape, i) => `${shape.replace('/>', ' class="szb"/>')}${shape.replace('/>', ` style="fill:${F[i]}"/>`)}`;
     const R = (x, y, w, h, i) => B(`<rect x="${x}" y="${y}" width="${w}" height="${h}"/>`, i);
-    const txt = (x, y, i) => `<text x="${x}" y="${y}">${T[i]}</text>`;
-    return `<svg class="szsvg" viewBox="0 0 340 300" role="img" aria-label="Offensive zone with the scoring percentage in each of 7 zones" preserveAspectRatio="xMidYMin meet">
+    const txt = (x, y, i) => (T[i] === '' ? '' : `<text x="${x}" y="${y}">${T[i]}</text>`);
+    const hs = ['<rect x="0" y="0" width="340" height="44"/>', '<rect x="112" y="44" width="116" height="80"/>', '<rect x="112" y="124" width="116" height="84"/>',
+      '<rect x="0" y="44" width="112" height="164"/>', '<rect x="228" y="44" width="112" height="164"/>', '<rect x="0" y="208" width="170" height="92"/>', '<rect x="170" y="208" width="170" height="92"/>'];
+    const h = hl >= 0 && hs[hl] ? hs[hl].replace('/>', ' class="szchl"/>') : '';
+    return `<svg class="szsvg" viewBox="0 0 340 300" role="img" aria-label="Offensive zone with 7 shot zones shaded by scoring percentage versus league" preserveAspectRatio="xMidYMin meet">
       <defs><clipPath id="szc-rink"><path d="M0,300 L0,112 A112,112 0 0 1 112,0 L228,0 A112,112 0 0 1 340,112 L340,300 Z"/></clipPath></defs>
       <g clip-path="url(#szc-rink)">
         ${R(0, 0, 340, 44, 0)}${R(0, 44, 112, 164, 3)}${R(112, 44, 116, 80, 1)}${R(112, 124, 116, 84, 2)}${R(228, 44, 112, 164, 4)}${R(0, 208, 170, 92, 5)}${R(170, 208, 170, 92, 6)}
@@ -1245,6 +1262,7 @@
         <path d="M0,44 H340" style="stroke:rgba(255,122,112,.6);stroke-width:1.2"/>
         <path d="M146,44 A24,24 0 0 0 194,44" style="fill:none;stroke:rgba(124,195,255,.7);stroke-width:1.2"/>
         <path d="M0,298 H340" style="stroke:rgba(124,195,255,.7);stroke-width:2.4"/>
+        ${h}
       </g>
       ${txt(170, 28, 0)}${txt(56, 132, 3)}${txt(170, 90, 1)}${txt(170, 172, 2)}${txt(284, 132, 4)}${txt(85, 260, 5)}${txt(255, 260, 6)}
     </svg>`;
@@ -1288,23 +1306,31 @@
     const S = view === 'his' ? e.s : defS, D = view === 'his' ? e.d : tm.d;
     const LS = view === 'his' ? lg.s : defLS, LD = lg.d;
     const fills = szFills(S, D, LS);
-    const T = S.map((v) => (isNum(v) ? Math.round(v * 100) + '' : '–'));
-    const art = nhl ? szRink(fills, T) : szCourt(fills, T);
-    const rows = cfg.lab.map((lab, i) => {
-      const sh = szHue(S[i], LS[i]), dh = szHue(D[i], LD[i]);
-      return `<div class="szr"><span class="szk">${lab}</span><b class="sz-${sh}">${szPct(S[i])}</b><i class="sz-${dh}">${szPct(D[i])}</i></div>`;
+    // labels only on the 3 highest-volume zones of this view; zones ranked by share of shots (Dist.), ties keep zone order
+    const order = D.map((v, i) => i).sort((x, y) => (isNum(D[y]) ? D[y] : -1) - (isNum(D[x]) ? D[x] : -1));
+    const top = order.slice(0, 3);
+    const T = S.map((v, i) => (!top.includes(i) ? '' : isNum(v) ? Math.round(v * 100) + '' : '–'));
+    const art = nhl ? szcRink(fills, T, bi) : szcCourt(fills, T, bi);
+    const who = view === 'his' ? 'He ' + cfg.verb + 's' : (nhl && gk ? gk.name + ' allows' : opp + ' allows');
+    const leg = `<div class="szc-leg"><span class="szc-sw g"></span>${esc(who)} more than league<span class="szc-sw r"></span>less<span class="szc-ramp"><u></u>darker = more shots</span></div>`;
+    const okey = sport + '/' + pid, more = !!szcOpen['m:' + okey], dmax = isNum(D[order[0]]) && D[order[0]] > 0 ? D[order[0]] : 1;
+    const rows = order.map((i, n) => {
+      const sh = szHue(S[i], LS[i]), dd = isNum(S[i]) && isNum(LS[i]) ? (S[i] - LS[i]) * 100 : null;
+      const chip = dd === null ? '<em class="szc-chip n">—</em>' : `<em class="szc-chip ${sh}">${sgn(dd, 0)}</em>`;
+      const w = isNum(D[i]) ? Math.max(2, D[i] / dmax * 100).toFixed(0) : 0;
+      return `<div class="szc-r${n >= 5 && !more ? ' szc-hide' : ''}${i === bi ? ' lead' : ''}"><span class="szc-k">${cfg.lab[i]}${i === bi ? '<span class="szc-tag">mismatch</span>' : ''}</span>`
+        + `<span class="szc-d"><u style="width:${w}%;background:${fills[i]}"></u><i>${szPct(D[i])}</i></span><b class="sz-${sh}">${szPct(S[i])}</b>${chip}</div>`;
     }).join('');
-    const table = `<div class="sztab" role="table"><div class="szr szrh"><span>Zone</span><span>S%</span><span>Dist.</span></div>${rows}</div>`;
-    const sw = (c, t) => `<span class="szw"><u style="background:${c}"></u>${t}</span>`;
-    const key3 = `<div class="szkey"><p><b>S%</b> ${view === 'his' ? 'he ' + cfg.verb + 's' : (nhl && gk ? opp + ' + ' + gk.name + ' allow' : opp + ' allows ' + gname)} from each zone</p>
-      <p><b>Dist.</b> share of ${view === 'his' ? 'his shots' : 'the shots ' + opp + ' allows ' + gname}; deeper color = more shots</p>
-      <p>${sw('rgba(62,230,160,.5)', '3+ pts over league')}${sw('rgba(255,122,112,.5)', '3+ pts under')}${sw('rgba(236,245,240,.12)', 'even')}</p></div>`;
+    const hidden = order.length - 5;
+    const moreBtn = hidden > 0 ? `<button class="szc-more" data-szcm="${esc(okey)}" aria-expanded="${more}">${more ? 'Fewer zones' : hidden + ' more zones'}</button>` : '';
+    const list = `<div class="szc-list" role="table"><div class="szc-r szc-h"><span>Zone</span><span>Share of shots</span><span>S%</span><span>vs lg</span></div>${rows}${moreBtn}</div>`;
     // mismatch: zone with the biggest his-Dist. x (allowed - league) gap
     let mm = '';
     if (bi >= 0) {
       const dnm = (nhl && gk ? opp + ' with ' + gk.name : opp);
-      mm = `<p class="szmm"><b>Mismatch</b> ${cfg.at[bi].replace(/^./, (c) => c.toUpperCase())}: ${szPct(e.d[bi])} of his shots${isNum(e.s[bi]) ? ', he ' + cfg.verb + 's ' + szPct(e.s[bi]) : ''}. ${esc(dnm)} ${nhl && gk ? 'let shooters' : 'lets ' + gname} ${cfg.verb} ${szPct(defS[bi])} there (league ${szPct(defLS[bi])}).</p>`;
+      mm = `${cfg.at[bi].replace(/^./, (c) => c.toUpperCase())}: ${szPct(e.d[bi])} of his shots${isNum(e.s[bi]) ? ', he ' + cfg.verb + 's ' + szPct(e.s[bi]) : ''}. ${esc(dnm)} ${nhl && gk ? 'let shooters' : 'lets ' + gname} ${cfg.verb} ${szPct(defS[bi])} there (league ${szPct(defLS[bi])}).`;
     }
+    const lead = `<p class="szc-lead">${sum}${mm}</p>`;
     // NHL shot types
     let types = '';
     if (nhl && e.tc) {
@@ -1316,7 +1342,13 @@
         return `<div class="szt"><span class="szk">${lab}</span><span class="szbar"><u class="sz-bg-${hh}" style="width:${isNum(dv) ? Math.max(2, dv / mx * 100).toFixed(1) : 0}%"></u></span><span class="szv">${txt}</span></div>`;
       }).join('')}</div>`;
     }
-    return hd(sum) + `<div class="card szcard">${tog}<div class="szgrid">${table}<div class="szart">${art}${key3}</div></div>${types}${mm}</div>`;
+    if (types) {
+      const to = !!szcOpen['t:' + okey];
+      types = `<div class="szc-types"><button class="szc-tbtn" data-szct="${esc(okey)}" aria-expanded="${to}">Shot types</button>${to ? types : ''}</div>`;
+    }
+    const html = hd() + `<div class="card szcard szc">${tog}${lead}<div class="szc-art">${art}${leg}</div>${list}${types}</div>`;
+    const lock = hd() + noteCard('Shot matchup is part of the premium tier.');
+    return window.gate ? window.gate('shotMatchup', html, lock) : html;
   }
 
   function playerView(sport, pid) {
@@ -1565,6 +1597,71 @@
     return `<div class="sched" aria-label="${esc(code)} schedule">${out}</div>`;
   }
 
+  // ---- Results tab, Model view (maths + HTML in app/results.js) ----
+  store.res = {};
+  let resWait = false;
+  // One month of one sport: ../results/<sp>/<YYYY-MM>.json ({ rows: { betId: row }, games }); cached in store.res
+  function ensureResults(sp, month) {
+    const k = sp + '/' + month;
+    if (store.res[k]) return store.res[k];
+    const e = store.res[k] = { st: 'loading', sp, month };
+    getJSON('../results/' + sp + '/' + month + '.json' + ver()).then((r) => {
+      if (r.nf) { e.st = 'err'; return; }
+      const rows = r.data && r.data.rows;
+      e.rows = (Array.isArray(rows) ? rows : Object.values(rows || {})).map((x) => Object.assign({ sp }, x));
+      e.st = 'ok';
+    }, () => { e.st = 'err'; }).then(rerender);
+    return e;
+  }
+  function resultsView() {
+    const R = window.RESULTS, s = state.res;
+    const defs = (window.GLOSSARY || {}).results || {};
+    const info = (k) => ({ btn: infoBtn('res', k, defs), note: infoNote('res', k, defs) });
+    const gate = (html, lock) => (window.gate ? window.gate('resultsDeepFilters', html, lock) : html);
+    const ctx = { s, sport: state.filter, info, gate };
+    if (!R) { ctx.err = true; return `<div class="seg-wrap">${segmented(FILTERS, state.filter, 'data-filter')}</div>`; }
+    const head = segmented(FILTERS, state.filter, 'data-filter');
+    if (s.view === 'mine') return head + R.view(ctx);
+    if (!store.idxDone) {
+      if (!resWait) { resWait = true; indexP.then(rerender); }
+      ctx.loading = true; return head + R.view(ctx);
+    }
+    const sps = state.filter === 'All' ? ['nfl', 'nba', 'nhl'] : [state.filter.toLowerCase()];
+    const rg = R.range(s.range, ymd(0));
+    const ents = [];
+    sps.forEach((sp) => {
+      const sx = store.idx && store.idx.sports && store.idx.sports[sp];
+      R.monthsIn(sx && sx.results, rg).forEach((m) => ents.push(ensureResults(sp, m)));
+    });
+    if (ents.some((e) => e.st === 'err')) ctx.err = true;
+    else if (ents.some((e) => e.st === 'loading')) ctx.loading = true;
+    else if (!ents.length) ctx.noData = `${state.filter === 'All' ? 'No sport' : state.filter} has no graded results in this date range yet.`;
+    if (!ctx.err && !ctx.loading && !ctx.noData) {
+      const rows = [].concat.apply([], ents.map((e) => e.rows));
+      ctx.B = R.build(rows, { ph: s.ph, from: rg.from, to: rg.to, mkt: s.mkt, ou: s.ou, fd: s.fd, ha: s.ha });
+    }
+    return head + R.view(ctx);
+  }
+  function resultsClick(v) {
+    const i = v.indexOf(':'), k = v.slice(0, i), x = v.slice(i + 1), s = state.res;
+    if (k === 'fold') s.fold = !s.fold;
+    else if (k === 'reset') { s.mkt = s.ou = s.fd = s.ha = ''; s.range = 'season'; }
+    else if (k === 'retry') { Object.keys(store.res).forEach((q) => { if (store.res[q].st === 'err') delete store.res[q]; }); }
+    else if (k in s && k !== 'fold') s[k] = x;
+  }
+  // chart readout: tap or hover a day
+  function resultsHover(e) {
+    const g = e.target.closest && e.target.closest('.rs-x');
+    if (!g) return;
+    const svg = g.closest('svg');
+    svg.querySelectorAll('.rs-x.on').forEach((n) => n.classList.remove('on'));
+    g.classList.add('on');
+    const rd = svg.parentNode.querySelector('.rs-read');
+    if (rd) rd.textContent = g.dataset.read;
+  }
+  view.addEventListener('click', resultsHover);
+  view.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') resultsHover(e); });
+
   function parse() {
     const p = location.hash.slice(1).split('/').map((x) => decodeURIComponent(x));
     const r = p[0];
@@ -1593,11 +1690,9 @@
     });
 
     if (c.page === 'bets') {
-      view.innerHTML = empty('Bets', 'Swipe decks', 'Decks open at the close pull.', 2);
+      view.innerHTML = betsPage();
     } else if (c.page === 'results') {
-      const tile = (l) => `<div class="tile"><div class="lbl">${l}</div><div class="num">\u2014</div><span class="bar w55"></span></div>`;
-      view.innerHTML = segmented(FILTERS, state.filter, 'data-filter') +
-        `<div class="tiles" aria-label="${esc(state.filter)} results, data coming next">${['W-L', 'Win %', 'Units', 'ROI'].map(tile).join('')}</div>`;
+      view.innerHTML = resultsView();
     } else if (c.kind === 'standings') view.innerHTML = standings(c.sport);
     else if (c.kind === 'game') view.innerHTML = gameView(c.sport, c.id);
     else if (c.kind === 'player') view.innerHTML = playerView(c.sport, c.id);
@@ -1626,6 +1721,7 @@
     const d = b.dataset;
     const bcEl = view.querySelector('.bchips'); bcScroll = bcEl ? bcEl.scrollLeft : 0;
     if (d.back !== undefined) return goBack();
+    if (d.rs !== undefined) { resultsClick(d.rs); render(); return; }
     if (d.retry) { delete store.days[d.retry]; const m = store.meta[sportOf()]; if (m && m.st === 'err') delete store.meta[sportOf()]; render(); return; }
     if (d.retrySlate) { delete store.slates[d.retrySlate]; render(); return; }
     if (d.player) { location.hash = '#' + sportOf() + '/player/' + encodeURIComponent(d.player); return; }
@@ -1652,6 +1748,8 @@
     else if (d.sub) state.gameTab = d.sub;
     else if (d.cmp) state.cmpSplit = d.cmp;
     else if (d.shotv) state.shotView[sportOf() + '/' + cur.id] = d.shotv;
+    else if (d.szcm) { szcOpen['m:' + d.szcm] = !szcOpen['m:' + d.szcm]; }
+    else if (d.szct) { szcOpen['t:' + d.szct] = !szcOpen['t:' + d.szct]; }
     else if (d.cstat) state.chartStat[sportOf() + '/' + cur.id] = d.cstat;
     else if (d.info) { if (state.infoOpen[d.info]) delete state.infoOpen[d.info]; else state.infoOpen[d.info] = true; }
     else if (d.day) state.sel[sportOf()] = d.day;
@@ -1659,6 +1757,272 @@
     else return;
     render();
   });
+
+  // ======== My Bets (Bets tab, add flow). Self-contained section: hooks are addBtn() in betRow / tblCard and betsPage() in render ========
+  const MB = window.MyBets;
+  let mb = MB.load();
+  state.betSeg = 'dash'; // Bets tab segment: dash | mine
+  state.mbMore = false; // My Bets 'Show all settled'
+  const idDate = (id) => { const m = /^(\d{4}-\d{2}-\d{2})-/.exec(String(id)); return m ? m[1] : ''; };
+  const betText = (r) => `${BET_STAT[r.b.stat] || String(r.b.stat).toUpperCase()} ${r.b.side === 'u' ? 'U' : 'O'} ${r.ph.line}`;
+  const uTxt = (u) => `${+Number(u).toFixed(2)}u`;
+  const uSgn = (v) => `${sgn(v, 2)}u`;
+  const plCls = (v) => (v > 0.004 ? 'u-pos' : v < -0.004 ? 'u-neg' : 'u-n');
+  const PLUS_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg>';
+  const CHECK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+
+  // "+" / check button of a bet row (a sibling of the row button, so tapping it never expands the row)
+  function addBtn(sport, r) {
+    if (!isNum(r.ph.odds)) return '';
+    const on = !!mb.bets[r.id], lab = `${r.name} ${betText(r)}`;
+    return `<button class="addb${on ? ' on' : ''}" data-addbet="${esc(sport + '|' + r.id)}" aria-pressed="${on}" aria-label="${on ? 'Edit' : 'Add'} ${esc(lab)} ${on ? 'in' : 'to'} My Bets">${on ? CHECK_SVG : PLUS_SVG}</button>`;
+  }
+  // slate row (betRows shape) of a bet id, or null while the slate is not loaded
+  function slateRow(sport, id) {
+    const date = idDate(id), e = store.slates[sport + '/' + date];
+    if (!e || e.st !== 'ok') return null;
+    const b = (e.data.bets || {})[id];
+    if (!b || b.type !== 'prop') return null;
+    const r = betRows(e.data, b.gid).find((x) => x.id === id);
+    return r ? { r, slate: e.data, date } : null;
+  }
+  function newBet(sport, found) {
+    const { r, slate, date } = found, sg = (slate.games || {})[r.b.gid] || {};
+    const g = GRADE_ORDER.includes(r.ph.grade) ? r.ph.grade : '';
+    return {
+      id: r.id, sport, date, gid: String(r.b.gid), type: 'prop', market: r.b.stat, side: r.b.side, line: r.ph.line, odds: r.ph.odds, units: 1,
+      label: `${r.name} ${betText(r)}`, team: r.team, opp: sg.away === r.team ? sg.home || '' : sg.home === r.team ? sg.away || '' : '',
+      addedAt: new Date().toISOString(), oddsEdited: false, status: 'open', settledAt: '', pl: 0,
+      pid: r.pid, start: sg.kickoff || '', away: sg.away || '', home: sg.home || '', grade: g, uncal: !!r.ph.uncal,
+    };
+  }
+
+  // ---- add / edit sheet ----
+  const bsheet = $('bet-sheet'), bdrop = $('backdrop');
+  let bs = null; // { sport, id, bet (draft or stored), edit, units }
+  function bsRender() {
+    const b = bs.bet, locked = bs.edit && b.status !== 'open';
+    const sub = (b.away && b.home ? `${b.away} @ ${b.home}` : [b.team, b.opp].filter(Boolean).join(' vs ')) + ` · ${longOf(b.date)}`;
+    const res = locked ? `<span class="res-pill ${b.status === 'W' ? 'w' : b.status === 'L' ? 'l' : b.status === 'void' ? 'v' : 'p'}">${b.status === 'void' ? 'Void' : b.status}</span>` : '';
+    bsheet.innerHTML = `<div class="grab" aria-hidden="true"></div>
+      <h2 id="bs-title">${bs.edit ? (locked ? 'Settled bet' : 'Edit bet') : 'Add to My Bets'}</h2>
+      <div class="bs-bet"><b>${esc(b.label)}</b><span>${esc(sub)}</span></div>
+      <div class="bs-row"><span class="lbl">Line</span><span class="val">${esc(b.line === null ? '—' : b.line)}${res}</span></div>
+      ${locked ? `<div class="bs-row"><span class="lbl">Odds</span><span class="val">${fmtOdds(b.odds)}</span></div><div class="bs-row"><span class="lbl">Stake</span><span class="val">${uTxt(b.units)}</span></div>
+        <div class="bs-row"><span class="lbl">Result</span><span class="val ${plCls(b.pl)}">${b.status === 'void' ? 'Void, no stake' : uSgn(b.pl)}</span></div>`
+    : `<label class="bs-row" for="bs-odds"><span class="lbl">Odds</span><input id="bs-odds" class="bs-in" value="${esc(fmtOdds(b.odds).replace(MINUS, '-'))}" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="bs-err" aria-invalid="false"></label>
+      <p id="bs-err" class="bs-err" role="alert" hidden>Enter American odds like -110 or +150.</p>
+      <div class="bs-row bs-urow"><span class="lbl">Units</span><div class="bs-units" role="group" aria-label="Units">${MB.UNIT_CHOICES.map((u) => `<button class="bchip${u === bs.units ? ' on' : ''}" data-bsu="${u}" aria-pressed="${u === bs.units}">${uTxt(u)}</button>`).join('')}</div></div>`}
+      ${locked ? '' : `<button class="bs-go" id="bs-go">${bs.edit ? 'Update' : 'Add bet'}</button>`}
+      ${bs.edit ? '<button class="bs-rm" id="bs-rm">Remove bet</button>' : ''}
+      <button class="bs-x" id="bs-x">Close</button>`;
+    bsheet.setAttribute('aria-labelledby', 'bs-title');
+  }
+  function bsOpen(sport, id, trigger) {
+    const have = mb.bets[id];
+    let bet;
+    if (have) bet = have;
+    else {
+      const found = slateRow(sport, id);
+      if (!found || !isNum(found.r.ph.odds)) return;
+      bet = newBet(sport, found);
+    }
+    bs = { sport, id, bet, edit: !!have, units: bet.units, trigger };
+    bsRender();
+    bsheet.hidden = bdrop.hidden = false;
+    const f = $('bs-odds') || $('bs-x'); if (f) f.focus();
+  }
+  function bsClose() {
+    if (!bs) return;
+    const t = bs; bs = null;
+    bsheet.hidden = bdrop.hidden = true;
+    const again = document.querySelector(`[data-addbet="${(window.CSS && CSS.escape ? CSS.escape(t.sport + '|' + t.id) : t.sport + '|' + t.id)}"]`);
+    if (again) again.focus(); else if (t.trigger && t.trigger.isConnected) t.trigger.focus();
+  }
+  let toastT = 0;
+  function toast(msg) {
+    let el = $('toast');
+    if (!el) { el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+    el.textContent = msg; el.classList.add('show');
+    clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 3200);
+  }
+  function bsCommit() {
+    const inp = $('bs-odds'), odds = MB.parseOdds(inp ? inp.value : '');
+    if (odds === null) { $('bs-err').hidden = false; inp.setAttribute('aria-invalid', 'true'); inp.focus(); return; }
+    const b = Object.assign({}, bs.bet, { odds, units: bs.units });
+    if (bs.edit) b.oddsEdited = bs.bet.oddsEdited || odds !== bs.bet.odds; else b.oddsEdited = odds !== bs.bet.odds;
+    if (!bs.edit && odds === bs.bet.odds) b.oddsEdited = false;
+    mb.bets[b.id] = MB.cleanBet(b);
+    const ok = mbSave(), edit = bs.edit;
+    bsClose(); render();
+    toast(ok ? (edit ? 'Bet updated' : 'Added to My Bets') : 'Saved for this visit only: this browser blocks storage');
+  }
+  function bsRemove() {
+    delete mb.bets[bs.id];
+    const ok = mbSave();
+    bsClose(); render();
+    toast(ok ? 'Bet removed' : 'Removed for this visit only: this browser blocks storage');
+  }
+  const mbSave = () => MB.save(mb);
+  bsheet.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b || !bs) return;
+    if (b.dataset.bsu) { bs.units = +b.dataset.bsu; const inp = $('bs-odds'), v = inp ? inp.value : null; bsRender(); if (v !== null) $('bs-odds').value = v; $('bs-odds').focus(); }
+    else if (b.id === 'bs-go') bsCommit();
+    else if (b.id === 'bs-rm') bsRemove();
+    else if (b.id === 'bs-x') bsClose();
+  });
+  bsheet.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'bs-odds') { e.preventDefault(); bsCommit(); } });
+  bsheet.addEventListener('input', (e) => { if (e.target.id === 'bs-odds') { $('bs-err').hidden = true; e.target.setAttribute('aria-invalid', 'false'); } });
+  bdrop.addEventListener('click', bsClose);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && bs) bsClose(); });
+
+  // ---- grading from the published results files ----
+  const resStore = {}; // '<sp>/<YYYY-MM>' -> { st: loading | ok | none | err, at, rows }
+  function ensureMyResults(sp, month) {
+    const k = sp + '/' + month, old = resStore[k];
+    if (old && (old.st === 'loading' || Date.now() - old.at < 300000)) return old;
+    const e = resStore[k] = { st: 'loading', at: Date.now(), rows: {} };
+    indexP.then(() => {
+      const s = store.idx && store.idx.sports && store.idx.sports[sp];
+      if (store.idx && !(s && (s.results || []).includes(month))) return { nf: true };
+      return getJSON('../results/' + sp + '/' + month + '.json' + ver());
+    }).then((r) => {
+      if (r.nf || !r.data) e.st = 'none'; else { e.st = 'ok'; e.rows = r.data.rows && !Array.isArray(r.data.rows) ? r.data.rows : {}; }
+    }, () => { e.st = 'err'; }).then(() => { gradeMine(); rerender(); });
+    return e;
+  }
+  // settle open bets whose game day has results; returns the number of bets that changed
+  function gradeMine() {
+    const today = ymd(0);
+    Object.values(mb.bets).forEach((b) => { if (b.status === 'open' && b.date <= today) ensureMyResults(b.sport, b.date.slice(0, 7)); });
+    const n = MB.applyGrades(mb, (b) => { const e = resStore[b.sport + '/' + b.date.slice(0, 7)]; return e && e.st === 'ok' ? e.rows[b.id] : undefined; });
+    if (n) mbSave();
+    return n;
+  }
+
+  // ---- Bets tab ----
+  const gradeChip = (b) => (GRADE_ORDER.includes(b.grade) ? `<span class="grade-badge" data-g="${b.grade}">${b.grade}</span>` : b.uncal ? UNCAL : '');
+  const mbDefs = () => (window.GLOSSARY || {}).mybets || {};
+  function betsPage() {
+    gradeMine();
+    return `<div class="bseg">${segmented([['dash', 'Dashboard'], ['mine', 'My Bets']], state.betSeg, 'data-bseg')}</div>${state.betSeg === 'mine' ? myBetsView() : dashView()}`;
+  }
+  function mbRow(b) {
+    const open = b.status === 'open', where = b.away && b.home ? `${b.away} @ ${b.home}` : [b.team, b.opp].filter(Boolean).join(' vs ');
+    const when = open ? where : `${mdOf(b.date)} · ${where}`;
+    const res = open ? '' : b.status === 'void' ? '<span class="res-pill v">Void</span>' : `<span class="res-pill ${b.status === 'W' ? 'w' : b.status === 'L' ? 'l' : 'p'}">${b.status}</span>`;
+    const lead = open ? `<span class="bet-ev mb-u">${uTxt(b.units)}</span>` : b.status === 'void' ? '<span class="bet-ev mb-u u-n">0u</span>' : `<span class="bet-ev mb-u ${plCls(b.pl)}">${uSgn(b.pl)}</span>`;
+    return `<div class="bet-wrap"><button class="bet mbr" data-addbet="${esc(b.sport + '|' + b.id)}" aria-label="${open ? 'Edit' : 'View'} ${esc(b.label)}">
+      <span class="bet-l"><span class="bet-mkt">${esc(b.label)}</span>
+        <span class="bet-sub">${fmtOdds(b.odds)}${b.oddsEdited ? ' edited' : ''} · ${open ? uTxt(b.units) + ' · ' : ''}${esc(when)}${b.note ? `<em class="mb-note">${esc(b.note)}</em>` : ''}</span></span>
+      <span class="bet-m">${res}</span><span class="bet-r">${lead}${gradeChip(b)}</span></button></div>`;
+  }
+  function myBetsView() {
+    const all = Object.values(mb.bets), s = MB.summary(mb), D = mbDefs();
+    if (!all.length) return empty('Bets', 'No bets yet', 'Tap the + on any bet row to track it here. Pick 0.5 to 2 units, change the odds if yours differ, and results settle on their own.', 0);
+    const settledN = s.w + s.l + s.p;
+    const tile = (lab, key, num, sub) => `<div class="tile"><div class="lbl">${lab}${key ? infoBtn('mybets', key, D) : ''}</div><div class="num">${num}</div><small class="tsub">${sub}</small></div>`;
+    const tiles = `<div class="tiles mb-tiles">
+      ${tile('Open', '', s.open, s.open ? `${uTxt(s.atRisk)} at risk` : 'none')}
+      ${tile('Record', 'record', `${s.w}-${s.l}-${s.p}`, s.voided ? `${s.voided} void` : 'W-L-P')}
+      ${tile('Units', 'units', settledN ? `<span class="${plCls(s.units)}">${uSgn(s.units)}</span>` : '<span class="u-n">—</span>', settledN ? `${uTxt(s.staked)} staked` : 'no settled bets')}
+      ${tile('ROI', 'roi', s.roi === null ? '<span class="u-n">—</span>' : `<span class="${plCls(s.roi)}">${sgn(s.roi, 1)}%</span>`, 'on settled stakes')}</div>
+      ${['record', 'units', 'roi'].map((k) => infoNote('mybets', k, D)).join('')}`;
+    const open = all.filter((b) => b.status === 'open').sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0) || (x.start || '').localeCompare(y.start || '') || (x.gid < y.gid ? -1 : x.gid > y.gid ? 1 : 0) || x.addedAt.localeCompare(y.addedAt));
+    let openH = '';
+    if (open.length) {
+      let lastD = '', lastG = '', inList = false;
+      open.forEach((b) => {
+        if (b.date !== lastD) { if (inList) openH += '</div>'; inList = false; openH += sec(longOf(b.date) + (b.date === ymd(0) ? ' · Today' : '')); lastD = b.date; lastG = ''; }
+        if (b.gid !== lastG) { if (inList) openH += '</div>'; openH += `<div class="mb-g">${esc(b.away && b.home ? `${b.away} @ ${b.home}` : [b.team, b.opp].filter(Boolean).join(' vs '))}${b.start ? ` · ${esc(fmtTime(b.start))}` : ''}</div><div class="betlist">`; inList = true; lastG = b.gid; }
+        openH += mbRow(b);
+      });
+      if (inList) openH += '</div>';
+    } else openH = `${sec('Open')}<div class="card empty"><p>No open bets. Tap + on a bet row to add one.</p></div>`;
+    const done = all.filter((b) => b.status !== 'open').sort((x, y) => (y.settledAt || '').localeCompare(x.settledAt || '') || (y.date < x.date ? -1 : 1));
+    const shown = state.mbMore ? done : done.slice(0, 10);
+    const setH = done.length ? `${sec('Settled')}<div class="betlist">${shown.map(mbRow).join('')}</div>${done.length > 10 && !state.mbMore ? `<button class="pillbtn" data-bmore="1">Show all ${done.length}</button>` : ''}` : '';
+    return tiles + openH + setH;
+  }
+  function dashView() {
+    const scoring = gate('scoringPanels', `<div class="card mb-scoring"><div class="lbl">Scoring watch</div><p>Anytime TD · Anytime goal · Triple-double panels arrive next</p></div>`);
+    return `${scoring}${sec('Top rated today')}${topRated()}${sec('My open bets')}${openSummary()}`;
+  }
+  function topRated() {
+    if (!store.idxDone) return skRows(3);
+    const today = ymd(0), cand = [];
+    let loading = false, failed = false;
+    ['nfl', 'nba', 'nhl'].forEach((sp) => {
+      const s = store.idx && store.idx.sports && store.idx.sports[sp];
+      if (!s || !(s.slates || []).includes(today)) return;
+      const e = ensureSlate(sp, today);
+      if (e.st === 'loading') { loading = true; return; }
+      if (e.st === 'err') { failed = true; return; }
+      if (e.st !== 'ok') return;
+      ensureMeta(sp);
+      const gids = new Set(Object.values(e.data.bets || {}).map((b) => b && b.gid));
+      gids.forEach((gid) => betRows(e.data, gid).forEach((r) => {
+        if (r.ph.pick !== false && (r.ph.grade === 'S+' || r.ph.grade === 'A') && isNum(r.ph.odds)) cand.push({ sp, r, sg: (e.data.games || {})[gid] || {} });
+      }));
+    });
+    if (loading && !cand.length) return skRows(3);
+    cand.sort((x, y) => gradeIdx(x.r) - gradeIdx(y.r) || y.r.ph.ev - x.r.ph.ev);
+    const top = cand.slice(0, 5);
+    if (!top.length) return `<div class="card empty"><p>${failed ? 'Couldn’t load today’s slates. Check your connection and try again.' : 'No S+ or A bets on today’s slates yet.'}</p></div>`;
+    const rows = top.map(({ sp, r, sg }) => {
+      const c = evCls(r.ph.ev), opp = sg.away === r.team ? `vs ${sg.home}` : `@ ${sg.away}`, where = sg.away === r.team ? `@ ${sg.home}` : `vs ${sg.away}`;
+      const html = `<div class="bet-wrap has-add"><a class="bet tr" href="#${sp}/player/${encodeURIComponent(r.pid)}">
+        <span class="bet-l"><span class="bet-mkt">${esc(r.name)} ${esc(betText(r))}</span><span class="bet-sub">${fmtOdds(r.ph.odds)} · ${sp.toUpperCase()} ${esc(r.team)} ${esc(where)}${sg.kickoff ? ` · ${esc(fmtTime(sg.kickoff))}` : ''}</span></span>
+        <span class="bet-r"><span class="ev bet-ev ${c}">${sgn(r.ph.ev, 1)}%</span><span class="grade-badge" data-g="${r.ph.grade}">${r.ph.grade}</span></span></a>${addBtn(sp, r)}</div>`;
+      return r.ph.grade === 'S+' ? gate('sPlus', html) : html;
+    }).join('');
+    return `<div class="betlist">${rows}</div>`;
+  }
+  function openSummary() {
+    const open = Object.values(mb.bets).filter((b) => b.status === 'open');
+    if (!open.length) return `<div class="card empty"><p>No open bets. Tap + on a bet row to track one.</p></div>`;
+    const risk = open.reduce((a, b) => a + b.units, 0), now = Date.now();
+    const next = open.map((b) => b.start).filter((t) => t && new Date(t) > now).sort()[0];
+    const nt = next ? (etDay(next) === ymd(0) ? fmtTime(next) : `${dowOf(etDay(next))} ${fmtTime(next)}`) : '';
+    return `<button class="card mb-open" data-bgo="mine" aria-label="Open My Bets"><span class="mb-open-n">${open.length}<small>open</small></span>
+      <span class="mb-open-r"><b>${uTxt(risk)} at risk</b>${nt ? `<span>Next start ${esc(nt)}</span>` : ''}</span><span class="pcard-chev" aria-hidden="true">›</span></button>`;
+  }
+  view.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    const d = b.dataset;
+    if (d.addbet !== undefined) { e.stopPropagation(); const i = d.addbet.indexOf('|'); bsOpen(d.addbet.slice(0, i), d.addbet.slice(i + 1), b); }
+    else if (d.bseg) { state.betSeg = d.bseg; render(); }
+    else if (d.bgo) { state.betSeg = d.bgo; render(); }
+    else if (d.bmore) { state.mbMore = true; render(); }
+  });
+
+  // ---- backup (settings sheet) ----
+  $('bk-export').addEventListener('click', () => {
+    const blob = new Blob([MB.exportText(mb)], { type: 'application/json' }), a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = MB.exportName(ymd(0)); document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    $('bk-msg').textContent = `Exported ${Object.keys(mb.bets).length} bets.`;
+  });
+  $('bk-file').addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0], msg = $('bk-msg');
+    if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      const r = MB.mergeImport(mb, String(rd.result));
+      if (r.error) { msg.textContent = r.error; return; }
+      mb = r.store; const ok = mbSave();
+      msg.textContent = `Added ${r.added}, skipped ${r.skipped} already here${r.invalid ? `, ${r.invalid} invalid` : ''}.${ok ? '' : ' Storage is blocked: kept for this visit only.'}`;
+      gradeMine(); render();
+    };
+    rd.onerror = () => { msg.textContent = 'Couldn’t read that file.'; };
+    rd.readAsText(f);
+    e.target.value = '';
+  });
+  document.querySelector('label[for="bk-file"]').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('bk-file').click(); } });
+  gradeMine();
+  // ======== end My Bets ========
 
   // Track in-app history so the back button can use real browser back when possible.
   const stack = [location.hash];
