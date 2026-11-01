@@ -5,7 +5,7 @@
 (() => {
   const GR = ['S+', 'A', 'B', 'C', 'D', 'F'];
   const UNG = 'Ungraded';
-  const GROUPS = [['S+/A', ['S+', 'A'], '#b88a22'], ['B/C', ['B', 'C'], '#3f92d6'], ['D/F', ['D', 'F'], '#dd554f']]; // validated with dataviz validate_palette (dark)
+  const GROUPS = [['S+/A', ['S+', 'A'], '#FFB546'], ['B/C', ['B', 'C'], '#5B7CFF'], ['D/F', ['D', 'F'], '#FF5A6A']]; // palette F: --amber / --accent / --red (tokens.css)
   const MINUS = '−';
   const MK = { pts: 'Points', reb: 'Rebounds', ast: 'Assists', tpm: '3-pointers', pra: 'Pts+Reb+Ast', pr: 'Pts+Reb', pa: 'Pts+Ast', ra: 'Reb+Ast',
     sog: 'Shots on goal', a: 'Assists', g: 'Goals', td3: 'Triple-double', atd: 'Anytime TD', spread: 'Spread', total: 'Total', ttA: 'Away team total', ttB: 'Home team total', ml: 'Moneyline' };
@@ -226,7 +226,7 @@
     const dates = Array.from(new Set(settled.map(sd))).sort();
     let c = 0;
     const pts = dates.map((d) => { settled.forEach((b) => { if (sd(b) === d) c += b.pl; }); return Math.round(c * 100) / 100; });
-    const series = [{ k: 'Units', color: '#3ee6a0', pts, n: settled.length }];
+    const series = [{ k: 'Units', color: '#5B7CFF', pts, n: settled.length }];
     return { all: rmAgg(recs), markets, mopts: Object.keys(mset).map((k) => [k, mset[k]]).sort((a, b) => (a[1] < b[1] ? -1 : 1)), mkt, dates, series,
       aria: 'Cumulative units of your settled bets by settle day', dayLbl: 'Settled' };
   }

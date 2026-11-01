@@ -1,7 +1,7 @@
 (() => {
   const SPORTS = { nfl: 'NFL', nba: 'NBA', nhl: 'NHL' };
-  const PAGES = { bets: 'BETS', results: 'RESULTS' };
-  const SUBTITLES = { game: 'GAME', player: 'PLAYER', team: 'TEAM', standings: 'STANDINGS' };
+  const PAGES = { bets: 'Bets', results: 'Results' };
+  const SUBTITLES = { game: 'Game', player: 'Player', team: 'Team', standings: 'Standings' };
   const FILTERS = ['All', 'NFL', 'NBA', 'NHL'];
   const PAIRS = {
     nfl: [['KC', 'BUF'], ['SF', 'DAL'], ['PHI', 'GB'], ['BAL', 'CIN']],
@@ -352,21 +352,21 @@
     return pending;
   }
 
-  // team badge: live = colored with logo; otherwise muted grey (code text fallback)
+  // team badge: the team code on a disc in the team color (no league marks); live = colored, otherwise neutral.
+  // A very light team color gets dark text (.dk); a team with no color uses the neutral --grey token.
   function tbadge(sp, code, cls, href, live) {
     const t = tinfo(sp, code);
-    const col = /^#[0-9a-f]{6}$/i.test(t.color || '') ? t.color : '';
-    const inner = t.logo ? `<img src="${esc(t.logo)}" alt="${esc(code)}" loading="lazy" decoding="async">` : esc(code);
-    const c = `tb ${cls || ''} ${live ? 'live' : ''}`;
-    const st = live && col ? ` style="--tc:${col}"` : '';
+    let tone = live ? teamTone(t) : null;
+    // white text reads >= 4.5:1 up to bg luminance ~.175; dark text needs >= .20, so a mid tone is nudged lighter for dark text
+    const dk = !!(tone && lum(tone) > 0.175);
+    if (dk) for (let i = 0; i < 6 && lum(tone) < 0.2; i++) tone = lighten(tone, 0.08);
+    const col = tone ? rgbStr(tone) : '';
+    const c = `tb ${cls || ''} ${live ? 'live' : ''}${dk ? ' dk' : ''}`;
+    const st = col ? ` style="--tc:${col}"` : '';
     return href
-      ? `<a class="${c}"${st} href="${href}" aria-label="${esc(code)} team page">${inner}</a>`
-      : `<span class="${c}"${st}>${inner}</span>`;
+      ? `<a class="${c}"${st} href="${href}" aria-label="${esc(code)} team page">${esc(code)}</a>`
+      : `<span class="${c}"${st}>${esc(code)}</span>`;
   }
-  view.addEventListener('error', (e) => {
-    const im = e.target;
-    if (im && im.tagName === 'IMG' && im.closest('.tb')) im.replaceWith(document.createTextNode(im.alt || ''));
-  }, true);
 
   // ---- tags (team + player): stored ones come from the defense file; schedule / injury / goalie / matchup tags depend on the day viewed ----
   const SH = '<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/>';
@@ -475,7 +475,7 @@
     return `data-tag="${esc(key)}" role="button" tabindex="0"`;
   }
   const tagChip = (sport, code, t, ctx) => `<span class="tgc tg-${tagCat(t)}" ${tagAttr(sport, code, t, ctx)} aria-label="${esc(t.label)}">${tagIcon(t)}</span>`;
-  const tagPill = (sport, code, t, ctx) => `<span class="tgp tg-${tagCat(t)}" ${tagAttr(sport, code, t, ctx)}>${tagIcon(t)}${esc(t.label)}</span>`;
+  const tagPill = (sport, code, t, ctx, extra) => `<span class="tgp tg-${tagCat(t)}${extra ? ' ' + extra : ''}" ${tagAttr(sport, code, t, ctx)}>${tagIcon(t)}<span>${esc(t.label)}</span></span>`;
   const tagRows = (sport, code, tags) => (tags.length ? `<div class="card tgrows">${tags.map((t) => `<div class="tgr tg-${tagCat(t)}" ${tagAttr(sport, code, t, 'team')}><span class="tgc tg-${tagCat(t)}">${tagIcon(t)}</span><span class="tgr-t"><b>${esc(t.label)}</b><small>${esc(t.detail || '')}</small></span><span class="tgr-i" aria-hidden="true">i</span></div>`).join('')}</div>`
     : '<div class="card empty"><p>No tags for this team right now.</p></div>');
   // the day's slate game for the Shorthanded count (public slate of that day; none when not published)
@@ -526,9 +526,9 @@
     const sel = selDate(sport), today = ymd(0), end = ymd(sport === 'nfl' ? 7 : 2);
     const days = new Set([...gameDays(sport)].filter((d) => d <= end));
     days.add(sel);
-    const pill = (d) => `<button data-day="${d}" class="${d === sel ? 'on' : ''}" aria-pressed="${d === sel}"><span class="d">${d === today ? 'TODAY' : dowOf(d)}</span><span class="s">${mdOf(d)}</span></button>`;
+    const pill = (d) => `<button data-day="${d}" class="${d === sel ? 'on' : ''}${d === today ? ' today' : ''}" aria-pressed="${d === sel}"><span class="d">${d === today ? 'Today' : dowOf(d)}</span><span class="s">${mdOf(d)}</span></button>`;
     const wk = sport === 'nfl' ? weekOf(sport, sel) : null;
-    const label = wk ? `<span class="lbl wk-lbl">WEEK ${wk.w}</span>` : '';
+    const label = wk ? `<span class="lbl wk-lbl">Week ${wk.w}</span>` : '';
     return `<div class="dates"><div class="pills ${sport}" aria-label="Game days">${[...days].sort().map(pill).join('')}</div></div>
       ${head}${label}${dayList(sport, sel, m)}`;
   }
@@ -564,7 +564,7 @@
   }
   function teamRow(sport, g, side, tags) {
     const code = g[side] || '—', t = tinfo(sport, code);
-    const chips = tags && tags.length ? `<span class="tchips">${tags.slice(0, 3).map((x) => tagChip(sport, code, x, 'gc' + g.gid)).join('')}</span>` : '';
+    const chips = tags && tags.length ? `<span class="tchips">${tagPill(sport, code, tags[0], 'gc' + g.gid, 'gc')}${tags.length > 1 ? `<span class="tgmore" ${tagAttr(sport, code, tags[1], 'gc' + g.gid)} aria-label="${tags.length - 1} more tags">+${tags.length - 1}</span>` : ''}</span>` : '';
     const rec = recFor(sport, g, side);
     let score = '';
     if (g.status === 'final' && g.final) {
@@ -623,7 +623,7 @@
       : g.status === 'post' ? '<span class="big">—</span><span class="lbl">Postponed</span>'
         : `<span class="big">${esc(ktxt(g))}</span>${g.status === 'pending' ? '<span class="lbl amber">Final pending</span>' : g.status === 'live' ? '<span class="lbl amber">Live</span>' : ''}${g.status === 'scheduled' && g.bc && g.bc[0] ? `<span class="kline">${esc(g.bc[0])}</span>` : ''}`;
     const lp = headLineParts(g, mvbSlate(sport, f.date)).map((p) => `<span class="kline">${p}</span>`).join('');
-    const team = (code, side) => `<div class="gteam">${tbadge(sport, code, 'l', `#${sport}/team/${encodeURIComponent(code)}`, false)}
+    const team = (code, side) => `<div class="gteam">${tbadge(sport, code, 'l', `#${sport}/team/${encodeURIComponent(code)}`, true)}
       <span class="rec">${esc(recFor(sport, g, side) || '—')}</span><span class="tn">${esc(tinfo(sport, code).short || '')}</span></div>`;
     return `<div class="pagehead">${backBtn}<div class="chips" aria-label="Games this day">${chips}</div></div>
       <div class="ghead">${team(aw, 'away')}<div class="gcenter">${center}${lp}</div>${team(hm, 'home')}</div>
@@ -687,7 +687,7 @@
   // 0 = gray, 1 = lean, 2 = strong
   const edgeLevel = (m, th) => (!th ? 0 : m >= th[1] ? 2 : m >= th[0] ? 1 : 0);
   function edgeChip(txt, lv, sub) {
-    return `<span class="edge-c"><span class="edge lv${lv}">${txt}</span>${sub ? `<small>${sub}</small>` : ''}</span>`;
+    return `<span class="edge-c"><span class="edge lv${lv}">${txt}${sub ? `<small>· ${sub}</small>` : ''}</span></span>`;
   }
   const impProb = (o) => (o > 0 ? 100 / (o + 100) : -o / (-o + 100));
   function mvbCard(sport, g, slate) {
@@ -761,12 +761,12 @@
   function cmpColors(sport, g) {
     const md = store.meta[sport] && store.meta[sport].st === 'ok' ? (store.meta[sport].data || {}) : {};
     let ca = teamTone(md[g.away]), ch = teamTone(md[g.home]);
-    const NEUTRAL = [142, 166, 156];
+    const NEUTRAL_A = [169, 203, 255], NEUTRAL_H = [91, 124, 255]; // --ice / --accent: brand pair, never the pos/neg greens and reds
     if (ca && ch && cdist(ca, ch) < 90) { // clash: away tries its other color, else neutral
       const alt = hexRgb(md[g.away] && md[g.away].alt);
-      ca = alt && lum(alt) >= 0.07 && lum(alt) < 0.9 && cdist(alt, ch) >= 90 ? alt : NEUTRAL;
+      ca = alt && lum(alt) >= 0.07 && lum(alt) < 0.9 && cdist(alt, ch) >= 90 ? alt : NEUTRAL_A;
     }
-    return [rgbStr(ca || NEUTRAL), rgbStr(ch || NEUTRAL)];
+    return [rgbStr(ca || NEUTRAL_A), rgbStr(ch || NEUTRAL_H)];
   }
   // population standard deviation of one stat across all teams for the split in use (Home/Road pools every team's home and away values); 0 = not enough data
   function teamSd(tm, split, k) {
@@ -1357,7 +1357,7 @@
     const wA = bg.sA > bg.sH, wH = bg.sH > bg.sA;
     const center = `<span class="big fin pg-sc"><span class="${wA ? 'w' : 'l'}">${esc(bg.sA)}</span><i>–</i><span class="${wH ? 'w' : 'l'}">${esc(bg.sH)}</span></span><span class="lbl">Final${bg.ot ? ` <em class="pg-ot">${esc(bg.ot)}</em>` : ''}</span>`;
     const lp = slate ? headLineParts(Object.assign({}, g, { gid: sgid }), slate).map((p) => `<span class="kline">${p}</span>`).join('') : '';
-    const team = (code, sd) => `<div class="gteam">${tbadge(sport, code, 'l', `#${sport}/team/${encodeURIComponent(code)}`, false)}
+    const team = (code, sd) => `<div class="gteam">${tbadge(sport, code, 'l', `#${sport}/team/${encodeURIComponent(code)}`, true)}
       <span class="rec">${esc((f && recFor(sport, g, sd)) || '—')}</span><span class="tn">${esc(tinfo(sport, code).short || '')}</span></div>`;
     const head = `<div class="pagehead">${backBtn}<div class="chips" aria-label="Games this day">${chips}</div></div>
       <div class="ghead pg-head">${team(aw, 'away')}<div class="gcenter">${center}${lp}<span class="kline pg-date">${esc(longOf(date))}</span></div>${team(hm, 'home')}</div>${pgLineScore(g, bg)}`;
@@ -1367,7 +1367,7 @@
     const ctx = { slate, picks, proj: modeled && state.pgProj, hl: q.p || '' };
     let body = '';
     if (tab === 'box') {
-      const tog = modeled ? `<div class="pg-togrow"><button class="pg-tog${state.pgProj ? ' on' : ''}" data-pgproj="1" role="switch" aria-checked="${state.pgProj}"><i></i>Proj vs actual</button>${state.pgProj ? '<span class="pg-key">actual over projection · <b class="w">green</b> model side hit · <b class="l">red</b> missed</span>' : ''}</div>` : PG_NOTE;
+      const tog = modeled ? `<div class="pg-togrow"><button class="pg-tog${state.pgProj ? ' on' : ''}" data-pgproj="1" role="switch" aria-checked="${state.pgProj}"><i></i>Proj vs actual</button>${state.pgProj ? '<span class="pg-key"><span>actual over projection</span><span class="pg-sw w"><i></i>model side hit</span><span class="pg-sw l"><i></i>missed</span></span>' : ''}</div>` : PG_NOTE;
       body = tog + pgTotals(sport, g, bg) + pgTeamBox(sport, g, bg, aw, ctx) + pgTeamBox(sport, g, bg, hm, ctx);
     } else if (tab === 'game') {
       body = (modeled && (sport === 'nba' || sport === 'nhl') ? pgBookCard(sport, g, bg, slate, sg, sgid) : PG_NOTE) + pgTotals(sport, g, bg);
@@ -1612,7 +1612,7 @@
         <span class="dt-c">${f(hv0)}${isNum(hr) ? `<i class="rk">#${hr}</i>` : ''}</span>
         <span class="dt-c dt-o">${f(av)}${isNum(ar) ? `<i class="rk${orc}">#${ar}</i>` : ''}${dl}</span></div>`;
     }).join('');
-    const foot = `Per game, this season. Him: his average and rank among ${me.n} ${P} (#1 = highest). ${opp}: allowed to ${grpLab}s over ${grp.gg} games, rank of ${N} (#${N} allows the most). Green: they allow more than he averages (pp = percentage points).`;
+    const foot = `Per game, this season. Him: his average and rank among ${me.n} ${P} (#1 = highest). ${opp}: allowed to ${grpLab}s over ${grp.gg} games, rank of ${N} (#${N} allows the most). Last column: what they allow vs his average, + = they allow more (pp = percentage points).`;
     return `${sec('Him vs what ' + opp + ' allows')}<div class="card dtab"><div class="dt-r dt-h"><span></span><span>Him<small>of ${esc(me.n)} ${esc(P)}</small></span><span>${esc(opp)} allows<small>rank of ${N}</small></span></div>${rows}<p class="dt-f">${esc(foot)}</p></div>`;
   }
 
@@ -1640,10 +1640,10 @@
   function szFills(S, D, LS) {
     const ds = D.filter(isNum), lo = Math.min(...ds), hi = Math.max(...ds);
     return D.map((dv, i) => {
-      if (!isNum(dv)) return 'rgba(236,245,240,.03)';
+      if (!isNum(dv)) return 'rgba(255,255,255,.03)';
       const t = hi > lo ? (dv - lo) / (hi - lo) : .5, h = szHue(S[i], LS[i]);
-      if (h === 'n') return `rgba(236,245,240,${(.04 + t * .10).toFixed(3)})`;
-      return (h === 'g' ? 'rgba(62,230,160,' : 'rgba(255,122,112,') + (.10 + t * .45).toFixed(3) + ')';
+      if (h === 'n') return `rgba(255,255,255,${(.04 + t * .10).toFixed(3)})`;
+      return (h === 'g' ? 'rgba(47,214,123,' : 'rgba(255,90,106,') + (.10 + t * .45).toFixed(3) + ')'; // --green / --red
     });
   }
   // Option C presentation (design approved 10/31 20:29): lead verdict, one shaded court / rink, ranked zone list.
@@ -1688,10 +1688,10 @@
       <g clip-path="url(#szc-rink)">
         ${R(0, 0, 340, 44, 0)}${R(0, 44, 112, 164, 3)}${R(112, 44, 116, 80, 1)}${R(112, 124, 116, 84, 2)}${R(228, 44, 112, 164, 4)}${R(0, 208, 170, 92, 5)}${R(170, 208, 170, 92, 6)}
         <path class="szl" d="M112,44 V208 M228,44 V208 M112,124 H228 M0,208 H340 M170,208 V300"/>
-        <circle cx="82" cy="124" r="60" style="fill:none;stroke:rgba(255,122,112,.45);stroke-width:1.2"/><circle cx="258" cy="124" r="60" style="fill:none;stroke:rgba(255,122,112,.45);stroke-width:1.2"/>
-        <path d="M0,44 H340" style="stroke:rgba(255,122,112,.6);stroke-width:1.2"/>
-        <path d="M146,44 A24,24 0 0 0 194,44" style="fill:none;stroke:rgba(124,195,255,.7);stroke-width:1.2"/>
-        <path d="M0,298 H340" style="stroke:rgba(124,195,255,.7);stroke-width:2.4"/>
+        <circle cx="82" cy="124" r="60" style="fill:none;stroke:rgba(255,90,106,.45);stroke-width:1.2"/><circle cx="258" cy="124" r="60" style="fill:none;stroke:rgba(255,90,106,.45);stroke-width:1.2"/>
+        <path d="M0,44 H340" style="stroke:rgba(255,90,106,.6);stroke-width:1.2"/>
+        <path d="M146,44 A24,24 0 0 0 194,44" style="fill:none;stroke:rgba(169,203,255,.7);stroke-width:1.2"/>
+        <path d="M0,298 H340" style="stroke:rgba(169,203,255,.7);stroke-width:2.4"/>
         ${h}
       </g>
       ${txt(170, 28, 0)}${txt(56, 132, 3)}${txt(170, 90, 1)}${txt(170, 172, 2)}${txt(284, 132, 4)}${txt(85, 260, 5)}${txt(255, 260, 6)}
@@ -2003,7 +2003,7 @@
     const tg = defData(sport) ? teamTags(sport, code, ng ? ng.d : '', ng ? slateGame(sport, ng.d, ng.gid) : null) : null;
     return `<div class="pagehead">${backBtn}</div>
       <div class="phero">${hero}</div>
-      ${tg ? sec('Tags') + tagRows(sport, code, tg) : ''}${sec('Splits')}${rowsGeneric(2)}${sec('Roster')}${rowsGeneric(2)}${sec('Schedule')}${teamSchedule(sport, code, sc)}`;
+      ${tg ? sec('Tags') + tagRows(sport, code, tg) : ''}${sec('Splits')}<div class="card empty"><p>Team splits land with the data step.</p></div>${sec('Roster')}<div class="card empty"><p>The roster lands with the data step.</p></div>${sec('Schedule')}${teamSchedule(sport, code, sc)}`;
   }
 
   function teamSchedule(sport, code, sc) {
@@ -2020,7 +2020,7 @@
     let month = '', out = '';
     items.forEach((it) => {
       const m = monthOf(it.d);
-      if (m !== month) { month = m; out += `<div class="mh">${m}</div>`; }
+      if (m !== month) { out += `${month ? '</div>' : ''}<div class="mgrp"><div class="mh">${m}</div>`; month = m; }
       if (it.bye) { out += `<div class="srow bye"><span class="sd">WEEK ${esc(it.bye)}</span><span class="sv"></span><span class="sr">BYE</span></div>`; return; }
       const g = it.g, home = g.home === code, opp = home ? g.away : g.home;
       let r;
@@ -2036,7 +2036,7 @@
       out += `<a class="srow${g === next ? ' next' : ''}" ${g === next ? 'data-next ' : ''}href="${href}"><span class="sd">${dowOf(g.d)} ${mdOf(g.d)}</span>
         <span class="sv"><span class="vs">${home ? 'vs' : '@'}</span>${tbadge(sport, opp, 's', '', true)}<span class="oc">${esc(opp)}</span></span><span class="sr">${r}</span></a>`;
     });
-    return `<div class="sched" aria-label="${esc(code)} schedule">${out}</div>`;
+    return `<div class="sched" aria-label="${esc(code)} schedule">${out}${month ? '</div>' : ''}</div>`;
   }
 
   // ---- Results tab, Model view (maths + HTML in app/results.js) ----
@@ -2135,6 +2135,7 @@
     const c = cur;
     closeTag();
     const changed = c.key !== lastKey;
+    if (changed) toastHide();
     lastKey = c.key;
     const title = c.page ? PAGES[c.page] : c.kind === 'root' ? SPORTS[c.sport] : SUBTITLES[c.kind];
     $('title').textContent = title;
@@ -2310,6 +2311,7 @@
     if (again) again.focus(); else if (t.trigger && t.trigger.isConnected) t.trigger.focus();
   }
   let toastT = 0;
+  function toastHide() { const el = $('toast'); if (el) el.classList.remove('show'); clearTimeout(toastT); }
   function toast(msg) {
     let el = $('toast');
     if (!el) { el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
@@ -2391,9 +2393,9 @@
   // ======== Scoring watch shell (prefix sw): shared card + row renderer for the NHL anytime-goal, NBA triple-double and NFL anytime-TD panels and game blocks ========
   // Layered card: sport-tinted header band, body rows with a thin chance bar (model P on a per-panel 0–scale% track) and a break-even tick at the DK price, recessed footer legend.
   const SW_META = {
-    nhl: { title: 'Anytime goal', tint: 'var(--blue)', rgb: '124,195,255', glyph: '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="9" rx="8" ry="3.5"/><path d="M4 9v5c0 1.9 3.6 3.5 8 3.5s8-1.6 8-3.5V9"/></svg>' },
-    nba: { title: 'Triple-double', tint: 'var(--amber)', rgb: '255,201,90', glyph: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3.5 9.5c5 1 12 1 17 0M3.5 14.5c5-1 12-1 17 0M12 3v18"/></svg>' },
-    nfl: { title: 'Anytime TD', tint: 'var(--accent)', rgb: '62,230,160', glyph: '<svg viewBox="0 0 24 24"><path d="M4.5 19.5c-2-2-1.5-9 3-13.5s11.5-5 13.5-3 1.5 9-3 13.5-11.5 5-13.5 3z"/><path d="M8.5 15.5l7-7M10 10l1.5 1.5M12.5 12.5L14 14"/></svg>' },
+    nhl: { title: 'Anytime goal', tint: 'var(--ice)', rgb: '169,203,255', glyph: '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="9" rx="8" ry="3.5"/><path d="M4 9v5c0 1.9 3.6 3.5 8 3.5s8-1.6 8-3.5V9"/></svg>' },
+    nba: { title: 'Triple-double', tint: 'var(--amber)', rgb: '255,181,70', glyph: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3.5 9.5c5 1 12 1 17 0M3.5 14.5c5-1 12-1 17 0M12 3v18"/></svg>' },
+    nfl: { title: 'Anytime TD', tint: 'var(--violet)', rgb: '197,139,255', glyph: '<svg viewBox="0 0 24 24"><path d="M4.5 19.5c-2-2-1.5-9 3-13.5s11.5-5 13.5-3 1.5 9-3 13.5-11.5 5-13.5 3z"/><path d="M8.5 15.5l7-7M10 10l1.5 1.5M12.5 12.5L14 14"/></svg>' },
   };
   // chance (%) needed to break even at American odds o: 100 / decimal odds (same payout the EV uses)
   const swBreakeven = (o) => 100 / (1 + (o > 0 ? o / 100 : 100 / Math.abs(o)));
@@ -2642,14 +2644,14 @@
     return `<div class="bx-chips" role="group" aria-label="Sport">${items.map(([k, lab, n]) => `<button class="bchip${k === state.bxSport ? ' on' : ''}" data-bxsp="${k}" aria-pressed="${k === state.bxSport}">${lab}${n ? `<small>${n}</small>` : ''}</button>`).join('')}</div>`;
   }
   function bxStrip(sp, a, open, risk) {
-    return `<div class="bx-strip"><div><b class="bx-gold">${sp}</b><small>S+ today</small></div><div><b>${a}</b><small>A grade</small></div><div><b>${open}${open ? `<span class="bx-dim"> · ${uTxt(risk)}</span>` : ''}</b><small>${open ? 'at risk' : 'open bets'}</small></div></div>`;
+    return `<div class="bx-strip"><div><b class="${sp ? 'bx-gold' : 'bx-zero-n'}">${sp}</b><small>S+ today</small></div><div><b>${a}</b><small>A grade</small></div><div><b>${open}${open ? `<span class="bx-dim"> · ${uTxt(risk)}</span>` : ''}</b><small>${open ? 'at risk' : 'open bets'}</small></div></div>`;
   }
   // fold: header (label · count · lead value · chevron) + body when open
   function bxFold(key, label, count, lead, body, info) {
     const open = !!state.bxFold[key];
     // the ⓘ sits between two halves of the header (a button cannot contain a button); both halves toggle the fold
     const half = (cls, inner) => `<button class="bx-fh ${cls}" data-bxfold="${key}" aria-expanded="${open}" aria-label="${esc(label)}">${inner}</button>`;
-    return `<section class="bx-fold${open ? '' : ' closed'}"><div class="bx-fhw">${half('bx-fh-l', `<span class="bx-fl">${esc(label)}</span>`)}${info || ''}${half('bx-fh-r', `${count ? `<span class="bx-fc">${count}</span>` : ''}<span class="bx-flead">${lead || ''}</span><span class="bx-chev" aria-hidden="true">&#8964;</span>`)}</div>${open ? `<div class="bx-fb">${body}</div>` : ''}</section>`;
+    return `<section class="bx-fold${open ? '' : ' closed'}"><div class="bx-fhw">${half('bx-fh-l', `<span class="bx-fl">${esc(label)}</span>`)}${info || ''}${half('bx-fh-r', `${count ? `<span class="bx-fc">${count}</span>` : ''}<span class="bx-flead">${lead || ''}</span><span class="bx-chev" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span>`)}</div>${open ? `<div class="bx-fb">${body}</div>` : ''}</section>`;
   }
   const bxQuiet = (msg) => `<div class="bx-quiet">${msg}</div>`;
   function bxRow({ sp, r, sg }) {
@@ -2685,8 +2687,9 @@
     const top = cards.reduce((m, c) => (m === null || c.ev > m ? c.ev : m), null);
     const lead = top === null ? '' : `<span class="ev ${evCls(top)}">best ${sgn(top, 1)}%</span>`;
     const rows = cards.map((c, i) => {
-      const open = !!state.bxPl[i], legs = c.legs.map((l) => `${PARLAY.lastName(l.name)} ${betText({ b: { stat: l.stat, side: l.side }, ph: { line: l.line } })}`).join(' · ');
-      return `<div class="bx-plw${open ? ' open' : ''}"><button class="bx-pl" data-bxpl="${i}" aria-expanded="${open}"><span class="bx-plk"><b>${esc(plKind(c))}</b><span>${fmtOdds(c.american)}</span></span><span class="bx-pll">${esc(legs)}</span>
+      const open = !!state.bxPl[i], legTxt = c.legs.map((l) => `${PARLAY.lastName(l.name)} ${betText({ b: { stat: l.stat, side: l.side }, ph: { line: l.line } })}`);
+      const legs = legTxt.slice(0, 3).map((t) => `<span>${esc(t)}</span>`).join('') + (legTxt.length > 3 ? `<span class="bx-plmore">+${legTxt.length - 3} more leg${legTxt.length - 3 > 1 ? 's' : ''}</span>` : '');
+      return `<div class="bx-plw${open ? ' open' : ''}"><button class="bx-pl" data-bxpl="${i}" aria-expanded="${open}"><span class="bx-plk"><b>${esc(plKind(c))}</b><span>${fmtOdds(c.american)}</span></span><span class="bx-pll">${legs}</span>
         <span class="bx-pln"><span class="ev ${evCls(c.ev)}">${sgn(c.ev, 1)}%</span><small>P ${c.chance.toFixed(1)}%</small></span></button>${open ? plCard(c, i, cards.length) : ''}</div>`;
     }).join('');
     const body = note + (cards.length ? `<div class="bx-feed">${rows}</div>` : bxQuiet(loading ? 'Loading today’s slates…' : failed ? 'Couldn’t load today’s slates. Check your connection and try again.' : 'No parlays right now: not enough positive-EV legs in games that haven’t started.'));
@@ -2727,7 +2730,7 @@
   function bxSpark(done) {
     const pts = [0]; let acc = 0;
     done.slice().sort((x, y) => (x.settledAt || '').localeCompare(y.settledAt || '')).forEach((b) => { if (b.status !== 'void') { acc += b.pl; pts.push(acc); } });
-    if (pts.length < 2) return '';
+    if (pts.length < 2) return '<div class="bx-sparkempty">Your cumulative units chart draws here once a bet settles.</div>';
     const W = 300, H = 46, mn = Math.min(0, ...pts), mx = Math.max(0, ...pts), span = mx - mn || 1;
     const X = (i) => (i / (pts.length - 1) * (W - 4) + 2).toFixed(1), Y = (v) => (H - 4 - (v - mn) / span * (H - 8)).toFixed(1);
     const d = pts.map((v, i) => `${i ? 'L' : 'M'}${X(i)} ${Y(v)}`).join(' ');
@@ -2736,10 +2739,11 @@
   }
   function bxHero(s, done) {
     const D = mbDefs(), settled = s.w + s.l + s.p;
-    const big = settled ? `<span class="${plCls(s.units)}">${uSgn(s.units)}</span>` : '<span class="u-n">—</span>';
-    return `<div class="bx-hero"><div class="bx-ht"><span class="lbl">Units${infoBtn('mybets', 'units', D)}</span><span class="lbl">all time</span></div>
+    const big = settled ? `<span class="${plCls(s.units)}">${uSgn(s.units)}</span>` : '<span class="u-n bx-nil">0u</span>';
+    const ib = (sp, k, defs) => (settled ? infoBtn(sp, k, defs) : ''); // ⓘ only once there is data to explain
+    return `<div class="bx-hero"><div class="bx-ht"><span class="lbl">Units${ib('mybets', 'units', D)}</span><span class="lbl">all time</span></div>
       <div class="bx-big">${big}<small>${settled ? `${uTxt(s.staked)} staked` : 'no settled bets'}</small></div>
-      <div class="bx-hg"><div><b>${s.w}-${s.l}-${s.p}</b><small>Record${infoBtn('mybets', 'record', D)}</small></div><div><b>${s.roi === null ? '<span class="u-n">—</span>' : `<span class="${plCls(s.roi)}">${sgn(s.roi, 1)}%</span>`}</b><small>ROI${infoBtn('mybets', 'roi', D)}</small></div><div><b>${s.open}<span class="bx-dim"> ${s.open ? uTxt(s.atRisk) : ''}</span></b><small>Open${infoBtn('bets', 'exposure', bxDefs())}</small></div></div>
+      <div class="bx-hg"><div><b>${s.w}-${s.l}-${s.p}</b><small>Record${ib('mybets', 'record', D)}</small></div><div><b>${s.roi === null ? '<span class="u-n">—</span>' : `<span class="${plCls(s.roi)}">${sgn(s.roi, 1)}%</span>`}</b><small>ROI${ib('mybets', 'roi', D)}</small></div><div><b>${s.open}<span class="bx-dim"> ${s.open ? uTxt(s.atRisk) : ''}</span></b><small>Open${ib('bets', 'exposure', bxDefs())}</small></div></div>
       ${['record', 'units', 'roi'].map((k) => infoNote('mybets', k, D)).join('')}${infoNote('bets', 'exposure', bxDefs())}${bxSpark(done)}${s.voided ? `<div class="bx-dim bx-void">${s.voided} void</div>` : ''}</div>`;
   }
   function bxTl(list, open) {

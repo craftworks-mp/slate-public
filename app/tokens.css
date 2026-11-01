@@ -1,0 +1,118 @@
+/* Shared with trendbettors-site/public/assets/tokens.css — keep identical */
+/* Trend Bettors — design tokens
+   Single source of truth for color, type, spacing and radii.
+   Reused by /compose. Keep this file free of component rules. */
+:root{
+  /* surfaces */
+  --bg:#09090A;
+  --bg2:#0D0D0F;
+  --card:#141416;
+  --card2:#1A1A1D;
+  --card-grad:linear-gradient(180deg,var(--card),#111113);
+  --bubble:rgba(255,255,255,.035);
+  --line:rgba(255,255,255,.07);
+  --line2:rgba(255,255,255,.12);
+  --line3:rgba(255,255,255,.18);
+
+  /* text */
+  --text:#F3F5F9;
+  --text2:#D6DBE6;
+  --muted:#A1A1AA;
+  --dim:#82828C;
+  --on-accent:#FFFFFF;
+  --on-light:#09090A;
+
+  /* brand + semantic */
+  --accent:#5B7CFF;
+  --accent2:#8FA6FF;
+  --accent-soft:rgba(91,124,255,.14);
+  --accent-line:rgba(91,124,255,.3);
+  --green:#2FD67B;
+  --green-soft:rgba(47,214,123,.14);
+  --green-line:rgba(47,214,123,.3);
+  --red:#FF5A6A;
+  --red-soft:rgba(255,90,106,.14);
+  --red-line:rgba(255,90,106,.3);
+  --amber:#FFB546;
+  --amber-soft:rgba(255,181,70,.16);
+  --amber-line:rgba(255,181,70,.35);
+  --ice:#A9CBFF;
+  --ice-soft:rgba(120,180,255,.12);
+  --ice-line:rgba(120,180,255,.3);
+  --hot:#FFB199;
+  --hot-soft:linear-gradient(90deg,rgba(255,90,106,.18),rgba(255,181,70,.18));
+  --hot-line:rgba(255,120,90,.35);
+  --violet:#C58BFF;
+  --violet-soft:rgba(197,139,255,.14);
+  --violet-line:rgba(197,139,255,.35);
+
+  /* category chip palette (category ids are data-driven; these are slots) */
+  --cat1:var(--accent2);  --cat1-soft:var(--accent-soft); --cat1-line:var(--accent-line);
+  --cat2:var(--violet);   --cat2-soft:var(--violet-soft); --cat2-line:var(--violet-line);
+  --cat3:var(--green);    --cat3-soft:var(--green-soft);  --cat3-line:var(--green-line);
+  --cat4:var(--amber);    --cat4-soft:var(--amber-soft);  --cat4-line:var(--amber-line);
+
+  /* glows / shadows */
+  --glow-accent:0 8px 24px -8px rgba(91,124,255,.6);
+  --glow-green:0 0 10px var(--green);
+  --shadow-card:0 20px 50px -30px rgba(0,0,0,.8);
+  --shadow-float:0 14px 34px -10px rgba(0,0,0,.8);
+
+  /* type */
+  --font:'Inter',system-ui,-apple-system,"Segoe UI",sans-serif;
+  --display:'Space Grotesk','Inter',system-ui,sans-serif;
+  --fs-xs:11px; --fs-sm:12.5px; --fs-base:15px; --fs-md:17px; --fs-lg:22px; --fs-xl:26px;
+  --lh:1.5;
+
+  /* spacing scale */
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:20px; --s6:24px; --s7:32px; --s8:48px; --s9:72px;
+
+  /* radii */
+  --r:16px; --r2:12px; --r3:9px; --r-pill:999px;
+
+  /* layout */
+  --wrap:1240px;
+  --gutter:32px;
+  --nav-h:64px;
+  --rail-w:340px;
+}
+@media (max-width:760px){
+  :root{ --gutter:16px; --nav-h:56px; --fs-lg:20px; --fs-xl:22px; }
+}
+
+/* ============================================================
+   APP-ONLY TOKENS (Slate Projector). Everything above this line
+   is the shared site file; everything below exists only here.
+   ============================================================ */
+:root{
+  /* legacy aliases used throughout app/style.css */
+  --ink:var(--text);
+  --faint:var(--dim);
+  --pos:var(--green);  --neg:var(--red);
+  --pos-hi:#5FE39A;    --neg-hi:#FF8A95;
+  --accent-bg:var(--accent-soft);
+  --accent-deep:#3A55C7;
+  --blue:var(--ice);
+  --grey:#26262B;            /* neutral team disc when a team has no color */
+  --f-d:var(--display);      /* display face */
+  --f-b:var(--font);         /* body face */
+  --f-m:var(--font);         /* "mono" slots now use Inter + tabular numerals */
+  /* grade tokens */
+  --g-splus:var(--amber); --g-a:var(--green); --g-b:#5ED1C4; --g-c:var(--ice); --g-d:#FF9B4A; --g-f:var(--red);
+  /* layout */
+  --top-h:56px;              /* app top bar */
+  --bnav-h:64px;             /* bottom nav */
+  --maxw:640px; --gut:16px;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  --fs-xxs:10.5px;           /* dense tables only */
+  --fs-xxl:28px;             /* big numerals */
+  /* translucent surfaces */
+  --bar-bg:rgba(9,9,10,.82);           /* top bar, bottom nav, sticky chip strips (over --bg) */
+  --overlay:rgba(0,0,0,.55);           /* sheet backdrop */
+  --shade:rgba(0,0,0,.35);             /* sticky-column shadow */
+  --glow-bg:rgba(91,124,255,.07);      /* faint body glow, same as the site */
+  --glow-bg2:rgba(47,214,123,.03);
+  --accent-faint:rgba(91,124,255,.08); /* row highlight */
+  --amber-faint:rgba(255,181,70,.07);  /* S+ row tint */
+  --on-accent-55:rgba(255,255,255,.55);/* logo mark second stroke */
+}
