@@ -249,7 +249,7 @@
     let out = top + `<div class="rs-filters">${fold}</div>`;
     if (ctx.loading) return out + '<div class="card rs-card"><div class="srows" aria-hidden="true">' + [0, 1, 2].map(() => '<div class="sk-row"><span class="bars"><span class="bar w85"></span><span class="bar w55"></span></span></div>').join('') + '</div><p class="rs-empty">Loading results…</p></div>';
     const a = M.all;
-    if (!a.n) return out + '<div class="card empty rs-card"><h2>My Bets</h2><p>No settled bets in this filter yet.</p></div>';
+    if (!a.n) return out + (nAct || s.range !== 'season' ? '<div class="card empty rs-card"><h2>No bets match these filters.</h2><p>Nothing settled yet for this combination.</p><button class="pillbtn" data-rs="reset:1">Reset filters</button></div>' : '<div class="card empty rs-card"><h2>My Bets</h2><p>No settled bets yet.</p></div>');
     const tile = (lbl, key, val, c, sub) => `<div class="tile rs-tile"><div class="lbl rs-lbl">${lbl}${I(key).btn}</div><div class="num ${c || ''}">${val}</div><div class="rs-sub">${sub}</div></div>`;
     const uc = (u) => cls(u, 0.05, 3);
     out += `<div class="tiles rs-tiles rm-tiles" aria-label="${esc(ctx.sport)} My Bets results">` +
@@ -289,6 +289,7 @@
     if (ctx.err) return out + '<div class="card empty rs-card"><h2>Results unavailable</h2><p>The results files did not load.</p><button class="pillbtn" data-rs="retry:1">Try again</button></div>';
     if (ctx.noData) return out + `<div class="card empty rs-card"><h2>No results yet</h2><p>${esc(ctx.noData)}</p></div>`;
     const B = ctx.B, a = B.all;
+    if (!a.n) return out + (nAct || s.range !== 'season' ? '<div class="card empty rs-card"><h2>No bets match these filters.</h2><p>Try another market, side or date range.</p><button class="pillbtn" data-rs="reset:1">Reset filters</button></div>' : '<div class="card empty rs-card"><h2>No graded bets yet</h2><p>Graded results show here once games finish.</p></div>');
     const tile = (lbl, key, val, c, sub) => `<div class="tile rs-tile"><div class="lbl rs-lbl">${lbl}${key ? I(key).btn : ''}</div><div class="num ${c || ''}">${val}</div>${sub ? `<div class="rs-sub">${sub}</div>` : ''}</div>`;
     const notes = ['graded', 'win', 'edge', 'roi', 'beat'].map((k) => I(k).note).join('');
     out += `<div class="tiles rs-tiles" aria-label="${esc(ctx.sport)} model results">` +

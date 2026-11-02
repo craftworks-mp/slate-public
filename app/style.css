@@ -1072,3 +1072,81 @@ a.gl-row:active{background:var(--card2)}
 .bx-tl .bx-quiet{margin-top:10px}
 .bx-tabs+.bx-quiet{margin-top:12px}
 @media (max-width:340px){.bx-strip b{font-size:var(--fs-md)}.bx-dim{font-size:var(--fs-xs)}.bx-big{font-size:34px}.bx-hg b{font-size:var(--fs-md)}.bx-pl{gap:7px;padding:10px 10px}.bx-plk b{font-size:var(--fs-sm)}.bx-pln .ev{font-size:var(--fs-base)}.bx-chips .bchip{padding:0 11px}}
+
+/* ======== Live Game tab (app/livegame_ui.js; owner-approved 11/01 18:45). Reuses .pg-* (Final mode), .cmp (comparison), .lv (My Bets live rows) ======== */
+.lg-clock{color:var(--amber);text-align:center;white-space:nowrap}
+.lg-poss{color:var(--text2);font-weight:600}
+.lg-note{margin:0 0 12px;text-align:center}
+.lg-ls{margin:-6px 0 4px}
+.lg-head{margin:18px 0 10px}
+.lg-seg{width:150px}
+.lg-mom .lg-momfoot{margin:-2px 0 0;font:500 var(--fs-xxs)/1.4 var(--font);color:var(--dim)}
+.lg-chipline{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:-2px}
+.lg-pill{display:inline-flex;align-items:center;min-height:26px;padding:3px 10px;border-radius:var(--r-pill);font:700 var(--fs-xs)/1.15 var(--font);letter-spacing:.03em;background:var(--bubble);border:1px solid var(--line2);color:var(--text2)}
+.lg-pill.amber{background:var(--amber-soft);border-color:var(--amber-line);color:var(--amber)}
+.lg-chipnote{font:500 var(--fs-xs)/1.2 var(--font);color:var(--dim)}
+.lg-drives{display:flex;flex-direction:column;gap:0;margin-top:-4px}
+.lg-drive{display:grid;grid-template-columns:52px minmax(0,1fr) auto;align-items:center;gap:10px;min-height:44px;padding:7px 0;border-top:1px solid var(--line);font:500 var(--fs-sm)/1.25 var(--font);color:var(--muted)}
+.lg-drive:first-child{border-top:0}
+.lg-dt{display:inline-flex;align-items:center;gap:6px;font:700 var(--fs-sm)/1 var(--font);color:var(--text)}
+.lg-dd{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lg-dr{font:600 var(--fs-xs)/1 var(--font);letter-spacing:.03em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.lg-drive.sc .lg-dr{color:var(--green)}
+.lg-drive.cur .lg-dr{color:var(--amber)}
+.lg-drive.cur .lg-dd{color:var(--text2)}
+.lg-pin{display:flex;flex-direction:column;gap:0;padding:4px 0 2px}
+.lg-pinbox{border-bottom:1px solid var(--line);background:var(--accent-faint);box-shadow:inset 3px 0 0 var(--accent)}
+.lg-pinrow{display:flex;flex-direction:column;gap:4px;padding:10px 14px 2px;border-top:1px solid var(--line)}
+.lg-pinrow:first-child{border-top:0}
+.lg-pinlab{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;font:600 var(--fs-base)/1.2 var(--font);color:var(--text)}
+.lg-pinlab b{font-weight:700}
+.lg-pinlab small{font:500 var(--fs-xs)/1.2 var(--font);color:var(--muted);white-space:nowrap}
+.lg-lv .lv{padding:0 0 9px;margin:0}
+.lg-nostat{padding:0 0 9px}
+.lg-nostat .lv-t{color:var(--dim)}
+.lg-tbl thead th:first-child{white-space:nowrap}
+.lg-pl small{display:inline-flex;align-items:center;gap:3px}
+.lg-on{font-style:normal;color:var(--green)}
+.lg-usage td{line-height:1}
+.lg-usage td small{display:block;margin-top:3px;font:500 var(--fs-xxs)/1 var(--font);color:var(--dim)}
+.lg-usage thead th small{font:500 var(--fs-xxs)/1 var(--font);letter-spacing:0;text-transform:none;color:var(--dim)}
+.lg-usage .lg-tot th,.lg-usage .lg-tot td{color:var(--muted);font-weight:600;border-top:1px solid var(--line2)}
+.lg-usage .lg-tot .lg-pl b{color:var(--muted)}
+.lg-foot{margin:14px 2px 0;font:500 var(--fs-xxs)/1.4 var(--font);color:var(--dim);text-align:center}
+@media (max-width:340px){.lg-seg{width:128px}.lg-drive{grid-template-columns:46px minmax(0,1fr) auto;gap:6px}.lg-pinrow{padding:9px 10px 2px}}
+/* ======== end Live Game tab ======== */
+
+/* ---- 1b playtest fixes (11/01 18:45) ---- */
+@font-face{font-family:'Inter';font-style:normal;font-weight:400;font-display:swap;src:url(fonts/inter-latin-400.woff2) format('woff2')}
+@font-face{font-family:'Inter';font-style:normal;font-weight:500;font-display:swap;src:url(fonts/inter-latin-500.woff2) format('woff2')}
+@font-face{font-family:'Inter';font-style:normal;font-weight:600;font-display:swap;src:url(fonts/inter-latin-600.woff2) format('woff2')}
+@font-face{font-family:'Inter';font-style:normal;font-weight:700;font-display:swap;src:url(fonts/inter-latin-700.woff2) format('woff2')}
+@font-face{font-family:'Space Grotesk';font-style:normal;font-weight:500 700;font-display:swap;src:url(fonts/space-grotesk-latin-wght.woff2) format('woff2')}
+/* F2: "+" of a game that has started stays visible but muted (tap = short message) */
+.addb.off{opacity:.45}
+/* F3: in-progress label in the game header */
+.gcenter .big.ip{font-size:var(--fs-lg);letter-spacing:-.01em;text-align:center}
+/* F7: not-found card */
+.nf .pillbtn{margin-top:12px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
+/* U9: settings rows that are plain info, not controls */
+.row.fixed{min-height:36px;border-bottom:0;pointer-events:none}
+.row.fixed .lbl{font-size:var(--fs-xxs)}
+.row.fixed .val{font-weight:500;font-size:var(--fs-sm);color:var(--muted)}
+.info-cap{margin:2px 0 0;font-size:var(--fs-xs);color:var(--dim)}
+/* U10: Results grade notes read as notes */
+.rs-verdict .rs-v{position:relative;display:block;padding-left:12px}
+.rs-verdict .rs-v::before{content:"";position:absolute;left:0;top:.25em;bottom:.25em;width:3px;border-radius:2px;background:currentColor;opacity:.65}
+/* U12 */
+.pg-beat.none{color:var(--dim);font-weight:500}
+/* U7 */
+.day-note{margin:0 0 12px;padding:10px 12px;border-radius:var(--r3);background:var(--bubble);border:1px solid var(--line);font-size:var(--fs-sm);line-height:1.45;color:var(--muted)}
+/* F5 */
+.pn-nofile{margin-top:12px}
+/* F8: narrow phones: the wordmark gives way so the matchup title fits */
+@media (max-width:350px){.brand{font-size:0;gap:0}.brand .mark{margin-right:0}}
+/* F8 / U14: Model vs Book table. Values never collide (book / model columns are at least as wide as their text), the Edge header sits over the right-aligned chips */
+.mvb-tab .mvb-h:nth-child(4){justify-content:flex-end;text-align:right;padding-right:0}
+@media (max-width:340px){.mvb-tab{grid-template-columns:58px minmax(max-content,1fr) minmax(max-content,1fr) minmax(0,auto)}.mvb-tab .edge{flex-wrap:wrap;justify-content:flex-end}}
+/* F12: the info button keeps its 18px look; its tap area (the ::before) is 44px and sits above neighbouring cells */
+.info{z-index:1}
+.info::before{inset:-14px}

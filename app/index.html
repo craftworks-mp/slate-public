@@ -12,11 +12,9 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon.svg">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="tokens.css?v=c6b69b1">
-<link rel="stylesheet" href="style.css?v=c6b69b1">
+<link rel="preload" href="fonts/inter-latin-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="tokens.css?v=5748d2f">
+<link rel="stylesheet" href="style.css?v=5748d2f">
 </head>
 <body>
 <header class="topbar">
@@ -47,18 +45,19 @@
 <div class="search" id="search" role="dialog" aria-modal="true" aria-label="Search" hidden>
   <form class="search-bar" id="search-form" autocomplete="off">
     <label class="search-field"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
-      <input id="search-input" type="search" placeholder="Search teams and players" autofocus enterkeyhint="search" aria-label="Search teams and players"></label>
+      <input id="search-input" type="search" placeholder="Search is coming soon" disabled aria-label="Search teams and players (coming soon)"></label>
     <button type="button" class="cancel" id="search-cancel">Cancel</button>
   </form>
-  <p class="search-hint">Search goes live with the data step.</p>
+  <p class="search-hint">Search is coming soon.</p>
 </div>
 <div class="backdrop" id="backdrop" hidden></div>
 <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden>
   <div class="grab" aria-hidden="true"></div>
   <h2 id="sheet-title">Settings</h2>
-  <div class="row"><span class="lbl">Book</span><span class="val">DraftKings</span></div>
-  <div class="row"><span class="lbl">Unit label</span><span class="val">1u</span></div>
-  <div class="row"><span class="lbl">Default sort</span><span class="val">EV</span></div>
+  <div class="row fixed"><span class="lbl">Book</span><span class="val">DraftKings</span></div>
+  <div class="row fixed"><span class="lbl">Unit label</span><span class="val">1u</span></div>
+  <div class="row fixed"><span class="lbl">Default sort</span><span class="val">EV</span></div>
+  <p class="info-cap">Fixed for now.</p>
   <div class="bk">
     <div class="row"><span class="lbl">My bets backup</span></div>
     <div class="bk-btns"><button class="btn" id="bk-export">Export JSON</button><label class="btn" for="bk-file" tabindex="0">Import JSON</label></div>
@@ -68,12 +67,14 @@
   <button class="btn" id="close">Close</button>
 </section>
 <section class="sheet" id="bet-sheet" role="dialog" aria-modal="true" aria-labelledby="bs-title" hidden></section>
-<script src="glossary.js?v=c6b69b1"></script>
-<script src="tiers.js?v=c6b69b1"></script>
-<script src="mybets.js?v=c6b69b1"></script>
-<script src="live.js?v=c6b69b1"></script>
-<script src="parlays.js?v=c6b69b1"></script>
-<script src="results.js?v=c6b69b1"></script>
-<script src="app.js?v=c6b69b1"></script>
+<script src="glossary.js?v=5748d2f"></script>
+<script src="tiers.js?v=5748d2f"></script>
+<script src="mybets.js?v=5748d2f"></script>
+<script src="live.js?v=5748d2f"></script>
+<script src="livegame.js?v=5748d2f"></script>
+<script src="livegame_ui.js?v=5748d2f"></script>
+<script src="parlays.js?v=5748d2f"></script>
+<script src="results.js?v=5748d2f"></script>
+<script src="app.js?v=5748d2f"></script>
 </body>
 </html>

@@ -54,6 +54,33 @@
     } catch (e) { return false; }
   }
 
+  // Two tabs / windows share one localStorage key, so a write never replaces the whole store from memory. commit() re-reads storage, applies
+  // only this change (keyed by bet id) and writes the result back: another tab's adds and removals survive, and a removed bet cannot come back.
+  // ops: { t: 'set', bet } add or edit (always wins) | { t: 'del', id } remove | { t: 'grade', bet } a settle result for a graded copy of the bet (applied only while
+  // the bet still exists in storage, is still open there and has the same odds and units, so grading can neither bring back a removed bet nor overwrite an edit).
+  // mem = this tab's in-memory store, used when storage is blocked or its key was cleared. -> { store, ok }; ok false = not written.
+  function freshBase(mem, storage) {
+    try {
+      const s = storage === undefined ? getStorage() : storage;
+      if (s && s.getItem(KEY) !== null && s.getItem(KEY) !== undefined) return load(s);
+    } catch (e) { /* unreadable: use memory */ }
+    return { schema: SCHEMA, bets: Object.assign({}, mem.bets) };
+  }
+  function commit(mem, ops, storage) {
+    const base = freshBase(mem, storage), bets = Object.assign({}, base.bets);
+    (ops || []).forEach((op) => {
+      if (!op) return;
+      if (op.t === 'set' && validBet(op.bet)) bets[op.bet.id] = cleanBet(op.bet);
+      else if (op.t === 'del') delete bets[op.id];
+      else if (op.t === 'grade' && op.bet) { // only if the stored bet is still open with the same odds and units the result was computed from (else it is graded again next pass)
+        const cur = bets[op.bet.id];
+        if (cur && cur.status === 'open' && cur.odds === op.bet.odds && cur.units === op.bet.units) bets[op.bet.id] = cleanBet(Object.assign({}, cur, { status: op.bet.status, pl: op.bet.pl, settledAt: op.bet.settledAt, gradedOn: op.bet.gradedOn, note: op.bet.note }));
+      }
+    });
+    const store = { schema: SCHEMA, bets };
+    return { store, ok: save(store, storage) };
+  }
+
   // ---- odds + P/L ----
   // American odds text -> number, or null when invalid (+150, -110, 150; magnitude 100..9999, whole numbers)
   function parseOdds(txt) {
@@ -71,6 +98,7 @@
   const r2 = (v) => Math.round(v * 100) / 100;
 
   // ---- grading ----
+  const NOTE_NOSETTLE = 'Can’t settle on its own: your line differs from the open and close lines and no final stat is published for it.';
   const RES = { W: 'W', L: 'L', P: 'P', push: 'P', PUSH: 'P', Push: 'P' };
   // Which phase block of a results row the bet was placed on: close when the stored line equals the close line, else open when it equals the open line.
   // Returns { phase, block } or null when neither phase has the bet's line (the line moved and we cannot tell which one was bet).
@@ -87,23 +115,31 @@
     if (row.status === 'flagged') return { status: 'open', note: 'Checking: result under review' };
     if (row.status !== 'graded') return null;
     const m = matchPhase(bet, row);
-    if (!m) return { status: 'open', note: 'Checking: line changed' };
+    if (!m) { // the line differs from both published lines: settle at the bet's own line from the actual stat when the row carries it
+      if (bet.type === 'prop' && isNum(bet.line) && isNum(row.actual) && (bet.side === 'o' || bet.side === 'u')) {
+        const res = row.actual === bet.line ? 'P' : ((row.actual > bet.line) === (bet.side === 'o') ? 'W' : 'L');
+        return { status: res, pl: res === 'P' ? 0 : r2(calcPL(res, bet.odds, bet.units)), phase: 'actual' };
+      }
+      return { status: 'open', note: NOTE_NOSETTLE };
+    }
     const res = RES[m.block.result];
     if (!res) return { status: 'open', note: 'Checking: no result yet' };
     if (res === 'P') return { status: 'P', pl: 0, phase: m.phase };
     return { status: res, pl: r2(calcPL(res, bet.odds, bet.units)), phase: m.phase };
   }
   // apply grades to open bets; rowFor(bet) -> results row or undefined. Returns the number of bets that changed.
-  function applyGrades(st, rowFor, nowIso) {
+  // changed (optional array) receives the ids of the bets that changed
+  function applyGrades(st, rowFor, nowIso, changed) {
     let n = 0;
     Object.values(st.bets).forEach((b) => {
       if (b.status !== 'open') return;
       const g = gradeBet(b, rowFor(b));
-      if (!g) { if (b.note) { delete b.note; n++; } return; }
-      if (g.status === 'open') { if (b.note !== g.note) { b.note = g.note; n++; } return; }
+      const hit = () => { n++; if (changed) changed.push(b.id); };
+      if (!g) { if (b.note) { delete b.note; hit(); } return; }
+      if (g.status === 'open') { if (b.note !== g.note) { b.note = g.note; hit(); } return; }
       b.status = g.status; b.pl = g.pl; b.settledAt = nowIso || new Date().toISOString(); delete b.note;
       if (g.phase) b.gradedOn = g.phase;
-      n++;
+      hit();
     });
     return n;
   }
@@ -159,6 +195,6 @@
     return { store: out, added, skipped, invalid };
   }
 
-  root.MyBets = { KEY, SCHEMA, UNIT_CHOICES, emptyStore, load, save, validBet, cleanBet, parseOdds, calcPL, matchPhase, gradeBet, applyGrades, resultsPath, summary, clvOf, exportName, exportText, mergeImport };
+  root.MyBets = { KEY, SCHEMA, UNIT_CHOICES, emptyStore, load, save, commit, validBet, cleanBet, parseOdds, calcPL, matchPhase, gradeBet, applyGrades, resultsPath, summary, clvOf, exportName, exportText, mergeImport };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.MyBets;
 }(typeof window !== 'undefined' ? window : globalThis));

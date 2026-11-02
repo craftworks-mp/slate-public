@@ -267,7 +267,7 @@
   // True while any open tracked bet could still produce live data (the app keeps its 30 s timer only then)
   const pending = (bets, now, cache) => eligible(bets, now, cache).length > 0;
 
-  const api = { ESPN, PATH, POLL_MS, TIMEOUT_MS, FIX, PARTS, GAME_MKT, norm, nameKeys, teamCode, etDay, trackable, gameKey, parseScoreboard, findEvent, parseSummary, findPlayer, statValue, decide, betView, eligible, refresh, pending };
+  const api = { ESPN, PATH, POLL_MS, TIMEOUT_MS, FIX, PARTS, GAME_MKT, actCell, norm, nameKeys, teamCode, etDay, trackable, gameKey, parseScoreboard, findEvent, parseSummary, findPlayer, statValue, decide, betView, eligible, refresh, pending };
   root.Live = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 }(typeof window !== 'undefined' ? window : globalThis));

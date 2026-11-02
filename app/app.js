@@ -39,6 +39,7 @@
     res: { view: 'model', ph: 'close', range: 'season', fold: false, mkt: '', ou: '', fd: '', ha: '', mmkt: '', mou: '', mfd: '', mgr: '' }, // Results tab, Model view (app/results.js)
   };
   let cur = { key: '', sport: null, kind: 'root', id: '' };
+  const LGU = window.LiveGameUI; let lgCtx = null; // Live Game tab (app/livegame_ui.js); lgCtx = the live-window game on screen
 
   const $ = (id) => document.getElementById(id);
   const view = $('view');
@@ -97,7 +98,7 @@
       const on = seg.querySelector('button.on');
       if (!hl || !on) return;
       const b0 = seg.querySelector('button').dataset;
-      const kind = b0.bseg !== undefined ? 'bseg' : b0.sub !== undefined ? 'sub' : b0.sort !== undefined ? 'sort' : b0.cmp !== undefined ? 'cmp' : b0.shotv !== undefined ? 'shotv' : b0.ptab !== undefined ? 'ptab' : b0.bside !== undefined ? 'bside' : 'filter';
+      const kind = b0.bseg !== undefined ? 'bseg' : b0.sub !== undefined ? 'sub' : b0.sort !== undefined ? 'sort' : b0.cmp !== undefined ? 'cmp' : b0.shotv !== undefined ? 'shotv' : b0.ptab !== undefined ? 'ptab' : b0.bside !== undefined ? 'bside' : b0.lg !== undefined ? 'lg' : 'filter';
       const x = on.offsetLeft, w = on.offsetWidth;
       const prev = lastHl[kind];
       lastHl[kind] = { x, w };
@@ -526,12 +527,13 @@
     if (!store.idxDone || sc.st === 'loading') return `<div class="dates" aria-hidden="true"><div class="pills">${'<button disabled><span class="d">&nbsp;</span><span class="s">&nbsp;</span></button>'.repeat(5)}</div></div>${head}${skList(sport)}`;
     const sel = selDate(sport), today = ymd(0), end = ymd(sport === 'nfl' ? 7 : 2);
     const days = new Set([...gameDays(sport)].filter((d) => d <= end));
-    days.add(sel);
+    const unknownDay = !!state.sel[sport] && !gameDays(sport).has(state.sel[sport]); // F7: arrived by a #<sport>/day/<date> link to a day with no games
+    if (!unknownDay) days.add(sel);
     const pill = (d) => `<button data-day="${d}" class="${d === sel ? 'on' : ''}${d === today ? ' today' : ''}" aria-pressed="${d === sel}"><span class="d">${d === today ? 'Today' : dowOf(d)}</span><span class="s">${mdOf(d)}</span></button>`;
     const wk = sport === 'nfl' ? weekOf(sport, sel) : null;
     const label = wk ? `<span class="lbl wk-lbl">Week ${wk.w}</span>` : '';
     return `<div class="dates"><div class="pills ${sport}" aria-label="Game days">${[...days].sort().map(pill).join('')}</div></div>
-      ${head}${label}${dayList(sport, sel, m)}`;
+      ${head}${label}${unknownDay ? `<div class="card empty nf"><h2>Day not found</h2><p>No ${SPORTS[sport]} games are listed for ${esc(longOf(sel))} ${esc(sel.slice(0, 4))}.</p><button class="pillbtn retry" data-dayreset="1">Back to today’s games</button></div>` : dayList(sport, sel, m)}`;
   }
 
   const skList = (sport) => `<div class="glist">${PAIRS[sport].map(([aw, hm]) => `<div class="grow" aria-hidden="true"><span class="teams">
@@ -539,6 +541,9 @@
         <span class="tline">${badge(hm)}${bar('w70')}<span class="rec">—</span></span></span>
         <span class="tcol">${bar('w85')}${bar('w55')}</span></div>`).join('')}</div>`;
 
+  // U7: a day that is only on the schedule (no slate published yet). Wording follows what the app's preline flow shows: projections the night before, book lines at about 8 AM ET (PRE_NOTE)
+  const SCHED_FUTURE = 'Projections post the night before the games. Book lines, EV and grades follow around 8 AM ET.';
+  const schedNote = (date) => (date > ymd(0) ? `<p class="day-note">${SCHED_FUTURE}</p>` : date === ymd(0) ? '<p class="day-note">Projections for today’s games haven’t posted yet.</p>' : '');
   function dayList(sport, date, m) {
     const d = ensureDay(sport, date);
     if (d.st === 'loading' || m.st === 'loading') return skList(sport);
@@ -546,21 +551,31 @@
     const games = d.st === 'ok' ? ((d.data && d.data.games) || []).map((g) => (d.data.preline ? Object.assign({}, g, { preline: true }) : g)) : [];
     if (games.length) return `<div class="glist">${games.map((g) => gameCard(sport, g)).join('')}</div>`;
     const sg = schedGames(sport, date);
-    if (sg.length) return `<div class="glist">${sg.map((g) => gameCard(sport, g)).join('')}</div>`;
+    if (sg.length) return `${schedNote(date)}<div class="glist">${sg.map((g) => gameCard(sport, g)).join('')}</div>`;
     return `<div class="card empty"><h2>No games ${esc(longOf(date))}</h2><p>${store.sched[sport].st === 'err' ? 'The schedule could not be loaded.' : 'Nothing scheduled for this day.'}</p></div>`;
   }
 
   const ktxt = (g) => (g.tv === false ? 'TBD' : fmtTime(g.kickoff));
-  function sideCol(g) {
+  // kickoff passed? (ISO string; unknown / unparseable = not started)
+  const kickPassed = (iso) => { const t = Date.parse(iso); return isFinite(t) && t <= Date.now(); };
+  // F3: kickoff passed and the data still says "scheduled": the game is under way (or waiting for its final). Within 6 h of kickoff = In progress (Live when the
+  // live cache from My Bets has it in play), later = Awaiting final. No new fetching: kickoff time + the status the days / schedule file already carries.
+  function ipState(sport, g) {
+    if (!g || g.tv === false || (g.status || 'scheduled') !== 'scheduled' || !kickPassed(g.kickoff)) return null;
+    if (Date.now() - Date.parse(g.kickoff) > 6 * 36e5) return 'Awaiting final';
+    const lg = lv.cache.games[LV.gameKey({ sport, date: g.d || etDay(g.kickoff), away: g.away, home: g.home })];
+    return lg && lg.state === 'in' ? 'Live' : 'In progress';
+  }
+  function sideCol(g, sport) {
     const parts = lineParts(g), st = g.status || 'scheduled';
     let top;
     if (st === 'final') top = `<span class="lbl">Final${g.ot ? '/' + esc(g.ot) : ''}</span>`;
     else if (st === 'pending') top = '<span class="lbl amber">Final pending</span>';
     else if (st === 'live') top = '<span class="lbl amber">Live</span>';
     else if (st === 'post') top = '<span class="lbl">Postponed</span>';
-    else if (st === 'scheduled') top = `<span class="ktime">${esc(ktxt(g))}</span>`;
+    else if (st === 'scheduled') { const ip = ipState(sport, g); top = ip ? `<span class="lbl amber">${ip}</span>` : `<span class="ktime">${esc(ktxt(g))}</span>`; }
     else top = `<span class="lbl">${esc(st)}</span>`;
-    const bc = st === 'scheduled' && g.bc && g.bc[0] ? `<span class="kline">${esc(g.bc[0])}</span>` : '';
+    const bc = st === 'scheduled' && g.bc && g.bc[0] && !ipState(sport, g) ? `<span class="kline">${esc(g.bc[0])}</span>` : '';
     return `${top}${bc}${parts.map((p) => `<span class="kline">${p}</span>`).join('')}`;
   }
   function teamRow(sport, g, side, tags) {
@@ -577,7 +592,7 @@
   function gameCard(sport, g) {
     const b = g.bets || {}, n = g.preline ? 0 : b.n || 0, sp = g.preline ? 0 : b['S+'] || 0;
     const rated = sp + (b.A || 0) + (b.B || 0);
-    const bline = g.preline ? '<span class="bline pre-chip">Projections</span>' : n ? `<span class="bline">${esc(n)} bets${rated ? ` · ${esc(rated)} rated` : ''}</span>` : '';
+    const bline = g.preline ? '<span class="bline pre-chip">Projections</span>' : n ? `<span class="bline">${esc(n)} bets${rated ? ` · ${esc(rated)} graded B or better` : ''}</span>` : '';
     const acc = sp > 0 ? `<span class="acc-badge" role="img" aria-label="S+ value in this game">★ S+</span>` : '';
     let ta = null, th = null;
     if (sport !== 'nfl' && g.status !== 'final' && g.status !== 'post') {
@@ -588,14 +603,16 @@
     }
     return `<a class="gcard${acc ? ' has-acc' : ''}" href="#${sport}/game/${encodeURIComponent(g.gid)}" aria-label="${esc(g.away)} at ${esc(g.home)}">${acc}
       <span class="gc-main"><span class="teams">${teamRow(sport, g, 'away', ta)}${teamRow(sport, g, 'home', th)}</span>
-      <span class="gc-side">${sideCol(g)}</span></span>${bline}</a>`;
+      <span class="gc-side">${sideCol(g, sport)}</span></span>${bline}</a>`;
   }
 
   function standings(sport) {
     return `<div class="pagehead">${backBtn}<h2>${SPORTS[sport]} Standings</h2></div>
-      ${empty('Standings', 'Standings', 'Standings land with the data step.', 0)}`;
+      ${empty('Standings', 'Standings', 'Coming soon.', 0)}`;
   }
 
+  // F7: an unknown game / team / day link: a plain "not found" with the way back (never a fake page)
+  const notFound = (sport, title, msg) => `<div class="pagehead">${backBtn}</div><div class="card empty nf"><h2>${esc(title)}</h2><p>${esc(msg)}</p><a class="pillbtn retry" href="#${sport}">Back to ${SPORTS[sport]} games</a></div>`;
   const mvbSlate = (sport, date) => { const e = ensureSlate(sport, date); return e.st === 'ok' ? e.data || {} : null; };
   function liveGameView(sport, id) {
     ensureMeta(sport);
@@ -604,31 +621,34 @@
       if (lookupPending(sport) || store.meta[sport].st === 'loading') {
         return `<div class="pagehead">${backBtn}</div>${rowsGeneric(3)}`;
       }
-      history.replaceState(null, '', '#' + sport);
-      stack[stack.length - 1] = '#' + sport;
-      cur = parse();
-      return sportRoot(sport);
+      return notFound(sport, 'Game not found', 'We couldn’t find that game. It may be from a day that isn’t published.');
     }
     if (store.meta[sport].st === 'loading') return `<div class="pagehead">${backBtn}</div>${rowsGeneric(3)}`;
     const g = f.g, aw = g.away || '—', hm = g.home || '—';
     const chips = f.day.map((x) => `<a class="chip ${x.gid === g.gid ? 'on' : ''}" href="#${sport}/game/${encodeURIComponent(x.gid)}" ${x.gid === g.gid ? 'aria-current="true"' : ''}>${esc(x.away)} @ ${esc(x.home)}<small>${esc(ktxt(x))}</small></a>`).join('');
+    // -- Live Game hook (app/livegame_ui.js; owner 11/01 18:50): a live / just-finished game gets the live header and the live content inside the
+    // Game tab (live content first while the clock runs or after the final; comparison bars first at halftime / intermission). Pregame pages are unchanged. --
+    const lgp = window.LiveGameUI ? LGU.page(sport, g, f.date) : { ctx: null, view: null };
+    lgCtx = lgp.ctx;
+    const live = lgp.view;
     const tab = state.gameTab;
     let body;
     state.betGid = g.gid;
     if (tab === 'bets') body = betsTab(sport, f.date);
-    else if (tab === 'game') body = gameTab(sport, f.date, g);
+    else if (tab === 'game') body = !live ? gameTab(sport, f.date, g) : live.brk ? gameTab(sport, f.date, g) + live.body : live.body + gameTab(sport, f.date, g); // gameTab opens with its own "Team comparison" heading
     else body = rosterTab(sport, f.date, g, tab === 'away' ? aw : hm);
     const fin = g.status === 'final' && g.final;
-    const center = fin
+    const center = live ? live.center : fin
       ? `<span class="big fin">${esc(g.final.away)}<i>–</i>${esc(g.final.home)}</span><span class="lbl">Final${g.ot ? '/' + esc(g.ot) : ''}</span>`
       : g.status === 'post' ? '<span class="big">—</span><span class="lbl">Postponed</span>'
+        : ipState(sport, g) ? `<span class="big ip">${ipState(sport, g)}</span><span class="lbl amber">Started ${esc(ktxt(g))}</span>`
         : `<span class="big">${esc(ktxt(g))}</span>${g.status === 'pending' ? '<span class="lbl amber">Final pending</span>' : g.status === 'live' ? '<span class="lbl amber">Live</span>' : ''}${g.status === 'scheduled' && g.bc && g.bc[0] ? `<span class="kline">${esc(g.bc[0])}</span>` : ''}`;
     const lp = headLineParts(g, mvbSlate(sport, f.date)).map((p) => `<span class="kline">${p}</span>`).join('');
     const team = (code, side) => `<div class="gteam">${tbadge(sport, code, 'l', `#${sport}/team/${encodeURIComponent(code)}`, true)}
       <span class="rec">${esc(recFor(sport, g, side) || '—')}</span><span class="tn">${esc(tinfo(sport, code).short || '')}</span></div>`;
     return `<div class="pagehead">${backBtn}<div class="chips" aria-label="Games this day">${chips}</div></div>
       <div class="ghead">${team(aw, 'away')}<div class="gcenter">${center}${lp}</div>${team(hm, 'home')}</div>
-      ${isPre(mvbSlate(sport, f.date)) ? preScoreCard(sport, g, mvbSlate(sport, f.date)) : mvbCard(sport, g, mvbSlate(sport, f.date))}
+      ${live ? '' : isPre(mvbSlate(sport, f.date)) ? preScoreCard(sport, g, mvbSlate(sport, f.date)) : mvbCard(sport, g, mvbSlate(sport, f.date))}
       <div class="subtabs">${segmented(TABS.map(([k, l]) => [k, k === 'away' ? aw : k === 'home' ? hm : l]), tab, 'data-sub')}</div>
       ${body}`;
   }
@@ -895,7 +915,7 @@
     let fin = '';
     if (pgCtx.final) {
       const st = pgSettle(cur.sport || 'nba', r);
-      fin = `<span class="pg-settle"><span class="pg-act">${isNum(st.act) ? 'Actual ' + (td3 ? (st.act ? 'Yes' : 'No') : fx(st.act, Number.isInteger(st.act) ? 0 : 1)) : 'Did not play'}</span>${st.res ? `<span class="res-pill ${PG_RES[st.res] || ''}">${esc(st.res)}</span>` : ''}${st.beat === null ? '' : `<span class="pg-beat ${st.beat ? 'w' : 'l'}">Beat close: ${st.beat ? 'yes' : 'no'}</span>`}</span>`;
+      fin = `<span class="pg-settle"><span class="pg-act">${isNum(st.act) ? 'Actual ' + (td3 ? (st.act ? 'Yes' : 'No') : fx(st.act, Number.isInteger(st.act) ? 0 : 1)) : 'Did not play'}</span>${st.res ? `<span class="res-pill ${PG_RES[st.res] || ''}">${esc(st.res)}</span>` : ''}${st.beat === null ? (isNum(st.act) ? '<span class="pg-beat none" title="No closing price was recorded for this bet, so there is nothing to compare">Beat close: no closing price</span>' : '') : `<span class="pg-beat ${st.beat ? 'w' : 'l'}" title="${st.beat ? 'The price at the open beat the closing price' : 'The closing price was better than the open'}">Beat close: ${st.beat ? 'yes' : 'no'}</span>`}</span>`;
     }
     const arrow = td3 ? '' : ph.proj > ph.line ? '<i class="pb-arr" aria-label="above the line">▲</i>' : ph.proj < ph.line ? '<i class="pb-arr" aria-label="below the line">▼</i>' : '';
     const proj = td3 ? `<span class="pb-proj">Model ${isNum(ph.P) ? ph.P.toFixed(1) + '%' : '—'}</span>` : `<span class="pb-proj ev ${c}">Proj ${ph.proj.toFixed(1)}${arrow}</span>`;
@@ -917,14 +937,15 @@
     const hidden = rest.length;
     const meta = extra && extra.meta ? `<div class="pb-meta">${extra.meta}</div>` : '';
     const foot = extra && extra.foot ? extra.foot : '';
-    const fold = hidden || meta || foot
-      ? `<button class="pcard-more" data-bfold="${esc(grp.pid)}" aria-expanded="${!!more}">${more ? 'Show less' : hidden ? `+${hidden} more ${hidden === 1 ? 'market' : 'markets'}` : 'Details'}<svg class="pcard-fold" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>` : '';
+    const direct = !hidden && (meta || foot) ? meta + foot : ''; // U6: a single-market player has nothing to fold away: the context line shows directly (no "Details" fold)
+    const fold = hidden
+      ? `<button class="pcard-more" data-bfold="${esc(grp.pid)}" aria-expanded="${!!more}">${more ? 'Show less' : `+${hidden} more ${hidden === 1 ? 'market' : 'markets'}`}<svg class="pcard-fold" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>` : '';
     return `<div class="pcard pb-card"><button class="pcard-h"${pgOk ? ` data-player="${esc(grp.pid)}" aria-label="${esc(grp.name)} player page"` : ' tabindex="-1"'}>
       <span class="pcard-n">${grp.team ? tbadge(sport, grp.team, 's', '', true) : ''}<b>${esc(grp.name)}</b>${grp.inj ? `<i class="inj">${esc(grp.inj)}</i>` : ''}</span>
       <span class="pcard-r"><small>${n} ${n === 1 ? 'market' : 'markets'}</small></span>
       ${pgOk ? '<span class="pcard-chev" aria-hidden="true">›</span>' : ''}</button>
       ${lead.map((r) => betRow(r, showPick, extra && extra.metaOf ? extra.metaOf(r) : null)).join('')}
-      ${more ? rest.map((r) => betRow(r, showPick, extra && extra.metaOf ? extra.metaOf(r) : null)).join('') + meta + foot : ''}${fold}</div>`;
+      ${more ? rest.map((r) => betRow(r, showPick, extra && extra.metaOf ? extra.metaOf(r) : null)).join('') + meta + foot : ''}${direct}${fold}</div>`;
   }
   // rows with the active market filter first (so the lead row is the filtered market), then by EV (the group order itself is unchanged)
   const leadOrder = (rows) => {
@@ -1058,7 +1079,7 @@
     if (isPre(slate) && !pgCtx.final) { const fg = findGame(sport, state.betGid); if (fg) return preBetsTab(sport, slate, fg.g); }
     const allRows = e.st === 'ok' ? betRows(slate, state.betGid) : [];
     const rows = allRows.filter((r) => !isLong(r)); // longshots only in the top-3 blocks below
-    if (!allRows.length) return pgCtx.past || pgCtx.final ? `<div class="card empty"><h2>No props for this game</h2>${PG_NOTE}</div>` : empty('Bets', 'No props for this game yet', 'Props show up here once the slate is published.', 0);
+    if (!allRows.length) return pgCtx.past || pgCtx.final ? `<div class="card empty"><h2>No props for this game</h2>${PG_NOTE}</div>` : empty('Bets', 'No props for this game yet', date > ymd(0) ? SCHED_FUTURE : 'Props show up here once the slate is published.', 0);
     const f = state.betF, mode = state.betSide;
     const table = !!TBL_COLS[sport];
     let cols = TBL_COLS[sport] || [];
@@ -1601,7 +1622,7 @@
         <span class="dt-c dt-o">${f(av)}${isNum(ar) ? `<i class="rk${orc}">#${ar}</i>` : ''}${dl}</span></div>`;
     }).join('');
     const foot = `Per game, this season. Him: his average and rank among ${me.n} ${P} (#1 = highest). ${opp}: allowed to ${grpLab}s over ${grp.gg} games, rank of ${N} (#${N} allows the most). Last column: what they allow vs his average, + = they allow more (pp = percentage points).`;
-    return `${sec('Him vs what ' + opp + ' allows')}<div class="card dtab"><div class="dt-r dt-h"><span></span><span>Him<small>of ${esc(me.n)} ${esc(P)}</small></span><span>${esc(opp)} allows<small>rank of ${N}</small></span></div>${rows}<p class="dt-f">${esc(foot)}</p></div>`;
+    return `${sec('Him vs what ' + opp + ' allows')}<div class="card dtab"><div class="dt-r dt-h"><span></span><span>Him<small>rank of ${esc(me.n)} ${esc(P)} · #1 = highest</small></span><span>${esc(opp)} allows<small>rank of ${N} · #${N} = allows most</small></span></div>${rows}<p class="dt-f">${esc(foot)}</p></div>`;
   }
 
 
@@ -1769,6 +1790,21 @@
     return window.gate ? window.gate('shotMatchup', html, lock) : html;
   }
 
+  // F5: a player with no published stats file (players/<sp>/<id>.json 404): still show who he is and his bets on today's slate (same rows, with +) from the slate
+  function playerNoFile(sport, pid) {
+    const date = ymd(0), se = ensureSlate(sport, date);
+    if (se.st === 'loading') return pHead(`<div class="phero"><span class="dot"></span><span class="bars">${bar('w70')}${bar('w55')}</span></div>${rowsGeneric(3)}`);
+    const sl = se.st === 'ok' ? se.data || {} : null, sp = sl && sl.players && sl.players[pid];
+    if (!sp) return pHead(`<div class="card empty"><h2>No data for this player</h2><p>He isn’t on today’s slate, and full stats aren’t published for him yet.</p></div>`);
+    const name = sp.name || pid, team = sp.team || '', mt = tinfo(sport, team), inj = sp.inj || '';
+    const tcol = /^#[0-9a-f]{6}$/i.test(mt.color || '') ? mt.color : 'var(--grey)';
+    const meta = [sp.pos, sp.role].filter(Boolean).join(' · ');
+    const hero = `<div class="phero2" style="--tc:${tcol}"><div class="ph-top"><span class="ini xxl" aria-hidden="true">${esc(initials(name))}</span>
+      <span class="pinfo"><h2 class="tname-xl">${esc(name)}</h2><span class="pteam">${team ? tbadge(sport, team, '', `#${sport}/team/${encodeURIComponent(team)}`, true) : ''}${meta ? `<span class="pmeta">${esc(meta)}</span>` : ''}${inj ? `<i class="inj">${esc(inj)}</i>` : ''}</span></span></div></div>`;
+    const mine = Object.values(bestSides(betRows(sl, sp.gid).filter((r) => String(r.b.pid) === String(pid)))).sort((x, y) => y.ph.ev - x.ph.ev); // all his rows, longshots too: this page is the only place they show for him
+    const props = mine.length ? `${sec('Props today')}<div class="betlist">${mine.map((r) => betRow(r)).join('')}</div>` : '<div class="card empty"><p>No props for him tonight.</p></div>';
+    return pHead(`${hero}${props}<div class="card empty pn-nofile"><p>Full stats aren’t published for him yet.</p></div>`);
+  }
   function playerView(sport, pid) {
     ensureMeta(sport);
     const pe = ensurePlayer(sport, pid), sc = ensureSched(sport);
@@ -1778,7 +1814,7 @@
       return pHead(`<div class="phero"><span class="dot"></span><span class="bars">${bar('w70')}${bar('w55')}</span></div>${rowsGeneric(3)}`);
     }
     if (pe.st === 'err') return pHead(`<div class="card empty"><h2>Couldn’t load player</h2><p>Check your connection and try again.</p><button class="pillbtn retry" data-retry-player="${esc(sport + '/' + pid)}">Retry</button></div>`);
-    if (pe.st !== 'ok') return pHead(`<div class="card empty"><h2>No data for this player</h2><p>This player has no published stats yet.</p></div>`);
+    if (pe.st !== 'ok') return playerNoFile(sport, pid);
     const d = pe.data || {}, goalie = sport === 'nhl' && d.pos === 'G';
     // always today (ET), never the day picked in the sport list (audit fix, user 10/31 23:51)
     const date = ymd(0), se = ensureSlate(sport, date);
@@ -1911,7 +1947,7 @@
         const n = (rows, m) => (rows.length < m ? rows.length : m);
         let rowsHtml = trow(`Season${isNum(d.gp) ? ` (${d.gp})` : ''}`, (c) => st[c[0]]);
         if (hist && l10.length) rowsHtml += trow(`Last ${n(l10, 10)}`, (c) => havg(hist, l10, c[2]));
-        if (hist && l5h.length) rowsHtml += trow(`Last ${n(l5h, 5)}`, (c) => havg(hist, l5h, c[2]));
+        if (hist && l5h.length) { if (l5h.length < l10.length) rowsHtml += trow(`Last ${n(l5h, 5)}`, (c) => havg(hist, l5h, c[2])); } // same games as the row above = same row (U2)
         else rowsHtml += trow('Last 5', (c) => (sport === 'nhl' && c[0] === 'pts' ? l5v('pts') : l5[c[0]]));
         avg = sec('Averages') + `<div class="card spl"><span class="rtab" style="--n:${tc.length}"><span class="rl"></span>${tc.map((c) => cell(c[1], 'rh')).join('')}${rowsHtml}</span></div>`;
       }
@@ -1986,12 +2022,14 @@
     const hero = t.name
       ? `${tbadge(sport, code, 'xl', '', true)}<span class="bars"><h2 class="tname-xl">${esc(t.name)}</h2>${sub}</span>`
       : `${badge(code, 'xl')}<span class="bars">${bar('w70')}${rec ? sub : bar('w40')}</span>`;
+    const known = t.name || (schedData(sport) && schedData(sport).byTeam[code]);
+    if (!known && store.meta[sport].st !== 'loading' && sc.st !== 'loading' && store.meta[sport].st === 'ok') return notFound(sport, 'Team not found', 'We couldn’t find ' + (code === '\u2014' ? 'that team' : code) + ' in the ' + SPORTS[sport] + '.');
     ensureDef(sport);
     const ng = nextGames(sport, code, 1)[0];
     const tg = defData(sport) ? teamTags(sport, code, ng ? ng.d : '', ng ? slateGame(sport, ng.d, ng.gid) : null) : null;
     return `<div class="pagehead">${backBtn}</div>
       <div class="phero">${hero}</div>
-      ${tg ? sec('Tags') + tagRows(sport, code, tg) : ''}${sec('Splits')}<div class="card empty"><p>Team splits land with the data step.</p></div>${sec('Roster')}<div class="card empty"><p>The roster lands with the data step.</p></div>${sec('Schedule')}${teamSchedule(sport, code, sc)}`;
+      ${tg ? sec('Tags') + tagRows(sport, code, tg) : ''}${sec('Splits')}<div class="card empty"><p>Coming soon.</p></div>${sec('Roster')}<div class="card empty"><p>Coming soon.</p></div>${sec('Schedule')}${teamSchedule(sport, code, sc)}`;
   }
 
   function teamSchedule(sport, code, sc) {
@@ -2125,7 +2163,8 @@
     const changed = c.key !== lastKey;
     if (changed) toastHide();
     lastKey = c.key;
-    const title = c.page ? PAGES[c.page] : c.kind === 'root' ? SPORTS[c.sport] : SUBTITLES[c.kind];
+    let title = c.page ? PAGES[c.page] : c.kind === 'root' ? SPORTS[c.sport] : SUBTITLES[c.kind];
+    if (c.kind === 'game') { const fg = findGame(c.sport, c.id); if (fg && fg.g && fg.g.away && fg.g.home) title = `${fg.g.away} @ ${fg.g.home}`; } // F8: the matchup, not "Game"
     $('title').textContent = title;
     document.title = `${title} \u00b7 Slate Projector`;
     const navKey = c.page || c.sport;
@@ -2169,6 +2208,7 @@
     }
     placeHl(!changed);
     lvSync();
+    if (window.LiveGameUI) LGU.sync(c.kind === 'game' ? lgCtx : null); // Live Game hook: poll only while a live-window game page is on screen
   }
 
   const sportOf = () => cur.sport || 'nba';
@@ -2204,6 +2244,7 @@
       else if (k.startsWith('mkt:')) f.mkt = f.mkt === k.slice(4) ? '' : k.slice(4);
     }
     else if (d.sub) state.gameTab = d.sub;
+    else if (d.lg) LGU.click(d.lg); // Live Game hook (Box / Usage toggle, folds)
     else if (d.pgsub) state.pgTab = d.pgsub;
     else if (d.pgproj !== undefined) state.pgProj = !state.pgProj;
     else if (d.pgfold) { if (state.pgOpen[d.pgfold]) delete state.pgOpen[d.pgfold]; else state.pgOpen[d.pgfold] = true; }
@@ -2213,6 +2254,7 @@
     else if (d.szct) { szcOpen['t:' + d.szct] = !szcOpen['t:' + d.szct]; }
     else if (d.cstat) state.chartStat[sportOf() + '/' + cur.id] = d.cstat;
     else if (d.info) { if (state.infoOpen[d.info]) delete state.infoOpen[d.info]; else state.infoOpen[d.info] = true; }
+    else if (d.dayreset) state.sel[sportOf()] = null;
     else if (d.day) state.sel[sportOf()] = d.day;
     else if (d.filter) state.filter = d.filter;
     else return;
@@ -2233,10 +2275,16 @@
   const CHECK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 
   // "+" / check button of a bet row (a sibling of the row button, so tapping it never expands the row)
+  const STARTED_MSG = 'This game has started, so it can’t be added.';
+  // F2: has the game of this bet row started? (slate kickoff; unknown = not started)
+  function rowStarted(sport, r) {
+    const e = store.slates[sport + '/' + idDate(r.id)], sg = e && e.st === 'ok' && e.data && e.data.games && e.data.games[r.b ? r.b.gid : ''];
+    return !!(sg && kickPassed(sg.kickoff));
+  }
   function addBtn(sport, r) {
     if (!isNum(r.ph.odds)) return '';
-    const on = !!mb.bets[r.id], lab = `${r.name} ${betText(r)}`;
-    return `<button class="addb${on ? ' on' : ''}" data-addbet="${esc(sport + '|' + r.id)}" aria-pressed="${on}" aria-label="${on ? 'Edit' : 'Add'} ${esc(lab)} ${on ? 'in' : 'to'} My Bets">${on ? CHECK_SVG : PLUS_SVG}</button>`;
+    const on = !!mb.bets[r.id], lab = `${r.name} ${betText(r)}`, off = !on && rowStarted(sport, r);
+    return `<button class="addb${on ? ' on' : ''}${off ? ' off' : ''}" data-addbet="${esc(sport + '|' + r.id)}" aria-pressed="${on}" aria-label="${off ? esc(lab) + ': ' + STARTED_MSG : (on ? 'Edit' : 'Add') + ' ' + esc(lab) + ' ' + (on ? 'in' : 'to') + ' My Bets'}">${on ? CHECK_SVG : PLUS_SVG}</button>`;
   }
   // slate row (betRows shape) of a bet id, or null while the slate is not loaded
   function slateRow(sport, id) {
@@ -2261,6 +2309,7 @@
   // ---- add / edit sheet ----
   const bsheet = $('bet-sheet'), bdrop = $('backdrop');
   let bs = null; // { sport, id, bet (draft or stored), edit, units }
+  const isYN = (b) => b.market === 'td3' || b.market === 'atd' || (b.market === 'g' && Number(b.line) === 0.5); // yes / no props (anytime goal, triple-double, anytime TD): no line to show
   function bsRender() {
     const b = bs.bet, locked = bs.edit && b.status !== 'open';
     const sub = (b.away && b.home ? `${b.away} @ ${b.home}` : [b.team, b.opp].filter(Boolean).join(' vs ')) + ` · ${longOf(b.date)}`;
@@ -2268,7 +2317,7 @@
     bsheet.innerHTML = `<div class="grab" aria-hidden="true"></div>
       <h2 id="bs-title">${bs.edit ? (locked ? 'Settled bet' : 'Edit bet') : 'Add to My Bets'}</h2>
       <div class="bs-bet"><b>${esc(b.label)}</b><span>${esc(sub)}</span></div>
-      <div class="bs-row"><span class="lbl">Line</span><span class="val">${esc(b.line === null ? '—' : b.line)}${res}</span></div>
+      ${isYN(b) ? `<div class="bs-row"><span class="lbl">Side</span><span class="val">${b.side === 'u' ? 'No' : 'Yes'}${res}</span></div>` : `<div class="bs-row"><span class="lbl">Line</span><span class="val">${esc(b.line === null ? '—' : b.line)}${res}</span></div>`}
       ${locked ? `<div class="bs-row"><span class="lbl">Odds</span><span class="val">${fmtOdds(b.odds)}</span></div><div class="bs-row"><span class="lbl">Stake</span><span class="val">${uTxt(b.units)}</span></div>
         <div class="bs-row"><span class="lbl">Result</span><span class="val ${plCls(b.pl)}">${b.status === 'void' ? 'Void, no stake' : uSgn(b.pl)}</span></div>`
     : `<label class="bs-row" for="bs-odds"><span class="lbl">Odds</span><input id="bs-odds" class="bs-in" value="${esc(fmtOdds(b.odds).replace(MINUS, '-'))}" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="bs-err" aria-invalid="false"></label>
@@ -2286,17 +2335,21 @@
     else {
       const found = slateRow(sport, id);
       if (!found || !isNum(found.r.ph.odds)) return;
+      if (kickPassed(((found.slate.games || {})[found.r.b.gid] || {}).kickoff)) { toast(STARTED_MSG); return; } // F2: no new bets on a game that has started
       bet = newBet(sport, found);
     }
     bs = { sport, id, bet, edit: !!have, units: bet.units, trigger };
     bsRender();
+    modalOpen();
     bsheet.hidden = bdrop.hidden = false;
+    setModal();
     const f = $('bs-odds') || $('bs-x'); if (f) f.focus();
   }
   function bsClose() {
     if (!bs) return;
     const t = bs; bs = null;
     bsheet.hidden = bdrop.hidden = true;
+    modalOpener = null; setModal();
     const again = document.querySelector(`[data-addbet="${(window.CSS && CSS.escape ? CSS.escape(t.sport + '|' + t.id) : t.sport + '|' + t.id)}"]`);
     if (again) again.focus(); else if (t.trigger && t.trigger.isConnected) t.trigger.focus();
   }
@@ -2314,18 +2367,30 @@
     const b = Object.assign({}, bs.bet, { odds, units: bs.units });
     if (bs.edit) b.oddsEdited = bs.bet.oddsEdited || odds !== bs.bet.odds; else b.oddsEdited = odds !== bs.bet.odds;
     if (!bs.edit && odds === bs.bet.odds) b.oddsEdited = false;
-    mb.bets[b.id] = MB.cleanBet(b);
-    const ok = mbSave(), edit = bs.edit;
+    const ok = mbCommit([{ t: 'set', bet: b }]), edit = bs.edit;
     bsClose(); render();
     toast(ok ? (edit ? 'Bet updated' : 'Added to My Bets') : 'Saved for this visit only: this browser blocks storage');
   }
   function bsRemove() {
-    delete mb.bets[bs.id];
-    const ok = mbSave();
+    const ok = mbCommit([{ t: 'del', id: bs.id }]);
     bsClose(); render();
     toast(ok ? 'Bet removed' : 'Removed for this visit only: this browser blocks storage');
   }
-  const mbSave = () => MB.save(mb);
+  // F4: every write is a read-modify-write keyed by bet id (MB.commit), so a second tab / window can't overwrite this one's bets; mb is replaced by the merged store
+  const mbCommit = (ops) => { const r = MB.commit(mb, ops); mb = r.store; return r.ok; };
+  // another tab changed the saved bets (storage event) or this one came back to the front: re-read, close a sheet whose bet is gone, redraw
+  function mbRefresh() {
+    let raw = null;
+    try { raw = localStorage.getItem(MB.KEY); } catch (e) { /* blocked */ }
+    if (raw === null) return; // key missing (storage cleared) or unreadable: keep what this tab has; the next write saves it again
+    const fresh = MB.load();
+    if (JSON.stringify(fresh) === JSON.stringify(mb)) return;
+    mb = fresh;
+    if (bs && bs.edit && !mb.bets[bs.id]) bsClose();
+    render();
+  }
+  window.addEventListener('storage', (e) => { if (e.key === MB.KEY) mbRefresh(); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') mbRefresh(); });
   bsheet.addEventListener('click', (e) => {
     const b = e.target.closest('button');
     if (!b || !bs) return;
@@ -2358,8 +2423,10 @@
   function gradeMine() {
     const today = ymd(0);
     Object.values(mb.bets).forEach((b) => { if (b.status === 'open' && b.date <= today) ensureMyResults(b.sport, b.date.slice(0, 7)); });
-    const n = MB.applyGrades(mb, (b) => { const e = resStore[b.sport + '/' + b.date.slice(0, 7)]; return e && e.st === 'ok' ? e.rows[b.id] : undefined; });
-    if (n) mbSave();
+    const tmp = MB.emptyStore(), changed = []; // grade a copy, then write only the changed bets (F4: grading never replaces the whole store)
+    Object.keys(mb.bets).forEach((id) => { tmp.bets[id] = Object.assign({}, mb.bets[id]); });
+    const n = MB.applyGrades(tmp, (b) => { const e = resStore[b.sport + '/' + b.date.slice(0, 7)]; return e && e.st === 'ok' ? e.rows[b.id] : undefined; }, undefined, changed);
+    if (n) mbCommit(changed.map((id) => ({ t: 'grade', bet: tmp.bets[id] })));
     return n;
   }
 
@@ -2593,7 +2660,7 @@
     if (k) car.style.height = k.offsetHeight + 2 + 'px';
   }
   // ======== Bets tab v2 (prefix bx): sticky sport chips, status strip, folding feed, My Bets hero + timeline (user-approved 11/01 09:30) ========
-  const BX_SPORTS = ['nba', 'nhl', 'nfl'];
+  const BX_SPORTS = ['nfl', 'nba', 'nhl'];
   const BX_LS = 'sp.bets.ui.v1';
   const bxLoadUi = () => { try { const o = JSON.parse(localStorage.getItem(BX_LS) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } };
   const bxUi = bxLoadUi();
@@ -2608,7 +2675,7 @@
 
   // today's model-side S+/A rows per sport (the same rows the old Top rated used) + slate status
   function bxToday() {
-    const today = ymd(0), out = { rows: [], loading: false, failed: false, pre: false, sports: {}, any: false };
+    const today = ymd(0), out = { rows: [], loading: false, failed: false, pre: false, sports: {}, any: false, started: { 'S+': 0, A: 0 } };
     BX_SPORTS.forEach((sp) => {
       const s = store.idx && store.idx.sports && store.idx.sports[sp];
       if (!s || !(s.slates || []).includes(today)) return;
@@ -2623,7 +2690,11 @@
       if (isPre(e.data)) { info.pre = true; out.pre = true; return; }
       const gids = new Set(Object.values(e.data.bets || {}).map((b) => b && b.gid));
       gids.forEach((gid) => betRows(e.data, gid).forEach((r) => {
-        if (r.ph.pick !== false && (r.ph.grade === 'S+' || r.ph.grade === 'A') && isNum(r.ph.odds)) out.rows.push({ sp, r, sg: (e.data.games || {})[gid] || {} });
+        if (r.ph.pick !== false && (r.ph.grade === 'S+' || r.ph.grade === 'A') && isNum(r.ph.odds)) {
+          const sg = (e.data.games || {})[gid] || {};
+          if (kickPassed(sg.kickoff)) { out.started[r.ph.grade]++; return; } // F1: games that have started are not "today's picks" any more (same rule as Parlays / Scoring watch)
+          out.rows.push({ sp, r, sg });
+        }
       }));
     });
     out.rows.sort((x, y) => gradeIdx(x.r) - gradeIdx(y.r) || y.r.ph.ev - x.r.ph.ev);
@@ -2654,14 +2725,14 @@
   const bxBest = (rows) => (rows.length ? `<span class="ev ${evCls(rows[0].r.ph.ev)}">best ${sgn(rows[0].r.ph.ev, 1)}%</span>` : '');
   function bxSplus(rows, T) {
     const lock = rows.length ? `<div class="bx-lock"><div class="betlist bx-blur" aria-hidden="true">${bxRow(rows[0])}</div>${bxTease}</div>` : bxQuiet(bxTease);
-    const html = rows.length ? `<div class="betlist">${rows.map(bxRow).join('')}</div>` : bxQuiet(T.loading ? 'Loading today’s slates…' : T.failed ? 'Couldn’t load today’s slates. Check your connection and try again.' : T.pre ? 'Waiting for lines.' : 'No S+ rows on today’s slates yet.');
+    const html = rows.length ? `<div class="betlist">${rows.map(bxRow).join('')}</div>` : bxQuiet(T.loading ? 'Loading today’s slates…' : T.failed ? 'Couldn’t load today’s slates. Check your connection and try again.' : T.pre ? 'Waiting for lines.' : T.started['S+'] ? 'No S+ picks in games that haven’t started.' : 'No S+ picks on today’s slates.');
     const locked = gate('sPlus', '', 'x') === 'x'; // gating on: no EV in the header either
     return bxFold('splus', 'S+ today', rows.length ? `${rows.length}` : '', locked ? '' : bxBest(rows), gate('sPlus', html, lock));
   }
   function bxAgrade(rows, T) {
     const more = !!state.bxMore.agrade, shown = more ? rows : rows.slice(0, 3);
     const body = rows.length ? `<div class="betlist">${shown.map(bxRow).join('')}</div>${rows.length > 3 && !more ? `<button class="pillbtn bx-more" data-bxmore="agrade">${rows.length - 3} more A ›</button>` : ''}`
-      : bxQuiet(T.loading ? 'Loading today’s slates…' : T.pre ? 'Waiting for lines.' : 'No A-grade rows on today’s slates yet.');
+      : bxQuiet(T.loading ? 'Loading today’s slates…' : T.pre ? 'Waiting for lines.' : T.started.A ? 'No A-grade picks in games that haven’t started.' : 'No A-grade picks on today’s slates yet.');
     return bxFold('agrade', 'A grade', rows.length ? `${rows.length}` : '', bxBest(rows), body);
   }
   // parlays: compact rows; a tapped row expands to the full existing card (plCard)
@@ -2793,7 +2864,7 @@
     rd.onload = () => {
       const r = MB.mergeImport(mb, String(rd.result));
       if (r.error) { msg.textContent = r.error; return; }
-      mb = r.store; const ok = mbSave();
+      const ok = mbCommit(Object.keys(r.store.bets).filter((id) => !mb.bets[id]).map((id) => ({ t: 'set', bet: r.store.bets[id] })));
       msg.textContent = `Added ${r.added}, skipped ${r.skipped} already here${r.invalid ? `, ${r.invalid} invalid` : ''}.${ok ? '' : ' Storage is blocked: kept for this visit only.'}`;
       gradeMine(); render();
     };
@@ -2869,6 +2940,12 @@
   document.addEventListener('visibilitychange', lvSync);
   // ======== end My Bets ========
 
+  // ======== Live Game tab (owner-approved 11/01 18:45): logic in app/livegame.js, rendering + polling in app/livegame_ui.js. Hooks: liveGameView, render, click ========
+  if (window.LiveGameUI) LGU.init({
+    state, cur: () => cur, bets: () => mb.bets, lvName, lvHtml, lvCache: lv.cache, lvFetch, cmpColors, sec, segmented, fmtOdds, betLbl, rerender,
+  });
+  // ======== end Live Game tab ========
+
   // Track in-app history so the back button can use real browser back when possible.
   const stack = [location.hash];
   function parentHash() {
@@ -2902,9 +2979,24 @@
 
   // Search overlay
   const searchEl = $('search'), searchInput = $('search-input');
+  let modalOpener = null; // F6: what had focus before a dialog opened; focus goes back there on close
+  const dialogs = () => [bsheet, sheet, searchEl];
+  // F6: while a dialog is open the page behind it is inert (no tabbing or reading into it)
+  function setModal() {
+    const any = dialogs().some((x) => x && !x.hidden);
+    ['.topbar', '#view', '#nav'].forEach((q) => { const el = document.querySelector(q); if (el) { if (any) el.setAttribute('inert', ''); else el.removeAttribute('inert'); } });
+  }
+  function modalOpen() { if (!dialogs().some((x) => x && !x.hidden)) modalOpener = document.activeElement; }
+  function modalBack(fallback) {
+    setModal();
+    const t = modalOpener && modalOpener.isConnected ? modalOpener : fallback;
+    modalOpener = null;
+    if (t) t.focus();
+  }
   function setSearch(open) {
+    if (open) modalOpen();
     searchEl.hidden = !open;
-    if (open) { searchInput.value = ''; searchInput.focus(); } else $('search-btn').focus();
+    if (open) { setModal(); $('search-cancel').focus(); } else modalBack($('search-btn'));
   }
   $('search-btn').addEventListener('click', () => setSearch(true));
   $('search-cancel').addEventListener('click', () => setSearch(false));
@@ -2912,12 +3004,25 @@
 
   const sheet = $('sheet'), backdrop = $('backdrop');
   function setSheet(open) {
+    if (open) modalOpen();
     sheet.hidden = backdrop.hidden = !open;
-    if (open) $('close').focus(); else $('gear').focus();
+    if (open) { setModal(); $('close').focus(); } else modalBack($('gear'));
   }
+  // F6: Tab / Shift+Tab stay inside the open dialog
+  const FOCUSABLE = 'button:not([disabled]), a[href], input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    const dlg = dialogs().find((x) => x && !x.hidden);
+    if (!dlg) return;
+    const f = [...dlg.querySelectorAll(FOCUSABLE)].filter((x) => x.getClientRects().length > 0), a = document.activeElement;
+    if (!f.length) { e.preventDefault(); return; }
+    if (!dlg.contains(a)) { e.preventDefault(); f[0].focus(); }
+    else if (e.shiftKey && a === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
+    else if (!e.shiftKey && a === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+  });
   $('gear').addEventListener('click', () => setSheet(true));
   $('close').addEventListener('click', () => setSheet(false));
-  backdrop.addEventListener('click', () => setSheet(false));
+  backdrop.addEventListener('click', () => { if (!sheet.hidden) setSheet(false); });
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (!searchEl.hidden) setSearch(false);
