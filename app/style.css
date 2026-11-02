@@ -1177,10 +1177,6 @@ a.gl-row:active{background:var(--card2)}
 .bx-quiet .bx-tease{padding:2px 0}
 /* Results tiles: labels reserve two lines so the big numbers sit on one baseline across a row */
 .rs-tiles .rs-lbl{min-height:28px}
-/* live view: the toggle row stacks on narrow phones instead of squeezing the note beside the segment */
-.lg-head{flex-wrap:wrap;row-gap:8px}
-.lg-head .bets-n{flex:1 1 150px}
-@media (max-width:400px){.lg-head .bets-n{flex-basis:100%}.lg-seg{margin-left:auto}}
 .lg-foot{margin-top:16px}
 /* desktop column: sticky strips (sport chips, player tabs) sit on the column surface, not the page glow */
 @media (min-width:900px){
@@ -1189,3 +1185,19 @@ a.gl-row:active{background:var(--card2)}
 }
 /* bottom nav sits over the footer on phones: keep the footer readable above it */
 body{padding-bottom:calc(var(--bnav-h) + env(safe-area-inset-bottom) + 4px)}
+/* ---- demo polish round 2 ---- */
+/* live box: slim Bench divider between the players on the floor / ice and the rest (in play only) */
+.lg-tbl tr.lg-div th{position:sticky;left:0;padding:4px 14px 3px;background:var(--card2);font:600 var(--fs-xxs)/1.2 var(--font);letter-spacing:.08em;text-transform:uppercase;color:var(--dim);text-align:left;max-width:none}
+.lg-tbl tr.lg-div th::after{display:none}
+/* pinned player listed Out on the injury report */
+.lg-out .lv-t{color:var(--muted)}
+/* Box | Usage segment with its note under it */
+.lg-head{justify-content:flex-start;margin:0 0 6px}
+.lg-tognote{margin:0 2px 10px;font:500 var(--fs-xs)/1.35 var(--font);color:var(--dim)}
+/* projected-score card: labels never wrap ("Win %"); the grid gives the column its text width */
+.mvb-lab{white-space:nowrap}
+.mvb-tab{grid-template-columns:minmax(max-content,.8fr) minmax(0,1fr) minmax(0,1fr) minmax(100px,1.5fr)}
+/* day list: a game ESPN reports in play shows LIVE + period / clock on the right and the score on the team rows */
+.ld-clock{color:var(--amber);opacity:.85}
+.tline .score{flex:none}
+.lv.lv-out{grid-template-columns:1fr}

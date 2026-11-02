@@ -62,6 +62,7 @@
         out.push({
           id: String(e.id), day: etDay(e.date), state: String(c.status.type.state), away: teamCode(sp, tm.away.team.abbreviation), home: teamCode(sp, tm.home.team.abbreviation),
           sA: Number(tm.away.score), sH: Number(tm.home.score),
+          detail: String((c.status.type && c.status.type.shortDetail) || ''), // period + clock ("6:43 - 3rd"), for the day-list live card
         });
       } catch (err) { /* skip a malformed event */ }
     });

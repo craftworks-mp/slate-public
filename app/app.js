@@ -567,15 +567,17 @@
     return lg && lg.state === 'in' ? 'Live' : 'In progress';
   }
   function sideCol(g, sport) {
-    const parts = lineParts(g), st = g.status || 'scheduled';
+    const parts = lineParts(g), st = g.status || 'scheduled', le = ldEvent(sport, g);
     let top;
-    if (st === 'final') top = `<span class="lbl">Final${g.ot ? '/' + esc(g.ot) : ''}</span>`;
+    if (le && le.state === 'in') top = `<span class="lbl amber ld-live">Live</span><span class="kline ld-clock">${esc(le.detail || '')}</span>`; // ESPN says in play: LIVE + period / clock (score on the team rows)
+    else if (le && le.state === 'post') top = '<span class="lbl">Final</span>'; // ESPN final before the app's own finals feed has graded it
+    else if (st === 'final') top = `<span class="lbl">Final${g.ot ? '/' + esc(g.ot) : ''}</span>`;
     else if (st === 'pending') top = '<span class="lbl amber">Final pending</span>';
     else if (st === 'live') top = '<span class="lbl amber">Live</span>';
     else if (st === 'post') top = '<span class="lbl">Postponed</span>';
     else if (st === 'scheduled') { const ip = ipState(sport, g); top = ip ? `<span class="lbl amber">${ip}</span>` : `<span class="ktime">${esc(ktxt(g))}</span>`; }
     else top = `<span class="lbl">${esc(st)}</span>`;
-    const bc = st === 'scheduled' && g.bc && g.bc[0] && !ipState(sport, g) ? `<span class="kline">${esc(g.bc[0])}</span>` : '';
+    const bc = st === 'scheduled' && g.bc && g.bc[0] && !ipState(sport, g) && !le ? `<span class="kline">${esc(g.bc[0])}</span>` : '';
     return `${top}${bc}${parts.map((p) => `<span class="kline">${p}</span>`).join('')}`;
   }
   function teamRow(sport, g, side, tags) {
@@ -583,9 +585,13 @@
     const chips = tags && tags.length ? `<span class="tchips">${tagPill(sport, code, tags[0], 'gc' + g.gid, 'gc')}${tags.length > 1 ? `<span class="tgmore" ${tagAttr(sport, code, tags[1], 'gc' + g.gid)} aria-label="${tags.length - 1} more tags">+${tags.length - 1}</span>` : ''}</span>` : '';
     const rec = recFor(sport, g, side);
     let score = '';
+    const le = ldEvent(sport, g);
     if (g.status === 'final' && g.final) {
       const mine = g.final[side], other = g.final[side === 'away' ? 'home' : 'away'];
       score = `<span class="score ${mine > other ? 'w' : 'l'}">${esc(mine)}</span>`;
+    } else if (le) { // ESPN scoreboard: live score in white, at the final the loser goes muted (same rule as the Live Game header)
+      const mine = side === 'away' ? le.sA : le.sH, other = side === 'away' ? le.sH : le.sA;
+      score = `<span class="score ${le.state === 'post' && mine < other ? 'l' : 'w'}">${esc(mine)}</span>`;
     }
     return `<span class="tline">${tbadge(sport, code, '', '', true)}<span class="rec">${esc(rec || '—')}</span><span class="tn">${esc(t.short || '')}</span>${chips}${score}</span>`;
   }
@@ -2208,6 +2214,7 @@
     }
     placeHl(!changed);
     lvSync();
+    ldSync();
     if (window.LiveGameUI) LGU.sync(c.kind === 'game' ? lgCtx : null); // Live Game hook: poll only while a live-window game page is on screen
   }
 
@@ -2895,9 +2902,20 @@
     const sfx = ' ' + betLbl(b.market, b.side, b.line);
     return b.label.endsWith(sfx) ? b.label.slice(0, -sfx.length) : '';
   }
+  // the slate's injury status for a player: the game's injury report (what the Injuries card shows: "Name (role, Status, note)") first, else the player's own status
+  function injOf(sport, date, pid) {
+    const e = store.slates[sport + '/' + date], sl = e && e.st === 'ok' && e.data, p = sl && sl.players ? sl.players[String(pid)] : null;
+    if (!p) return '';
+    const sg = sl.games && p.gid ? sl.games[p.gid] : null, list = sg && sg.inj ? (sg.away === p.team ? sg.inj.A : sg.inj.B) || [] : [];
+    const hit = list.map(parseInj).find((x) => x.name === p.name);
+    return hit && hit.status ? hit.status : (p.inj ? String(p.inj) : '');
+  }
   function lvHtml(b) {
     const x = lvBet(b), v = LV.betView(x, lv.cache.games[LV.gameKey(x)], lvName(b));
-    if (!v) return '';
+    if (!v) { // no live row yet: a prop on a player the injury report lists Out says so once his game is under way (My Bets and the live game view)
+      const gm = lv.cache.games[LV.gameKey(x)];
+      return b.type === 'prop' && gm && gm.state === 'in' && /^out\b/i.test(injOf(b.sport, b.date, b.pid)) ? '<div class="lv lv-out"><span class="lv-t">Out · injury report</span></div>' : '';
+    }
     const fin = v.phase === 'post', tail = v.cls === 'push' ? 'Push' : v.tail;
     if (v.kind === 'score') { // score in white; at the final the losing team goes muted and the bet's result sits on the right (owner 11/01 18:27)
       const tm = (k, t, sc) => `<span class="${v.win && v.win !== k ? 'lo' : v.win ? 'hi' : ''}">${k === 'A' ? esc(t) + ' ' + sc : sc + ' ' + esc(t)}</span>`;
@@ -2940,9 +2958,48 @@
   document.addEventListener('visibilitychange', lvSync);
   // ======== end My Bets ========
 
+  // ======== Day-list live status (demo round 2): one ESPN scoreboard call per shown day, every 30 s, only while a day list is on screen and the page is visible.
+  // Same fetch, parse and team / date matching as My Bets (live.js); any failure keeps the day file's own text. Display only: nothing is stored. ========
+  const ld = { cache: {}, timer: 0, busy: false, gen: 0 }; // cache[sport/date] = { events }
+  const ldDate = () => (cur && !cur.page && (cur.kind === 'root' || cur.kind === 'day') ? selDate(cur.sport) : '');
+  // worth polling only while a listed game may be in play: kickoff passed (up to 8 h ago) and the day file still says scheduled / pending / live
+  function ldNeeded(sport, date) {
+    const d = store.days[sport + '/' + date], games = d && d.st === 'ok' && d.data && d.data.games;
+    if (!games || !games.length) return false;
+    const now = Date.now();
+    return games.some((g) => { const t = Date.parse(g.kickoff); return isFinite(t) && t <= now && now - t < 8 * 36e5 && ['scheduled', 'pending', 'live'].includes(g.status || 'scheduled'); });
+  }
+  const ldOn = () => !!ldDate() && document.visibilityState === 'visible' && ldNeeded(cur.sport, ldDate());
+  function ldEvent(sport, g) {
+    if (!g || g.status === 'final' || g.status === 'post' || g.tv === false) return null;
+    const date = g.d || (g.kickoff ? etDay(g.kickoff) : ''), c = ld.cache[sport + '/' + date];
+    if (!c || !c.events) return null;
+    const e = LV.findEvent(c.events, { date, away: g.away, home: g.home });
+    return e && (e.state === 'in' || e.state === 'post') && isNum(e.sA) && isNum(e.sH) ? e : null;
+  }
+  function ldStop() { clearTimeout(ld.timer); ld.timer = 0; ld.gen++; }
+  function ldSync() {
+    if (!ldOn()) { ldStop(); return; }
+    if (!ld.timer && !ld.busy) ldRun();
+  }
+  async function ldRun() {
+    const gen = ld.gen, sport = cur.sport, date = ldDate(), key = sport + '/' + date;
+    ld.busy = true;
+    let events = null;
+    try { events = LV.parseScoreboard(sport, await lvFetch(LV.ESPN + LV.PATH[sport] + '/scoreboard?dates=' + date.replace(/-/g, ''))); } catch (e) { events = null; }
+    ld.busy = false;
+    if (gen !== ld.gen) { ldSync(); return; } // stopped (or another list) while the request was out
+    if (events) { ld.cache[key] = { events }; render(); } // a failure keeps the last values (or the day file's text)
+    if (!ldOn()) { ldStop(); return; }
+    ld.timer = setTimeout(() => { ld.timer = 0; ldSync(); }, LV.POLL_MS);
+  }
+  document.addEventListener('visibilitychange', ldSync);
+  // ======== end day-list live status ========
+
   // ======== Live Game tab (owner-approved 11/01 18:45): logic in app/livegame.js, rendering + polling in app/livegame_ui.js. Hooks: liveGameView, render, click ========
   if (window.LiveGameUI) LGU.init({
     state, cur: () => cur, bets: () => mb.bets, lvName, lvHtml, lvCache: lv.cache, lvFetch, cmpColors, sec, segmented, fmtOdds, betLbl, rerender,
+    injOf,
   });
   // ======== end Live Game tab ========
 

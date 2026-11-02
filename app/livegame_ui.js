@@ -80,7 +80,10 @@
   function page(sport, g, date) {
     const ctx = ctxFor(sport, g, date);
     if (!ctx) return { ctx: null, view: null };
-    if (lg.key !== ctx.key) { lg.key = ctx.key; lg.ctx = ctx; lg.evId = ''; lg.data = null; lg.raw = null; lg.failed = false; lg.finalDone = false; }
+    if (lg.key !== ctx.key) { // another game (any sport): drop the old page's state AND its pending poll, so the new page fetches at once (a request still in flight is discarded by its gen check)
+      lg.key = ctx.key; lg.ctx = ctx; lg.evId = ''; lg.data = null; lg.raw = null; lg.failed = false; lg.finalDone = false;
+      stop();
+    }
     lg.ctx = ctx;
     const d = lg.data;
     paceLoad(ctx);
@@ -173,8 +176,16 @@
   function gameBets(list) {
     return `${D.sec('My bets · game lines')}<div class="card lg-pin">${list.map((b) => `<div class="lg-pinrow"><span class="lg-pinlab">${esc(b.label)}<small>${esc(D.fmtOdds(b.odds))} · ${esc(b.units)}u</small></span>${betLive(b)}</div>`).join('')}</div>`;
   }
-  const betLive = (b) => { const h = D.lvHtml(b); return h ? `<div class="lv-wrap lg-lv" data-lv="${esc(b.id)}">${h}</div>` : '<div class="lv-wrap lg-lv lg-nostat"><span class="lv-t">No stats yet · Live</span></div>'; };
-  const toggle = (sport) => `<div class="bets-head lg-head"><span class="bets-n">${st.mode === 'usage' ? usageNote(sport) : 'Players with a stat logged · My Bets pinned first'}</span>${D.segmented([['box', 'Box'], ['usage', 'Usage']], st.mode, 'data-lg', 'sortseg lg-seg')}</div>`;
+  // a pinned bet's live row; a player the slate lists as Out gets a calm "Out · injury report" instead of "No stats yet"
+  const betLive = (b) => {
+    const h = D.lvHtml(b);
+    if (h) return `<div class="lv-wrap lg-lv" data-lv="${esc(b.id)}">${h}</div>`;
+    const inj = D.injOf ? D.injOf(b.sport, b.date, b.pid) : '';
+    if (/^out\b/i.test(inj)) return '<div class="lv-wrap lg-lv lg-nostat lg-out"><span class="lv-t">Out · injury report</span></div>';
+    return '<div class="lv-wrap lg-lv lg-nostat"><span class="lv-t">No stats yet · Live</span></div>';
+  };
+  // Box | Usage segment, then its one-line note in its own element under it (demo round 2)
+  const toggle = (sport) => `<div class="bets-head lg-head">${D.segmented([['box', 'Box'], ['usage', 'Usage']], st.mode, 'data-lg', 'sortseg lg-seg')}</div><p class="lg-tognote">${st.mode === 'usage' ? usageNote(sport) : 'Players with a stat logged · My Bets pinned first'}</p>`;
   const usageNote = (sport) => ({ nba: 'Shot + FT attempts as a share of the team', nhl: 'Ice time, shifts, attempts (S + missed) as a share of the team', nfl: 'Targets, carries as a share of the team, pass attempts' }[sport] || '');
 
   // ---- team box ----
@@ -194,17 +205,24 @@
       pinHtml += `<div class="lg-pinrow"><span class="lg-pinlab"><b>${esc(name)}</b>${bets.map((b) => `<small>${esc(betText(b))} · ${esc(D.fmtOdds(b.odds))} · ${esc(b.units)}u</small>${paceTag(b)}`).join('')}</span>${bets.map(betLive).join('')}</div>`;
     });
     const order = (xs) => { const pin = xs.filter((r) => pins && pins[r.id]), rest = xs.filter((r) => !(pins && pins[r.id])); return pin.concat(rest); };
+    // in play (NBA `active` / NHL `onIce`, both verified as the players on the floor / ice): pinned first, then on floor, a slim "Bench" divider, the rest.
+    // No divider at a break or after the final (the flag then still marks the last lineup) and none when nobody is flagged.
+    const divide = (xs) => {
+      if (d.state !== 'in' || G.atBreak(d) || !xs.some((r) => r.on)) return xs;
+      const isPin = (r) => pins && pins[r.id], pin = xs.filter(isPin), on = xs.filter((r) => !isPin(r) && r.on), off = xs.filter((r) => !isPin(r) && !r.on);
+      return pin.concat(on, off.length ? [{ divider: 'Bench' }] : [], off);
+    };
     let inner = '';
     if (!list.length) inner = `<p class="pg-dnp">${d.state === 'post' ? 'No player stats in the box.' : 'No player has logged a stat yet.'}</p>`;
     else if (st.mode === 'usage') inner = usageTable(sport, list, pins);
     else if (sport === 'nba') {
       const starters = list.filter((r) => r.starter), bench = list.filter((r) => !r.starter);
-      inner = table(sport, G.COLS.nba, order(starters.concat(bench)), pins, 'Players', (r) => (r.on && d.state === 'in' ? 'On floor' : ''), undefined, paceRow(sport, ctx, d, code));
+      inner = table(sport, G.COLS.nba, divide(order(starters.concat(bench))), pins, 'Players', (r) => (r.on && d.state === 'in' ? 'On floor' : ''), undefined, paceRow(sport, ctx, d, code));
     } else if (sport === 'nhl') {
       const sk = list.slice().sort((x, y) => y.v.TOI - x.v.TOI), LEAD = 10, open = !!st.open[fk] || sk.length <= LEAD + 2;
       const shown = order(open ? sk : sk.slice(0, LEAD).concat(sk.slice(LEAD).filter((r) => pins && pins[r.id])));
       const gl = (d.goalies[code] || []).filter((p) => p.act);
-      inner = table(sport, G.COLS.nhl, shown, pins, 'Skaters', (r) => (r.on && d.state === 'in' ? 'On ice' : ''))
+      inner = table(sport, G.COLS.nhl, divide(shown), pins, 'Skaters', (r) => (r.on && d.state === 'in' ? 'On ice' : ''))
         + (!open ? `<button class="pg-fold" data-lg="fold:${esc(fk)}" aria-expanded="false">${sk.length - LEAD} more skaters</button>` : sk.length > LEAD + 2 ? `<button class="pg-fold" data-lg="fold:${esc(fk)}" aria-expanded="true">Fewer skaters</button>` : '')
         + (gl.length ? table(sport, G.COLS.nhlG, gl, {}, 'Goalies', (r) => (r.on && d.state === 'in' ? 'In net' : '')) : '');
     } else {
@@ -224,6 +242,7 @@
   function table(sport, cols, rows, pins, head, tag, unit, pace) {
     const th = `<tr><th scope="col">${esc(head)}</th>${cols.map((c) => `<th scope="col">${esc(c[1])}</th>`).join('')}</tr>`;
     const tr = (r) => {
+      if (r.divider) return `<tr class="lg-div"><th scope="row" colspan="${cols.length + 1}">${esc(r.divider)}</th></tr>`;
       const raw = unit ? r.units[unit].raw : r.raw, t = tag ? tag(r) : '', pin = pins && pins[r.id];
       const cell = (lab) => { const v = raw[lab]; return v === undefined || v === '' ? '—' : esc(v); };
       return `<tr${pin ? ' class="pg-hl"' : ''}><th scope="row"><span class="pg-pl lg-pl"><b>${esc(r.short || r.name)}</b>${t || r.pos ? `<small>${t ? `<i class="lg-on">${esc(t)}</i>` : ''}${t && r.pos ? ' · ' : ''}${esc(r.pos)}</small>` : ''}${pace ? pace(r) : ''}</span></th>${cols.map(([lab]) => `<td>${cell(lab)}</td>`).join('')}</tr>`;
@@ -264,30 +283,36 @@
     if (!on()) { stop(); return; }
     if (!lg.timer && !lg.busy) run();
   }
+  // One poll for the ctx current at its start. Everything is kept local until the request is back; if the page changed meanwhile
+  // (gen moved on: another game, any sport), the result is thrown away and a fresh poll starts for the page now on screen.
   async function run() {
     const gen = lg.gen, ctx = lg.ctx;
     lg.busy = true;
-    let changed = false;
+    let evId = lg.evId, data = null, raw = null, failed = false;
     try {
-      if (!lg.evId) { // one scoreboard call to find ESPN's event id (same matching as My Bets)
+      if (!evId) { // one scoreboard call to find ESPN's event id (same matching as My Bets)
         const ev = L.findEvent(L.parseScoreboard(ctx.sport, await D.lvFetch(L.ESPN + L.PATH[ctx.sport] + '/scoreboard?dates=' + ctx.date.replace(/-/g, ''))), { date: ctx.date, away: ctx.away, home: ctx.home });
         if (!ev) throw new Error('no event');
-        lg.evId = ev.id;
+        evId = ev.id;
       }
-      const js = await D.lvFetch(L.ESPN + L.PATH[ctx.sport] + '/summary?event=' + lg.evId);
+      const js = await D.lvFetch(L.ESPN + L.PATH[ctx.sport] + '/summary?event=' + evId);
       const d = G.parseGame(ctx.sport, js);
       if (!d) throw new Error('summary shape');
-      lg.data = d; lg.raw = js; lg.failed = false; changed = true;
+      data = d; raw = js;
+    } catch (e) { failed = true; }
+    lg.busy = false;
+    if (gen !== lg.gen || lg.ctx !== ctx && lg.key !== ctx.key) { sync(lg.ctx); return; } // stale: stopped or another page while the request was out
+    if (failed) lg.failed = true;
+    else {
+      lg.evId = evId; lg.data = data; lg.raw = raw; lg.failed = false;
       // feed the My Bets live cache so pinned rows (and My Bets itself) read the same summary; no second poll
       const c = D.lvCache.games[ctx.key] = D.lvCache.games[ctx.key] || {};
-      const sum = L.parseSummary(ctx.sport, js);
-      c.id = lg.evId; c.sport = ctx.sport; c.state = d.state; c.sA = d.away.score; c.sH = d.home.score;
+      const sum = L.parseSummary(ctx.sport, raw);
+      c.id = evId; c.sport = ctx.sport; c.state = data.state; c.sA = data.away.score; c.sH = data.home.score;
       if (sum) c.sum = sum;
-      if (d.state === 'post') { c.finalDone = true; lg.finalDone = true; }
-    } catch (e) { lg.failed = true; changed = true; }
-    lg.busy = false;
-    if (gen !== lg.gen) { sync(lg.ctx); return; } // stopped (or restarted) while the request was out
-    if (changed) D.rerender();
+      if (data.state === 'post') { c.finalDone = true; lg.finalDone = true; }
+    }
+    D.rerender();
     if (!on()) { stop(); return; }
     lg.timer = setTimeout(() => { lg.timer = 0; sync(lg.ctx); }, L.POLL_MS);
   }
