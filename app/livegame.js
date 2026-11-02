@@ -330,13 +330,100 @@
     return g.sport === 'nhl' ? true : g.period === 2;
   }
 
-  // ---- "on pace for" (deliberately not shipped) ----
-  // Owner rule (BUILD_PLAN 11/01 14:03 + "Standard for all projection math"): in-game projections ship only after a backtest on stored play-by-play beats
-  // straight-line pace at halftime and other checkpoints AND the owner has reviewed a full formula reference dashboard. Until then this returns null and the
-  // UI shows no on-pace number. Seam: onPace(sp, row, g, pregameProj) -> { key: value } once approved.
-  function onPace() { return null; }
+  // ---- "on pace for" (private demo, ?pace=1 only; formulas in docs/PACE_MODEL.md, fitted values in app/pace_params.json) ----
+  // Owner rule (BUILD_PLAN 11/01 14:03 + "Standard for all projection math"): shown by default only after the owner has reviewed the formulas.
+  // final = current + expected remaining. NBA: remaining minutes (share of the clock left he plays: pregame minutes, minutes so far, on the floor, starter, fouls, blowout z)
+  // times the blended per-minute rate (pregame rate vs live rate, weight = minutes / (minutes + k)) times a fitted scale s. NFL: time left times the blended per-game rate
+  // (weight w on the live pace, 1 - w on the pregame mean) times a fitted scale s times a game-script factor (1 + b * margin / 10). Parameters sit at fitted game times
+  // (NBA minutes 6/12/24/36/42, NFL 15/30/45) and are interpolated in between (k in log10); outside the nodes the nearest node is used.
+  // Pure: no DOM, no clock; paceCalc(sp, inp, P) mirrors scripts/backtest/pace_fit.py exactly (golden cases in tests/fixtures/pace_golden_*.json).
+  const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+  const lerp = (a, b, f) => a + (b - a) * f;
+  function nodePos(nodes, t) {
+    if (t <= nodes[0]) return [0, 0, 0];
+    const n = nodes.length - 1;
+    if (t >= nodes[n]) return [n, n, 0];
+    for (let i = 0; i < n; i++) if (t <= nodes[i + 1]) return [i, i + 1, (t - nodes[i]) / (nodes[i + 1] - nodes[i])];
+    return [n, n, 0];
+  }
+  // NBA features of the minutes model (all per-unit, so the minutes scale with the clock left)
+  function nbaFeat(inp, names) {
+    const tel = inp.tmin, tl = 48 - tel, m0 = inp.pre.min, z = Math.min(Math.abs(inp.margin) / Math.sqrt(tl), 6);
+    const f = { '1': 1, m0n: m0 / 48, livef: inp.min / tel, on: inp.on ? 1 : 0, starter: inp.starter ? 1 : 0, fouls: inp.fouls, f4: inp.fouls >= 4 ? 1 : 0, f5: inp.fouls >= 5 ? 1 : 0, z, z_star: z * m0 / 36 };
+    return names.map((n) => f[n]);
+  }
+  // inp (nba) = { tmin, min, pts, reb, ast, tpm, fouls, margin (his team's lead), on, starter, pre: { min, pts, reb, ast, tpm } } -> { minRem, pts, reb, ast, tpm, pra } | null
+  // inp (nfl) = { tsec, margin, cur: { pyd.. }, pre: { pyd.. } } -> { stat: projected final } for every stat with cur and pre
+  function paceCalc(sp, inp, P) {
+    try {
+      if (!P || !inp || !inp.pre) return null;
+      if (sp === 'nba') {
+        const C = P.nba;
+        if (!C || !(inp.tmin >= C.minElapsed) || inp.tmin > 48 || !(inp.pre.min > 0)) return null;
+        const [i, j, f] = nodePos(C.nodesMin, inp.tmin), A = C.nodes[i], B = C.nodes[j];
+        const x = nbaFeat(inp, C.features);
+        let g = 0;
+        x.forEach((v, q) => { g += v * lerp(A.minBeta[q], B.minBeta[q], f); });
+        const tl = 48 - inp.tmin, rm = tl * clamp(g, 0, 1), out = { minRem: rm };
+        for (const st of ['pts', 'reb', 'ast', 'tpm']) {
+          if (!isNum(inp.pre[st]) || !isNum(inp[st])) continue; // no pregame mean (no line) for this stat: no number
+          const sa = A.stats[st], sb = B.stats[st], k = Math.pow(10, lerp(Math.log10(sa.k), Math.log10(sb.k), f)), s = lerp(sa.s, sb.s, f);
+          const cm = inp.min, c = inp[st], pre = inp.pre[st] / inp.pre.min;
+          const live = cm > 0.5 ? c / Math.max(cm, 0.5) : pre, w = cm / (cm + k);
+          out[st] = c + s * rm * (w * live + (1 - w) * pre);
+        }
+        if (isNum(out.pts) && isNum(out.reb) && isNum(out.ast)) out.pra = out.pts + out.reb + out.ast;
+        return out;
+      }
+      if (sp === 'nfl') {
+        const C = P.nfl;
+        if (!C || !(inp.tsec >= C.minElapsed) || inp.tsec > 3600) return null;
+        const [i, j, f] = nodePos(C.nodesSec, inp.tsec), tl = (3600 - inp.tsec) / 3600, el = 1 - tl, mg = clamp(inp.margin, -21, 21) / 10, out = {};
+        for (const st of Object.keys(C.nodes[0])) {
+          const c = inp.cur[st], pre = inp.pre[st];
+          if (!isNum(c) || !isNum(pre)) continue;
+          const a = C.nodes[i][st], b = C.nodes[j][st], w = lerp(a.w, b.w, f), s = lerp(a.s, b.s, f), bb = lerp(a.b, b.b, f);
+          out[st] = c + s * tl * (w * (c / el) + (1 - w) * pre) * (1 + bb * mg);
+        }
+        return out;
+      }
+    } catch (e) { /* malformed input: no number */ }
+    return null;
+  }
+  // game clock text -> seconds (status.displayClock: "7:21" or, in the last minute, "45.3")
+  const clockSecs = (s) => { const t = String(s == null ? '' : s); if (t.indexOf(':') >= 0) { const p = t.split(':'); return n0(p[0]) * 60 + n0(p[1]); } return n0(t); };
+  // One player row of a parsed game (parseGame) -> { key: projected final } for the stats the params say are shown, or null.
+  // g = parseGame result, code = the player's team code, pre = pregame means { min, pts.. } (NBA) / { pyd, comp, patt, ryd, ratt, recy, rec } (NFL), P = pace_params.json.
+  // Only while the game is in play and in regulation; the number is a projection of the final stat (current included).
+  function onPace(sp, row, g, pre, P, code) {
+    try {
+      if (!g || g.state !== 'in' || !row || !pre || !P || !isNum(g.period) || g.period < 1) return null;
+      if ((sp !== 'nba' && sp !== 'nfl') || g.period > 4) return null;
+      const margin = code === g.home.code ? g.home.score - g.away.score : g.away.score - g.home.score;
+      const len = sp === 'nba' ? 720 : 900, el = (g.period - 1) * len + len - clockSecs(g.clock);
+      let out = null;
+      if (sp === 'nba') {
+        if (row.dnp || !row.v) return null;
+        out = paceCalc('nba', { tmin: el / 60, min: row.v.MIN, pts: row.v.PTS, reb: row.v.REB, ast: row.v.AST, tpm: row.v['3PM'], fouls: row.v.PF, margin, on: row.on === true, starter: row.starter === true, pre }, P);
+        if (out) delete out.minRem;
+      } else {
+        const v = row.v || {};
+        const cur = { pyd: v.PYD, comp: v.COMP, patt: v.PATT, ryd: v.RYD, ratt: v.CAR, recy: v.RECY, rec: v.REC };
+        const q = (P.nfl && P.nfl.qual) || {};
+        const all = paceCalc('nfl', { tsec: el, margin, cur, pre }, P);
+        if (all) {
+          out = {};
+          Object.keys(all).forEach((st) => { const r = q[st]; if (r && isNum(pre[r[0]]) && pre[r[0]] >= r[1]) out[st] = all[st]; });
+        }
+      }
+      if (!out) return null;
+      const show = (P[sp] && P[sp].show) || [], res = {};
+      show.forEach((st) => { if (isNum(out[st])) res[st] = out[st]; });
+      return Object.keys(res).length ? res : null;
+    } catch (e) { return null; }
+  }
 
-  const api = { COLS, NFL_UNITS, NFL_UNIT_LABEL, USAGE, USAGE_SORT, elapsed, secs, mmss, pair, parseGame, lineScore, teamStats, plays, drives, momentum, perLabel, usage, usageSort, shown, betsFor, atBreak, onPace };
+  const api = { COLS, NFL_UNITS, NFL_UNIT_LABEL, USAGE, USAGE_SORT, elapsed, secs, mmss, pair, parseGame, lineScore, teamStats, plays, drives, momentum, perLabel, usage, usageSort, shown, betsFor, atBreak, onPace, paceCalc, clockSecs };
   root.LiveGame = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 }(typeof window !== 'undefined' ? window : globalThis));

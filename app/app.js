@@ -608,7 +608,7 @@
 
   function standings(sport) {
     return `<div class="pagehead">${backBtn}<h2>${SPORTS[sport]} Standings</h2></div>
-      ${empty('Standings', 'Standings', 'Coming soon.', 0)}`;
+      ${empty('Standings', 'Standings', 'Coming soon. Team records already show on every game card and team page.', 0)}`;
   }
 
   // F7: an unknown game / team / day link: a plain "not found" with the way back (never a fake page)
@@ -2029,7 +2029,7 @@
     const tg = defData(sport) ? teamTags(sport, code, ng ? ng.d : '', ng ? slateGame(sport, ng.d, ng.gid) : null) : null;
     return `<div class="pagehead">${backBtn}</div>
       <div class="phero">${hero}</div>
-      ${tg ? sec('Tags') + tagRows(sport, code, tg) : ''}${sec('Splits')}<div class="card empty"><p>Coming soon.</p></div>${sec('Roster')}<div class="card empty"><p>Coming soon.</p></div>${sec('Schedule')}${teamSchedule(sport, code, sc)}`;
+      ${tg ? sec('Tags') + tagRows(sport, code, tg) : ''}${sec('Splits')}<div class="card empty soon"><p>Coming soon</p><small>Home, road and rest splits for ${esc(code)}.</small></div>${sec('Roster')}<div class="card empty soon"><p>Coming soon</p><small>Until then, open any ${esc(code)} game and use the ${esc(code)} tab for tonight’s players.</small></div>${sec('Schedule')}${teamSchedule(sport, code, sc)}`;
   }
 
   function teamSchedule(sport, code, sc) {
@@ -2671,7 +2671,7 @@
   state.bxTab = 'open'; // My Bets: open | settled
   const bxSaveUi = () => { try { localStorage.setItem(BX_LS, JSON.stringify({ sport: state.bxSport, fold: state.bxFold })); } catch (e) { /* storage blocked: memory only */ } };
   const bxDefs = () => (window.GLOSSARY || {}).bets || {};
-  const bxTease = '<div class="bx-tease"><span class="bx-lockico" aria-hidden="true">&#128274;</span>S+ projections are premium · track record stays free</div>';
+  const bxTease = '<div class="bx-tease"><span class="bx-tpill"><svg class="bx-lockico" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>S+ projections are part of premium</span><span class="bx-tsub">The track record stays free</span></div>';
 
   // today's model-side S+/A rows per sport (the same rows the old Top rated used) + slate status
   function bxToday() {
@@ -2725,14 +2725,14 @@
   const bxBest = (rows) => (rows.length ? `<span class="ev ${evCls(rows[0].r.ph.ev)}">best ${sgn(rows[0].r.ph.ev, 1)}%</span>` : '');
   function bxSplus(rows, T) {
     const lock = rows.length ? `<div class="bx-lock"><div class="betlist bx-blur" aria-hidden="true">${bxRow(rows[0])}</div>${bxTease}</div>` : bxQuiet(bxTease);
-    const html = rows.length ? `<div class="betlist">${rows.map(bxRow).join('')}</div>` : bxQuiet(T.loading ? 'Loading today’s slates…' : T.failed ? 'Couldn’t load today’s slates. Check your connection and try again.' : T.pre ? 'Waiting for lines.' : T.started['S+'] ? 'No S+ picks in games that haven’t started.' : 'No S+ picks on today’s slates.');
+    const html = rows.length ? `<div class="betlist">${rows.map(bxRow).join('')}</div>` : bxQuiet(T.loading ? 'Loading today’s slates…' : T.failed ? 'Couldn’t load today’s slates. Check your connection and try again.' : T.pre ? 'Waiting for lines.' : T.started['S+'] ? 'No S+ grades in games that haven’t started.' : 'No S+ grades on today’s slates.');
     const locked = gate('sPlus', '', 'x') === 'x'; // gating on: no EV in the header either
     return bxFold('splus', 'S+ today', rows.length ? `${rows.length}` : '', locked ? '' : bxBest(rows), gate('sPlus', html, lock));
   }
   function bxAgrade(rows, T) {
     const more = !!state.bxMore.agrade, shown = more ? rows : rows.slice(0, 3);
     const body = rows.length ? `<div class="betlist">${shown.map(bxRow).join('')}</div>${rows.length > 3 && !more ? `<button class="pillbtn bx-more" data-bxmore="agrade">${rows.length - 3} more A ›</button>` : ''}`
-      : bxQuiet(T.loading ? 'Loading today’s slates…' : T.pre ? 'Waiting for lines.' : T.started.A ? 'No A-grade picks in games that haven’t started.' : 'No A-grade picks on today’s slates yet.');
+      : bxQuiet(T.loading ? 'Loading today’s slates…' : T.pre ? 'Waiting for lines.' : T.started.A ? 'No A grades in games that haven’t started.' : 'No A grades on today’s slates yet.');
     return bxFold('agrade', 'A grade', rows.length ? `${rows.length}` : '', bxBest(rows), body);
   }
   // parlays: compact rows; a tapped row expands to the full existing card (plCard)

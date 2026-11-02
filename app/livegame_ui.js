@@ -14,6 +14,55 @@
 
   function init(deps) { D = deps; }
 
+  // ---- "On pace" (private demo: only with ?pace=1 in the URL; the owner reviews the formulas, docs/PACE_MODEL.md, before it is ever shown by default) ----
+  // Pregame means come from the published slate (../slates/<sport>/<date>.json: proj.close|open[stat].v, min.close|open); fitted values from pace_params.json.
+  // A stat without a pregame mean (no line that day) gets no number. The projection itself is the pure LiveGame.onPace.
+  const paceFlag = () => { try { return /(^|[?&])pace=1(&|$)/.test(location.search); } catch (e) { return false; } };
+  const pc = { params: null, loading: false, slate: {}, idx: {} };
+  const normName = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g, '').replace(/[^a-z0-9]/g, '');
+  function paceLoad(ctx) {
+    if (!paceFlag() || !ctx || (ctx.sport !== 'nba' && ctx.sport !== 'nfl')) return;
+    if (!pc.params && !pc.loading) {
+      pc.loading = true;
+      fetch('pace_params.json').then((r) => (r.ok ? r.json() : false)).catch(() => false).then((j) => { pc.params = j || false; D.rerender(); });
+    }
+    if (!(ctx.key in pc.slate)) {
+      pc.slate[ctx.key] = null;
+      fetch('../slates/' + ctx.sport + '/' + ctx.date + '.json').then((r) => (r.ok ? r.json() : false)).catch(() => false).then((j) => {
+        pc.slate[ctx.key] = j || false;
+        const ix = pc.idx[ctx.key] = {};
+        Object.values((j && j.players) || {}).forEach((p) => { ix[p.team + '|' + normName(p.name)] = p; });
+        D.rerender();
+      });
+    }
+  }
+  function preOf(sport, p) {
+    const pj = (k) => { const q = p.proj && ((p.proj.close && p.proj.close[k]) || (p.proj.open && p.proj.open[k])); return q && isNum(q.v) ? q.v : undefined; };
+    if (sport === 'nba') {
+      const mn = p.min && (isNum(p.min.close) ? p.min.close : p.min.open);
+      return { min: isNum(mn) ? mn : undefined, pts: pj('pts'), reb: pj('reb'), ast: pj('ast'), tpm: pj('tpm') };
+    }
+    return { pyd: pj('pyd'), comp: pj('comp'), patt: pj('patt'), ryd: pj('ryd'), ratt: pj('ratt'), recy: pj('recy'), rec: pj('rec') };
+  }
+  // -> { stat: projected final } for one box row, or null (flag off, params / slate not loaded, no pregame mean, game not in play, ...)
+  function paceOf(sport, ctx, d, code, row) {
+    if (!paceFlag() || !pc.params || !pc.slate[ctx.key] || !row) return null;
+    const p = (pc.idx[ctx.key] || {})[code + '|' + normName(row.name)];
+    if (!p) return null;
+    return G.onPace(sport, row, d, preOf(sport, p), pc.params, code);
+  }
+  const PACE_LAB = { pts: 'pts', reb: 'reb', ast: 'ast', pra: 'pra', pyd: 'yds', comp: 'cmp', patt: 'att', ryd: 'yds', ratt: 'car', recy: 'yds', rec: 'rec' };
+  const PACE_ROW = { nba: ['pts', 'reb', 'ast'], passing: ['pyd', 'comp', 'patt'], rushing: ['ryd', 'ratt'], receiving: ['recy', 'rec'] };
+  const paceN = (v) => (v >= 10 ? String(Math.round(v)) : v.toFixed(1));
+  // live box row: "On pace 27 pts 8 reb 6 ast" under the player's name (one compact number per tracked stat)
+  function paceRow(sport, ctx, d, code, unit) {
+    return (r) => {
+      const m = paceOf(sport, ctx, d, code, r), keys = PACE_ROW[sport === 'nba' ? 'nba' : unit] || [];
+      const parts = m ? keys.filter((k) => isNum(m[k])).map((k) => `<b>${paceN(m[k])}</b> ${PACE_LAB[k]}`) : [];
+      return parts.length ? `<small class="pc-line"><i>On pace</i> ${parts.join(' · ')}</small>` : '';
+    };
+  }
+
   // ---- which games get the live treatment ----
   // in the window from 10 min before the stored kickoff to 24 h after, not postponed. -> ctx or null
   function ctxFor(sport, g, date) {
@@ -34,6 +83,7 @@
     if (lg.key !== ctx.key) { lg.key = ctx.key; lg.ctx = ctx; lg.evId = ''; lg.data = null; lg.raw = null; lg.failed = false; lg.finalDone = false; }
     lg.ctx = ctx;
     const d = lg.data;
+    paceLoad(ctx);
     if (!d || (d.state !== 'in' && d.state !== 'post')) return { ctx, view: null };
     return { ctx, view: { center: center(d), body: body(ctx, d), brk: G.atBreak(d) } };
   }
@@ -139,7 +189,9 @@
     pinIds.forEach((id) => {
       const row = rows.find((r) => r.id === id), bets = pins[id];
       const name = row ? row.name : (D.lvName(bets[0]) || bets[0].label);
-      pinHtml += `<div class="lg-pinrow"><span class="lg-pinlab"><b>${esc(name)}</b>${bets.map((b) => `<small>${esc(betText(b))} · ${esc(D.fmtOdds(b.odds))} · ${esc(b.units)}u</small>`).join('')}</span>${bets.map(betLive).join('')}</div>`;
+      const pm = row ? paceOf(sport, ctx, d, code, row) : null; // On pace (?pace=1 only): the bet's own stat, projected final
+      const paceTag = (b) => (pm && isNum(pm[b.market]) ? `<small class="pc-pin">On pace <b>${pm[b.market].toFixed(1)}</b></small>` : '');
+      pinHtml += `<div class="lg-pinrow"><span class="lg-pinlab"><b>${esc(name)}</b>${bets.map((b) => `<small>${esc(betText(b))} · ${esc(D.fmtOdds(b.odds))} · ${esc(b.units)}u</small>${paceTag(b)}`).join('')}</span>${bets.map(betLive).join('')}</div>`;
     });
     const order = (xs) => { const pin = xs.filter((r) => pins && pins[r.id]), rest = xs.filter((r) => !(pins && pins[r.id])); return pin.concat(rest); };
     let inner = '';
@@ -147,7 +199,7 @@
     else if (st.mode === 'usage') inner = usageTable(sport, list, pins);
     else if (sport === 'nba') {
       const starters = list.filter((r) => r.starter), bench = list.filter((r) => !r.starter);
-      inner = table(sport, G.COLS.nba, order(starters.concat(bench)), pins, 'Players', (r) => (r.on && d.state === 'in' ? 'On floor' : ''));
+      inner = table(sport, G.COLS.nba, order(starters.concat(bench)), pins, 'Players', (r) => (r.on && d.state === 'in' ? 'On floor' : ''), undefined, paceRow(sport, ctx, d, code));
     } else if (sport === 'nhl') {
       const sk = list.slice().sort((x, y) => y.v.TOI - x.v.TOI), LEAD = 10, open = !!st.open[fk] || sk.length <= LEAD + 2;
       const shown = order(open ? sk : sk.slice(0, LEAD).concat(sk.slice(LEAD).filter((r) => pins && pins[r.id])));
@@ -160,7 +212,7 @@
         const ulist = order(list.filter((r) => r.units[unit] && (r.units[unit].act || (pins && pins[r.id]))).sort((x, y) => unitSort(unit, y) - unitSort(unit, x)));
         if (!ulist.length) return '';
         const LEAD = unit === 'defensive' ? 6 : 99, uk = fk + '/' + unit, open = !!st.open[uk] || ulist.length <= LEAD;
-        return table(sport, G.COLS.nfl[unit], open ? ulist : ulist.slice(0, LEAD), pins, G.NFL_UNIT_LABEL[unit], null, unit)
+        return table(sport, G.COLS.nfl[unit], open ? ulist : ulist.slice(0, LEAD), pins, G.NFL_UNIT_LABEL[unit], null, unit, paceRow(sport, ctx, d, code, unit))
           + (ulist.length > LEAD ? `<button class="pg-fold" data-lg="fold:${esc(uk)}" aria-expanded="${open}">${open ? 'Fewer players' : `${ulist.length - LEAD} more players`}</button>` : '');
       }).join('');
     }
@@ -169,12 +221,12 @@
   }
   const unitSort = (unit, r) => { const v = r.v; return unit === 'passing' ? v.PYD : unit === 'rushing' ? v.RYD : unit === 'receiving' ? v.RECY * 1 + v.TGT * 0.01 : unit === 'defensive' ? v.TKL + 3 * v.SCK : v.FGM; };
   const betText = (b) => D.betLbl(b.market, b.side, b.line);
-  function table(sport, cols, rows, pins, head, tag, unit) {
+  function table(sport, cols, rows, pins, head, tag, unit, pace) {
     const th = `<tr><th scope="col">${esc(head)}</th>${cols.map((c) => `<th scope="col">${esc(c[1])}</th>`).join('')}</tr>`;
     const tr = (r) => {
       const raw = unit ? r.units[unit].raw : r.raw, t = tag ? tag(r) : '', pin = pins && pins[r.id];
       const cell = (lab) => { const v = raw[lab]; return v === undefined || v === '' ? '—' : esc(v); };
-      return `<tr${pin ? ' class="pg-hl"' : ''}><th scope="row"><span class="pg-pl lg-pl"><b>${esc(r.short || r.name)}</b>${t || r.pos ? `<small>${t ? `<i class="lg-on">${esc(t)}</i>` : ''}${t && r.pos ? ' · ' : ''}${esc(r.pos)}</small>` : ''}</span></th>${cols.map(([lab]) => `<td>${cell(lab)}</td>`).join('')}</tr>`;
+      return `<tr${pin ? ' class="pg-hl"' : ''}><th scope="row"><span class="pg-pl lg-pl"><b>${esc(r.short || r.name)}</b>${t || r.pos ? `<small>${t ? `<i class="lg-on">${esc(t)}</i>` : ''}${t && r.pos ? ' · ' : ''}${esc(r.pos)}</small>` : ''}${pace ? pace(r) : ''}</span></th>${cols.map(([lab]) => `<td>${cell(lab)}</td>`).join('')}</tr>`;
     };
     return `<div class="pg-scroll"><table class="pg-tbl lg-tbl"><thead>${th}</thead><tbody>${rows.map(tr).join('')}</tbody></table></div>`;
   }

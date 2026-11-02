@@ -1150,3 +1150,42 @@ a.gl-row:active{background:var(--card2)}
 /* F12: the info button keeps its 18px look; its tap area (the ::before) is 44px and sits above neighbouring cells */
 .info{z-index:1}
 .info::before{inset:-14px}
+
+/* ======== Demo polish pass (11/01 evening): visual only, no logic. Tokens untouched. ======== */
+/* footer: responsible-gaming note once per page (not on cards) + the settings about line */
+.appfoot{display:flex;flex-direction:column;align-items:center;gap:4px;max-width:var(--maxw);margin:0 auto;padding:8px calc(var(--gut) + env(safe-area-inset-right)) 28px calc(var(--gut) + env(safe-area-inset-left));text-align:center;font:500 var(--fs-xs)/1.4 var(--font);color:var(--dim)}
+.appfoot .appfoot-sub{font-size:var(--fs-xxs);opacity:.85}
+.about-cap{margin:14px 0 0;text-align:center;font:500 var(--fs-xxs)/1.4 var(--font);color:var(--dim)}
+/* date strip: soft edge fade so a half pill reads as "scrolls", not "cut off" */
+.pills{-webkit-mask-image:linear-gradient(90deg,transparent,#000 var(--gut),#000 calc(100% - var(--gut)),transparent);mask-image:linear-gradient(90deg,transparent,#000 var(--gut),#000 calc(100% - var(--gut)),transparent)}
+/* game cards: tag chips never run under the time / line column */
+.tline{overflow:hidden}
+.tchips{min-width:0;flex:0 1 auto}
+.tchips .tgp.gc{flex:0 1 auto;min-width:44px} /* the pill shrinks and its text ellipsizes before anything overlaps */
+.tchips .tgmore{flex:none}
+@media (max-width:360px){.gc-side{max-width:40%}}
+@media (max-width:340px){.tchips .tgp.gc{padding:0 7px 0 5px}.tchips .tgmore{display:none}}
+/* "coming soon" placeholders: quiet dashed boxes with one line of context, not blank cards */
+.card.empty.soon{padding:16px 14px;background:transparent;border:1px dashed var(--line2);box-shadow:none}
+.card.empty.soon p{margin:0;font:600 var(--fs-sm)/1.3 var(--font);color:var(--muted)}
+.card.empty.soon small{display:block;margin-top:4px;font:500 var(--fs-xs)/1.4 var(--font);color:var(--dim)}
+/* premium seam teaser: a calm gold pill over the blurred row, one quiet line under it */
+.bx-tease{flex-direction:column;gap:6px;padding:12px}
+.bx-tpill{display:inline-flex;align-items:center;gap:7px;min-height:34px;padding:0 14px;border-radius:var(--r-pill);background:var(--amber-soft);border:1px solid var(--amber-line);color:var(--amber);font:600 var(--fs-sm)/1 var(--font);white-space:nowrap}
+.bx-tpill .bx-lockico{width:14px;height:14px;stroke-width:2;font-size:inherit}
+.bx-tsub{font:500 var(--fs-xs)/1.3 var(--font);color:var(--muted)}
+.bx-quiet .bx-tease{padding:2px 0}
+/* Results tiles: labels reserve two lines so the big numbers sit on one baseline across a row */
+.rs-tiles .rs-lbl{min-height:28px}
+/* live view: the toggle row stacks on narrow phones instead of squeezing the note beside the segment */
+.lg-head{flex-wrap:wrap;row-gap:8px}
+.lg-head .bets-n{flex:1 1 150px}
+@media (max-width:400px){.lg-head .bets-n{flex-basis:100%}.lg-seg{margin-left:auto}}
+.lg-foot{margin-top:16px}
+/* desktop column: sticky strips (sport chips, player tabs) sit on the column surface, not the page glow */
+@media (min-width:900px){
+  .bx-chips,.ptabs{background:var(--bg2)}
+  .appfoot{padding-bottom:calc(var(--bnav-h) + 24px)}
+}
+/* bottom nav sits over the footer on phones: keep the footer readable above it */
+body{padding-bottom:calc(var(--bnav-h) + env(safe-area-inset-bottom) + 4px)}
