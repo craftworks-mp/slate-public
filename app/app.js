@@ -541,9 +541,18 @@
         <span class="tline">${badge(hm)}${bar('w70')}<span class="rec">—</span></span></span>
         <span class="tcol">${bar('w85')}${bar('w55')}</span></div>`).join('')}</div>`;
 
-  // U7: a day that is only on the schedule (no slate published yet). Wording follows what the app's preline flow shows: projections the night before, book lines at about 8 AM ET (PRE_NOTE)
-  const SCHED_FUTURE = 'Projections post the night before the games. Book lines, EV and grades follow around 8 AM ET.';
-  const schedNote = (date) => (date > ymd(0) ? `<p class="day-note">${SCHED_FUTURE}</p>` : date === ymd(0) ? '<p class="day-note">Projections for today’s games haven’t posted yet.</p>' : '');
+  // U7: a day that is only on the schedule (no slate published yet). Look-ahead (owner 11/03): the 8 AM ET run builds projections for each
+  // future game day in the calendar window (NBA/NHL 2 days, NFL 7 = AHEAD_DAYS in build_slate.py); sportsbook lines come with that day's own 8 AM pull.
+  const AHEAD = { nba: 2, nhl: 2, nfl: 7 };
+  const mdNum = (d) => (d ? d.slice(5, 7) + '/' + d.slice(8, 10) : '');
+  const addDays = (d, n) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+  function schedText(sport, date) {
+    const lines = `Sportsbook lines and odds post ${mdNum(date)} at about 8 AM ET.`;
+    const postOn = addDays(date, -(AHEAD[sport] || 2));
+    if (sport === 'nfl' && postOn <= ymd(0)) return `Projections post at about 8 AM ET once this game is in the current NFL week. ${lines}`;
+    return `Projections post ${postOn <= ymd(0) ? 'today' : mdNum(postOn)} at about 8 AM ET. ${lines}`;
+  }
+  const schedNote = (sport, date) => (date > ymd(0) ? `<p class="day-note">${esc(schedText(sport, date))}</p>` : date === ymd(0) ? '<p class="day-note">Projections for today’s games haven’t posted yet.</p>' : '');
   function dayList(sport, date, m) {
     const d = ensureDay(sport, date);
     if (d.st === 'loading' || m.st === 'loading') return skList(sport);
@@ -551,7 +560,7 @@
     const games = d.st === 'ok' ? ((d.data && d.data.games) || []).map((g) => (d.data.preline ? Object.assign({}, g, { preline: true }) : g)) : [];
     if (games.length) return `<div class="glist">${games.map((g) => gameCard(sport, g)).join('')}</div>`;
     const sg = schedGames(sport, date);
-    if (sg.length) return `${schedNote(date)}<div class="glist">${sg.map((g) => gameCard(sport, g)).join('')}</div>`;
+    if (sg.length) return `${schedNote(sport, date)}<div class="glist">${sg.map((g) => gameCard(sport, g)).join('')}</div>`;
     return `<div class="card empty"><h2>No games ${esc(longOf(date))}</h2><p>${store.sched[sport].st === 'err' ? 'The schedule could not be loaded.' : 'Nothing scheduled for this day.'}</p></div>`;
   }
 
@@ -1007,8 +1016,15 @@
   }
   // ======== Night-before projections ("preline" slate: players[pid].pre, games[gid].proj_pre, no bets; prefix pre) ========
   // Neutral wording only: no EV, grades, odds or advice until the lines land.
-  const PRE_NOTE = 'Lines post around 8 AM ET. EV and grades appear then.';
-  const PRE_BOOK = 'Book lines post around 8 AM ET.';
+  // Lines note + per-sport early-projection disclaimer (owner 11/03: goalies only for NHL) for a preline day; `date` = the slate's game day
+  const PRE_EARLY = {
+    nba: 'Early projection: game-day injury news and lineups are added at 8 AM ET and may change these numbers.',
+    nhl: 'Early projection: game-day injury news, lineups and starting goalies are added at 8 AM ET and may change these numbers.',
+    nfl: 'Early projection: injury reports and inactives are added on game day and may change these numbers.',
+  };
+  const preWhen = (date) => (!date || date <= ymd(0) ? 'today' : mdNum(date));
+  const preNote = (sport, date) => `Sportsbook lines and odds post ${preWhen(date)} at about 8 AM ET. EV and grades appear then.${date && date > ymd(0) && PRE_EARLY[sport] ? ' ' + PRE_EARLY[sport] : ''}`;
+  const preBook = (date) => `Sportsbook lines and odds post ${preWhen(date)} at about 8 AM ET.`;
   const isPre = (slate) => !!(slate && slate.preline);
   // lead stats per sport: [stat, label, decimals]; the first one sorts the lists
   const PRE_COLS = {
@@ -1016,7 +1032,7 @@
     nhl: [['sog', 'SOG', 1], ['pts', 'PTS', 2], ['g', 'G', 2], ['a', 'A', 2]],
     nfl: [['pyd', 'PASS YDS', 0], ['ryd', 'RUSH YDS', 0], ['recy', 'REC YDS', 0], ['rec', 'REC', 1]],
   };
-  const PRE_DEFS = { pre: 'Our model’s projection for each player tonight, built from the latest injury report, rest and matchup. Book lines, EV and grades fill in once the sportsbooks post lines (around 8 AM ET).' };
+  const PRE_DEFS = { pre: 'Our model’s projection for each player in this game, built from the latest injury report, rest and matchup. Sportsbook lines, EV and grades fill in on game day (around 8 AM ET). Projections for later days are early and can move when game-day news lands.' };
   const preV = (p, k) => { const x = p && p.pre && p.pre[k]; return x && isNum(x.v) ? x.v : null; };
   // NFL: a player's projected stats are the ones his position produces (QB passing, RB rushing, WR/TE receiving)
   const preColsFor = (sport, p) => {
@@ -1026,7 +1042,7 @@
     return has.length ? has.slice(0, 3) : cols.slice(0, 3);
   };
   const preLead = (sport, p) => { const c = preColsFor(sport, p)[0]; return c ? preV(p, c[0]) : null; };
-  const preBanner = (sport) => `<div class="card pre-note"><span class="pre-dot" aria-hidden="true"></span><span class="pre-txt">${esc(PRE_NOTE)}</span>${infoBtn(sport, 'pre', PRE_DEFS)}</div>${infoNote(sport, 'pre', PRE_DEFS)}`;
+  const preBanner = (sport, date) => `<div class="card pre-note"><span class="pre-dot" aria-hidden="true"></span><span class="pre-txt">${esc(preNote(sport, date))}</span>${infoBtn(sport, 'pre', PRE_DEFS)}</div>${infoNote(sport, 'pre', PRE_DEFS)}`;
   // one player row: name + injury + projected lead stats (tap = player page)
   const preHasPages = (sport) => { const s = store.idx && store.idx.sports && store.idx.sports[sport]; return !!(s && s.players); }; // a sport without published player files (NFL today) gets no player link
   function preRow(sport, id, p, ptags) {
@@ -1052,7 +1068,7 @@
       return `${sec(code + ' projections')}${rows ? `<div class="plist">${rows}</div>` : '<div class="card empty"><p>No projected players.</p></div>'}`;
     };
     const n = prePlayers(slate, g.gid).length;
-    return `${preBanner(sport)}<div class="bets-head"><span class="bets-n">${n} ${n === 1 ? 'player' : 'players'} projected</span></div>${team(g.away)}${team(g.home)}`;
+    return `${preBanner(sport, slate.date)}<div class="bets-head"><span class="bets-n">${n} ${n === 1 ? 'player' : 'players'} projected</span></div>${team(g.away)}${team(g.home)}`;
   }
   // Game tab card while preline: the model's projected score / total / win % (no book rows)
   function preScoreCard(sport, g, slate) {
@@ -1066,16 +1082,16 @@
     if (isNum(p.winAway) && isNum(p.winHome)) { const fa = p.winAway >= p.winHome; rows.push(['Win %', `${esc(fa ? g.away : g.home)} ${(fa ? p.winAway : p.winHome).toFixed(1)}%`]); }
     const tab = rows.length ? `<div class="pre-tab">${rows.map(([l, v]) => `<span class="mvb-lab">${l}</span><span class="mvb-v mod">${v}</span>`).join('')}</div>` : '';
     return `<div class="card mvb pre-mvb"><div class="mvb-top"><span class="lbl">Model projected score</span>${infoBtn(sport, 'pre', PRE_DEFS)}</div>${infoNote(sport, 'pre', PRE_DEFS)}
-      <div class="mvb-score">${score(g.away, p.away)}<i>–</i>${score(g.home, p.home)}</div>${tab}<div class="pre-book">${esc(PRE_BOOK)}</div></div>`;
+      <div class="mvb-score">${score(g.away, p.away)}<i>–</i>${score(g.home, p.home)}</div>${tab}<div class="pre-book">${esc(preBook(slate && slate.date))}</div></div>`;
   }
   // player Tonight while preline: projection tiles (lead stats), minutes when projected
-  function preTonight(sport, p) {
+  function preTonight(sport, p, date) {
     const cols = preColsFor(sport, p);
     const tiles = cols.map((c) => { const v = preV(p, c[0]); return `<div class="stile"><span class="st-lab">${esc(c[1])}</span><span class="st-v${v === null ? ' nil' : ''}">${v === null ? '—' : v.toFixed(c[2])}</span></div>`; }).join('');
     const m = p.min && isNum(p.min.pre) ? p.min.pre : null;
     const mins = m === null ? '' : `<div class="pre-min">${sport === 'nhl' ? 'Projected ice time' : 'Projected minutes'} <b>${m.toFixed(1)}</b></div>`;
     if (!cols.some((c) => preV(p, c[0]) !== null)) return `${sec('Projections')}<div class="card empty"><p>${esc(p.preErr ? 'No projection yet: ' + p.preErr : 'No projection yet.')}</p></div>`;
-    return `${sec('Projections')}<div class="card pre-tiles"><div class="stiles pre-st" style="--n:${cols.length}">${tiles}</div>${mins}<div class="pre-book">${esc(PRE_NOTE)}</div></div>`;
+    return `${sec('Projections')}<div class="card pre-tiles"><div class="stiles pre-st" style="--n:${cols.length}">${tiles}</div>${mins}<div class="pre-book">${esc(preNote(sport, date))}</div></div>`;
   }
   function betsTab(sport, date) {
     const e = ensureSlate(sport, date);
@@ -1085,7 +1101,7 @@
     if (isPre(slate) && !pgCtx.final) { const fg = findGame(sport, state.betGid); if (fg) return preBetsTab(sport, slate, fg.g); }
     const allRows = e.st === 'ok' ? betRows(slate, state.betGid) : [];
     const rows = allRows.filter((r) => !isLong(r)); // longshots only in the top-3 blocks below
-    if (!allRows.length) return pgCtx.past || pgCtx.final ? `<div class="card empty"><h2>No props for this game</h2>${PG_NOTE}</div>` : empty('Bets', 'No props for this game yet', date > ymd(0) ? SCHED_FUTURE : 'Props show up here once the slate is published.', 0);
+    if (!allRows.length) return pgCtx.past || pgCtx.final ? `<div class="card empty"><h2>No props for this game</h2>${PG_NOTE}</div>` : empty('Bets', 'No props for this game yet', date > ymd(0) ? schedText(sport, date) : 'Props show up here once the slate is published.', 0);
     const f = state.betF, mode = state.betSide;
     const table = !!TBL_COLS[sport];
     let cols = TBL_COLS[sport] || [];
@@ -1514,7 +1530,7 @@
     if (isPre(sl)) {
       const sgm = (sl.games || {})[g.gid] || null;
       const rows = prePlayers(sl, g.gid, code).map(([id, p]) => preRow(sport, id, p, playerTags(sport, id, date, sgm, p.inj, p.team))).join('');
-      return rows ? `${preBanner(sport)}<div class="plist">${rows}</div>` : empty('Bets', 'No players for ' + code + ' yet', 'Players show up here once the slate is published.', 0);
+      return rows ? `${preBanner(sport, date)}<div class="plist">${rows}</div>` : empty('Bets', 'No players for ' + code + ' yet', 'Players show up here once the slate is published.', 0);
     }
     const list = Object.entries(sl.players || {}).filter(([, p]) => p && p.team === code && String(p.gid) === String(g.gid))
       .map(([id, p]) => ({ id, p, w: ensurePlayer(sport, id) }));
@@ -1895,7 +1911,7 @@
           const ng = tgames.find((g) => g.d > date && g.status !== 'post');
           const nxt = ng ? `Next game: ${F_LONG.format(dnoon(ng.d))} ${ng.home === team ? 'vs' : '@'} ${oppOf(ng, team)}` : '';
           props = `<div class="card empty pn-off"><p>No game today</p>${nxt ? `<small class="pn-next">${esc(nxt)}</small>` : ''}<button class="pillbtn" data-ptab="trends">See trends</button></div>`;
-        } else if (sl && isPre(sl) && sp) props = preTonight(sport, sp);
+        } else if (sl && isPre(sl) && sp) props = preTonight(sport, sp, sl.date);
         else props = mine.length ? `${sec('Props')}<div class="betlist">${mine.map(betRow).join('')}</div>`
           : `<div class="card empty"><p>No props for him tonight.</p><button class="pillbtn" data-ptab="trends">See trends</button></div>`;
         body = card + props;
@@ -2790,7 +2806,7 @@
     const openAll = Object.values(mb.bets).filter((b) => b.status === 'open');
     const head = bxChips(T) + bxStrip(sp.length, a.length, openAll.length, openAll.reduce((q, b) => q + b.units, 0));
     const preOnly = T.pre && !rows.length && !T.loading; // a night-before day: projections only, no prices anywhere
-    const pre = preOnly ? preBanner('bets') : '';
+    const pre = preOnly ? preBanner('bets', ymd(0)) : '';
     if (!store.idxDone) return `${head}${skRows(4)}`;
     if (!T.any) return `${head}${bxQuiet('No slates today.')}${bxMine(s)}`;
     return `${head}${pre}${bxSplus(sp, T)}${bxAgrade(a, T)}${gate('parlays', bxParlays())}${bxScoring()}${bxMine(s)}`;
