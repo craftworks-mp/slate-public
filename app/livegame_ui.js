@@ -14,7 +14,7 @@
 
   function init(deps) { D = deps; }
 
-  // ---- "On pace" (private demo: only with ?pace=1 in the URL; the owner reviews the formulas, docs/PACE_MODEL.md, before it is ever shown by default) ----
+  // ---- "On pace" (private demo: only with ?pace=1 in the URL; the owner reviews the formulas, docs/3-model/PACE_MODEL.md, before it is ever shown by default) ----
   // Pregame means come from the published slate (../slates/<sport>/<date>.json: proj.close|open[stat].v, min.close|open); fitted values from pace_params.json.
   // A stat without a pregame mean (no line that day) gets no number. The projection itself is the pure LiveGame.onPace.
   const paceFlag = () => { try { return /(^|[?&])pace=1(&|$)/.test(location.search); } catch (e) { return false; } };

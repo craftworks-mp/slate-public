@@ -1,6 +1,6 @@
 {
  "version": 1,
- "note": "Fitted by scripts/backtest/pace_fit.py (docs/PACE_MODEL.md). Private demo: shown only with ?pace=1 until the owner has reviewed the formulas.",
+ "note": "Fitted by scripts/backtest/pace_fit.py (docs/3-model/PACE_MODEL.md). Private demo: shown only with ?pace=1 until the owner has reviewed the formulas.",
  "nba": {
   "features": [
    "1",

@@ -330,7 +330,7 @@
     return g.sport === 'nhl' ? true : g.period === 2;
   }
 
-  // ---- "on pace for" (private demo, ?pace=1 only; formulas in docs/PACE_MODEL.md, fitted values in app/pace_params.json) ----
+  // ---- "on pace for" (private demo, ?pace=1 only; formulas in docs/3-model/PACE_MODEL.md, fitted values in app/pace_params.json) ----
   // Owner rule (BUILD_PLAN 11/01 14:03 + "Standard for all projection math"): shown by default only after the owner has reviewed the formulas.
   // final = current + expected remaining. NBA: remaining minutes (share of the clock left he plays: pregame minutes, minutes so far, on the floor, starter, fouls, blowout z)
   // times the blended per-minute rate (pregame rate vs live rate, weight = minutes / (minutes + k)) times a fitted scale s. NFL: time left times the blended per-game rate
