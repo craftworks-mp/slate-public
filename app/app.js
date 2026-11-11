@@ -2188,7 +2188,7 @@
     let title = c.page ? PAGES[c.page] : c.kind === 'root' ? SPORTS[c.sport] : SUBTITLES[c.kind];
     if (c.kind === 'game') { const fg = findGame(c.sport, c.id); if (fg && fg.g && fg.g.away && fg.g.home) title = `${fg.g.away} @ ${fg.g.home}`; } // F8: the matchup, not "Game"
     $('title').textContent = title;
-    document.title = `${title} \u00b7 Slate Projector`;
+    document.title = `${title} \u00b7 Trend Bettors`;
     const navKey = c.page || c.sport;
     document.querySelectorAll('#nav a').forEach((a) => {
       if (a.dataset.route === navKey) a.setAttribute('aria-current', 'page');

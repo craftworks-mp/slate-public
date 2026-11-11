@@ -181,7 +181,7 @@
   function mergeImport(st, incoming) {
     let o = incoming;
     if (typeof o === 'string') { try { o = JSON.parse(o); } catch (e) { return { error: 'This file is not valid JSON.' }; } }
-    if (!o || typeof o !== 'object' || Array.isArray(o)) return { error: 'This is not a Slate Projector bets file.' };
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return { error: 'This is not a Trend Bettors bets file.' };
     if (o.schema !== SCHEMA) return { error: 'Unsupported file version (schema ' + String(o.schema) + ').' };
     if (!o.bets || typeof o.bets !== 'object' || Array.isArray(o.bets)) return { error: 'This file has no bets.' };
     const out = { schema: SCHEMA, bets: Object.assign({}, st.bets) };
