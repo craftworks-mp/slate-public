@@ -664,6 +664,7 @@
     return `<div class="pagehead">${backBtn}<div class="chips" aria-label="Games this day">${chips}</div></div>
       <div class="ghead">${team(aw, 'away')}<div class="gcenter">${center}${lp}</div>${team(hm, 'home')}</div>
       ${live ? '' : isPre(mvbSlate(sport, f.date)) ? preScoreCard(sport, g, mvbSlate(sport, f.date)) : mvbCard(sport, g, mvbSlate(sport, f.date))}
+      ${live || fin ? '' : glCard(sport, g, mvbSlate(sport, f.date))}
       <div class="subtabs">${segmented(TABS.map(([k, l]) => [k, k === 'away' ? aw : k === 'home' ? hm : l]), tab, 'data-sub')}</div>
       ${body}`;
   }
@@ -719,6 +720,48 @@
       (out[b.stat] = out[b.stat] || {})[b.side] = { line: isNum(ph.line) ? ph.line : null, odds: isNum(ph.odds) ? ph.odds : null };
     });
     return out;
+  }
+  // ---- game lines into My Bets (owner 11/12): moneyline, spread, total and both team totals, each side one tap ----
+  const lnTxt = (v) => (v === 0 ? 'PK' : (v > 0 ? '+' : MINUS) + Math.abs(v));
+  function glLabel(sg, stat, side, line) {
+    const team = stat === 'ttA' || side === 'A' ? sg.away : stat === 'ttB' || side === 'B' ? sg.home : '';
+    if (stat === 'ml') return `${team} ML`;
+    if (stat === 'spread') return `${team} ${lnTxt(line)}`;
+    const ou = `${side === 'o' ? 'Over' : 'Under'} ${line}`;
+    return stat === 'total' ? `Total ${ou}` : `${team} team total ${ou}`;
+  }
+  // slate row for a game bet (same shape the add sheet reads for props)
+  function gameRow(slate, id) {
+    const b = (slate.bets || {})[id], sg = b && (slate.games || {})[b.gid];
+    if (!b || b.type !== 'game' || !sg) return null;
+    const has = (p) => p && isNum(p.odds);
+    const ph = has(b.close) ? b.close : has(b.open) ? b.open : null;
+    if (!ph || (b.stat !== 'ml' && !isNum(ph.line))) return null;
+    const team = b.stat === 'ttA' || b.side === 'A' ? sg.away : b.stat === 'ttB' || b.side === 'B' ? sg.home : '';
+    return { id, b, ph, name: glLabel(sg, b.stat, b.side, ph.line), team, pid: '', game: true };
+  }
+  function glCard(sport, g, slate) {
+    if (!slate || !slate.bets) return '';
+    const ids = {};
+    Object.entries(slate.bets).forEach(([id, b]) => { if (b && b.type === 'game' && String(b.gid) === String(g.gid)) ids[b.stat + '|' + b.side] = id; });
+    const sg = (slate.games || {})[g.gid] || {}, started = kickPassed(sg.kickoff);
+    const cell = (stat, side, txt) => {
+      const id = ids[stat + '|' + side], r = id && gameRow(slate, id);
+      if (!r) return '<span class="gl-b gl-na">—</span>';
+      const on = !!mb.bets[id], lab = r.name;
+      return `<button class="gl-b${on ? ' on' : ''}${started && !on ? ' off' : ''}" data-addbet="${esc(sport + '|' + id)}" aria-pressed="${on}" aria-label="${started && !on ? esc(lab) + ': ' + STARTED_MSG : (on ? 'Edit ' : 'Add ') + esc(lab) + (on ? ' in' : ' to') + ' My Bets'}">
+        <span class="gl-t">${txt(r)}</span><span class="gl-o">${fmtOdds(r.ph.odds)}</span>${on ? CHECK_SVG : ''}</button>`;
+    };
+    const rows = [
+      ['Moneyline', cell('ml', 'A', () => esc(sg.away || g.away)), cell('ml', 'B', () => esc(sg.home || g.home))],
+      ['Spread', cell('spread', 'A', (r) => `${esc(sg.away || g.away)} ${lnTxt(r.ph.line)}`), cell('spread', 'B', (r) => `${esc(sg.home || g.home)} ${lnTxt(r.ph.line)}`)],
+      ['Total', cell('total', 'o', (r) => `O ${r.ph.line}`), cell('total', 'u', (r) => `U ${r.ph.line}`)],
+      [`${esc(g.away)} total`, cell('ttA', 'o', (r) => `O ${r.ph.line}`), cell('ttA', 'u', (r) => `U ${r.ph.line}`)],
+      [`${esc(g.home)} total`, cell('ttB', 'o', (r) => `O ${r.ph.line}`), cell('ttB', 'u', (r) => `U ${r.ph.line}`)],
+    ].filter((x) => !(x[1].includes('gl-na') && x[2].includes('gl-na')));
+    if (!rows.length) return '';
+    return `<div class="card gl"><div class="mvb-top"><span class="lbl">Track a game bet</span></div>
+      <div class="gl-tab">${rows.map(([l, a, b]) => `<span class="gl-l">${l}</span>${a}${b}`).join('')}</div></div>`;
   }
   // 0 = gray, 1 = lean, 2 = strong
   const edgeLevel = (m, th) => (!th ? 0 : m >= th[1] ? 2 : m >= th[0] ? 1 : 0);
@@ -2314,6 +2357,7 @@
     const date = idDate(id), e = store.slates[sport + '/' + date];
     if (!e || e.st !== 'ok') return null;
     const b = (e.data.bets || {})[id];
+    if (b && b.type === 'game') { const gr = gameRow(e.data, id); return gr ? { r: gr, slate: e.data, date } : null; }
     if (!b || b.type !== 'prop') return null;
     const r = betRows(e.data, b.gid).find((x) => x.id === id);
     return r ? { r, slate: e.data, date } : null;
@@ -2321,6 +2365,14 @@
   function newBet(sport, found) {
     const { r, slate, date } = found, sg = (slate.games || {})[r.b.gid] || {};
     const g = GRADE_ORDER.includes(r.ph.grade) ? r.ph.grade : '';
+    if (r.game) { // game line: no player; team = the side's team (none for the game total)
+      return {
+        id: r.id, sport, date, gid: String(r.b.gid), type: 'game', market: r.b.stat, side: r.b.side, line: r.b.stat === 'ml' ? null : r.ph.line, odds: r.ph.odds, units: 1,
+        label: r.name, team: r.team, opp: r.team ? (r.team === sg.away ? sg.home || '' : sg.away || '') : '',
+        addedAt: new Date().toISOString(), oddsEdited: false, status: 'open', settledAt: '', pl: 0,
+        start: sg.kickoff || '', away: sg.away || '', home: sg.home || '',
+      };
+    }
     return {
       id: r.id, sport, date, gid: String(r.b.gid), type: 'prop', market: r.b.stat, side: r.b.side, line: r.ph.line, odds: r.ph.odds, units: 1,
       label: `${r.name} ${betText(r)}`, team: r.team, opp: sg.away === r.team ? sg.home || '' : sg.home === r.team ? sg.away || '' : '',
@@ -3046,6 +3098,7 @@
   }
   window.addEventListener('hashchange', (e) => {
     const h = location.hash;
+    if (!(history.state && history.state.tbDead)) deadOnTop = false;
     if (stack.length > 1 && stack[stack.length - 2] === h) stack.pop(); else stack.push(h);
     route();
   });
@@ -3058,7 +3111,27 @@
   function setModal() {
     const any = dialogs().some((x) => x && !x.hidden);
     ['.topbar', '#view', '#nav'].forEach((q) => { const el = document.querySelector(q); if (el) { if (any) el.setAttribute('inert', ''); else el.removeAttribute('inert'); } });
+    modalHistory(any);
   }
+  // Phone back button (owner 11/12): an open sheet or search adds one history step, so Back closes it instead of leaving the app.
+  // Closing with a button marks that step dead; the next Back skips it, so one press always does one visible thing.
+  let modalStep = false, popClosing = false, deadOnTop = false;
+  function modalHistory(any) {
+    if (any && !modalStep) { history.pushState({ tbModal: 1 }, '', location.href); modalStep = true; deadOnTop = false; }
+    else if (!any && modalStep) {
+      modalStep = false;
+      if (!popClosing && history.state && history.state.tbModal) { history.replaceState({ tbDead: 1 }, '', location.href); deadOnTop = true; }
+    }
+  }
+  window.addEventListener('popstate', () => {
+    if (modalStep) {
+      popClosing = true;
+      try { if (bs) bsClose(); else if (!searchEl.hidden) setSearch(false); else if (!sheet.hidden) setSheet(false); }
+      finally { popClosing = false; }
+      return;
+    }
+    if ((history.state && history.state.tbDead) || deadOnTop) { deadOnTop = false; history.back(); }
+  });
   function modalOpen() { if (!dialogs().some((x) => x && !x.hidden)) modalOpener = document.activeElement; }
   function modalBack(fallback) {
     setModal();

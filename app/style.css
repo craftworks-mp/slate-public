@@ -1263,3 +1263,15 @@ body{padding-bottom:calc(var(--bnav-h) + env(safe-area-inset-bottom) + 4px)}
 .addb{border-radius:0;clip-path:var(--clip-sm);border-color:transparent;background:var(--card2,#1E1E22)}
 .card.empty.soon{clip-path:none;border:1px dashed var(--line2)}
 .bx-sparkempty{border-radius:0}
+
+/* Track a game bet (owner 11/12): moneyline / spread / total / team totals into My Bets */
+.gl{padding:14px 12px 12px;margin:0 0 16px}
+.gl-tab{display:grid;grid-template-columns:minmax(64px,.8fr) 1fr 1fr;gap:8px;align-items:center;margin-top:8px}
+.gl-l{font-size:var(--fs-xs);color:var(--muted);font-weight:600}
+.gl-b{position:relative;min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;border:1px solid var(--line2);border-radius:10px;background:var(--bubble);color:var(--text);padding:6px 8px;font:inherit;transition:background .18s,border-color .18s}
+.gl-b .gl-t{font-weight:700;font-size:var(--fs-sm);white-space:nowrap}
+.gl-b .gl-o{font-size:var(--fs-xs);color:var(--muted)}
+.gl-b.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,var(--bubble))}
+.gl-b.on svg{position:absolute;top:5px;right:6px;width:13px;height:13px;stroke:var(--accent);stroke-width:2.6;fill:none}
+.gl-b.off{opacity:.45}
+.gl-na{display:grid;place-items:center;min-height:48px;color:var(--muted);border:1px dashed var(--line);border-radius:10px}
