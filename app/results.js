@@ -7,7 +7,7 @@
   const UNG = 'Ungraded';
   const GROUPS = [['S+/A', ['S+', 'A'], '#FFB546'], ['B/C', ['B', 'C'], '#5B7CFF'], ['D/F', ['D', 'F'], '#FF5A6A']]; // palette F: --amber / --accent / --red (tokens.css)
   const MINUS = '−';
-  const MK = { pts: 'Points', reb: 'Rebounds', ast: 'Assists', tpm: '3-pointers', pra: 'Pts+Reb+Ast', pr: 'Pts+Reb', pa: 'Pts+Ast', ra: 'Reb+Ast',
+  const MK = { parlay: 'Parlay', pts: 'Points', reb: 'Rebounds', ast: 'Assists', tpm: '3-pointers', pra: 'Pts+Reb+Ast', pr: 'Pts+Reb', pa: 'Pts+Ast', ra: 'Reb+Ast',
     sog: 'Shots on goal', a: 'Assists', g: 'Goals', td3: 'Triple-double', atd: 'Anytime TD', spread: 'Spread', total: 'Total', ttA: 'Away team total', ttB: 'Home team total', ml: 'Moneyline' };
   const SP = { nfl: 'NFL', nba: 'NBA', nhl: 'NHL' };
 

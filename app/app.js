@@ -2158,7 +2158,7 @@
       gradeMine();
       const all = Object.values(mb.bets), today = ymd(0), rg = R.range(s.range, today);
       let wait = false;
-      all.forEach((b) => { if (b.status === 'void' || b.date > today) return; const e = resStore[b.sport + '/' + b.date.slice(0, 7)] || ensureMyResults(b.sport, b.date.slice(0, 7)); if (e.st === 'loading') wait = true; });
+      all.forEach((b) => { if (b.status === 'void') return; (b.legs || [b]).forEach((x) => { if (x.date > today) return; const e = resStore[x.sport + '/' + x.date.slice(0, 7)] || ensureMyResults(x.sport, x.date.slice(0, 7)); if (e.st === 'loading') wait = true; }); });
       ctx.total = all.length; ctx.loading = wait;
       if (!wait) ctx.M = R.rmBuild(all, { from: rg.from, to: rg.to, sports: state.filter === 'All' ? null : [state.filter.toLowerCase()], mkt: s.mmkt, ou: s.mou, fd: s.mfd, gr: s.mgr },
         (b) => { const e = resStore[b.sport + '/' + b.date.slice(0, 7)]; return e && e.st === 'ok' ? e.rows[b.id] : undefined; });
@@ -2274,6 +2274,7 @@
     placeHl(!changed);
     lvSync();
     ldSync();
+    slipSync();
     if (window.LiveGameUI) LGU.sync(c.kind === 'game' ? lgCtx : null); // Live Game hook: poll only while a live-window game page is on screen
   }
 
@@ -2399,13 +2400,14 @@
       <p id="bs-err" class="bs-err" role="alert" hidden>Enter American odds like -110 or +150.</p>
       <div class="bs-row bs-urow"><span class="lbl">Units</span><div class="bs-units" role="group" aria-label="Units">${MB.UNIT_CHOICES.map((u) => `<button class="bchip${u === bs.units ? ' on' : ''}" data-bsu="${u}" aria-pressed="${u === bs.units}">${uTxt(u)}</button>`).join('')}</div></div>`}
       ${locked ? '' : `<button class="bs-go" id="bs-go">${bs.edit ? 'Update' : 'Add bet'}</button>`}
-      ${bs.edit ? '<button class="bs-rm" id="bs-rm">Remove bet</button>' : ''}
+      ${bs.edit ? '<button class="bs-rm" id="bs-rm">Remove bet</button>' : `<button class="bs-slip" id="bs-slip">${slip.some((l) => l.id === b.id) ? 'Remove from parlay slip' : slip.length ? `Add to parlay slip (${slip.length} leg${slip.length > 1 ? 's' : ''})` : 'Start a parlay with this leg'}</button>`}
       <button class="bs-x" id="bs-x">Close</button>`;
     bsheet.setAttribute('aria-labelledby', 'bs-title');
   }
   function bsOpen(sport, id, trigger) {
     const have = mb.bets[id];
     let bet;
+    if (have && have.type === 'parlay') { pOpen({ legs: have.legs, odds: have.odds, edited: have.oddsEdited, units: have.units, stored: have }, trigger); return; }
     if (have) bet = have;
     else {
       const found = slateRow(sport, id);
@@ -2424,7 +2426,7 @@
     if (!bs) return;
     const t = bs; bs = null;
     bsheet.hidden = bdrop.hidden = true;
-    modalOpener = null; setModal();
+    modalOpener = null; setModal(); slipSync();
     const again = document.querySelector(`[data-addbet="${(window.CSS && CSS.escape ? CSS.escape(t.sport + '|' + t.id) : t.sport + '|' + t.id)}"]`);
     if (again) again.focus(); else if (t.trigger && t.trigger.isConnected) t.trigger.focus();
   }
@@ -2453,6 +2455,109 @@
   }
   // F4: every write is a read-modify-write keyed by bet id (MB.commit), so a second tab / window can't overwrite this one's bets; mb is replaced by the merged store
   const mbCommit = (ops) => { const r = MB.commit(mb, ops); mb = r.store; return r.ok; };
+
+  // ---- parlays you build yourself (owner 11/12): a slip of legs from the add sheet, or a pre-made card; combined odds auto-multiplied, editable ----
+  const SLIP_KEY = 'sp.slip.v1', LEG_KEYS = ['id', 'sport', 'date', 'type', 'market', 'side', 'line', 'odds', 'label', 'gid', 'away', 'home', 'team', 'opp', 'start', 'pid'];
+  const legOf = (b) => { const o = {}; LEG_KEYS.forEach((k) => { if (b[k] !== undefined && b[k] !== '') o[k] = b[k]; }); if (o.line === undefined) o.line = null; return o; };
+  let slip = [];
+  try { const v = JSON.parse(localStorage.getItem(SLIP_KEY) || '[]'); if (Array.isArray(v)) slip = v.filter((l) => l && typeof l.id === 'string' && isNum(l.odds)).slice(0, 12); } catch (e) { /* blocked */ }
+  function slipSave() { try { localStorage.setItem(SLIP_KEY, JSON.stringify(slip)); } catch (e) { /* this visit only */ } slipSync(); }
+  function slipToggle() { // from the add sheet: the drafted bet (with the odds typed in) goes on or off the slip
+    const b = bs.bet, i = slip.findIndex((l) => l.id === b.id);
+    if (i >= 0) { slip.splice(i, 1); slipSave(); bsClose(); toast('Removed from the parlay slip'); return; }
+    if (slip.length >= 12) { toast('A parlay can have up to 12 legs'); return; }
+    const inp = $('bs-odds'), odds = MB.parseOdds(inp ? inp.value : '');
+    if (odds === null) { $('bs-err').hidden = false; inp.setAttribute('aria-invalid', 'true'); inp.focus(); return; }
+    slip.push(legOf(Object.assign({}, b, { odds }))); slipSave(); bsClose();
+    toast(slip.length > 1 ? `Parlay slip: ${slip.length} legs` : 'Parlay started. Add another leg to build it.');
+  }
+  // floating bar above the tab bar while the slip has legs and no sheet is open
+  function slipSync() {
+    let el = $('slipbar');
+    const show = slip.length > 0 && !dialogs().some((x) => x && !x.hidden);
+    if (!show) { if (el) el.hidden = true; return; }
+    if (!el) {
+      el = document.createElement('button'); el.id = 'slipbar'; el.className = 'slipbar'; document.body.appendChild(el);
+      el.addEventListener('click', () => pOpen({ legs: slip, slip: true }, el));
+    }
+    el.hidden = false;
+    el.innerHTML = `<span class="sb-l"><b>Parlay slip</b><span>${slip.length} leg${slip.length > 1 ? 's' : ''}${slip.length > 1 ? ' · ' + fmtOdds(MB.parlayOdds(slip)) : ' · add 1 more'}</span></span><span class="sb-r">Review</span>`;
+    el.setAttribute('aria-label', `Parlay slip, ${slip.length} leg${slip.length > 1 ? 's' : ''}. Review`);
+  }
+  const legWhere = (l) => (l.away && l.home ? `${l.away} @ ${l.home}` : [l.team, l.opp].filter(Boolean).join(' vs '));
+  const legMark = (r) => (r === 'W' ? '<i class="pm w" aria-label="Won">✓</i>' : r === 'L' ? '<i class="pm l" aria-label="Lost">✕</i>' : r === 'P' || r === 'void' ? `<i class="pm p" aria-label="${r === 'P' ? 'Push' : 'Void'}">–</i>` : '<i class="pm o" aria-label="Open">•</i>');
+  // d: { legs, odds?, edited?, units?, slip?, card?, stored? }
+  function pOpen(d, trigger) {
+    if (bs) bsClose();
+    const legs = d.legs.map((l) => Object.assign({}, l)), auto = legs.length > 1 ? MB.parlayOdds(legs) : null;
+    const id = d.stored ? d.stored.id : 'parlay-new';
+    bs = { kind: 'parlay', sport: legs[0] ? legs[0].sport : 'nba', id, legs, slip: !!d.slip, stored: d.stored || null, units: d.units || 1,
+      oddsTxt: fmtOdds(d.odds || auto).replace(MINUS, '-'), edited: !!d.edited, trigger };
+    pRender(); modalOpen();
+    bsheet.hidden = bdrop.hidden = false; setModal(); slipSync();
+    const f = $('pl-odds') || $('bs-x'); if (f) f.focus();
+  }
+  function pRender() {
+    const st = bs.stored, locked = !!st && st.status !== 'open', n = bs.legs.length, auto = n > 1 ? MB.parlayOdds(bs.legs) : null;
+    const canRm = !st && !locked;
+    const legs = bs.legs.map((l, i) => `<li class="pl-ml"><span class="pl-ml-l">${st ? legMark(l.res) : ''}<span><b>${esc(l.label)}</b><span>${fmtOdds(l.odds)} · ${l.sport.toUpperCase()} ${esc(legWhere(l))} · ${esc(mdOf(l.date))}</span></span></span>${canRm ? `<button class="pl-rmleg" data-plrm="${i}" aria-label="Remove ${esc(l.label)}">✕</button>` : ''}</li>`).join('');
+    const res = locked ? `<span class="res-pill ${st.status === 'W' ? 'w' : st.status === 'L' ? 'l' : st.status === 'void' ? 'v' : 'p'}">${st.status === 'void' ? 'Void' : st.status}</span>` : '';
+    bsheet.innerHTML = `<div class="grab" aria-hidden="true"></div>
+      <h2 id="bs-title">${st ? (locked ? 'Settled parlay' : 'Edit parlay') : 'Add parlay to My Bets'}</h2>
+      <div class="bs-bet"><b>${n}-leg parlay${res}</b><span>${n < 2 ? 'Add at least 2 legs: tap + on any bet, then “Add to parlay slip”.' : 'Every leg has to hit. A push or void drops that leg.'}</span></div>
+      <ul class="pl-mlegs">${legs}</ul>
+      ${locked ? `<div class="bs-row"><span class="lbl">Odds</span><span class="val">${fmtOdds(st.odds)}</span></div><div class="bs-row"><span class="lbl">Stake</span><span class="val">${uTxt(st.units)}</span></div>
+        <div class="bs-row"><span class="lbl">Result</span><span class="val ${plCls(st.pl)}">${uSgn(st.pl)}</span></div>${st.note ? `<p class="pl-note">${esc(st.note)}</p>` : ''}`
+    : `<label class="bs-row" for="pl-odds"><span class="lbl">Odds</span><input id="pl-odds" class="bs-in" value="${esc(bs.oddsTxt)}" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="bs-err pl-hint" aria-invalid="false"${n < 2 ? ' disabled' : ''}></label>
+      <p id="pl-hint" class="pl-note">${auto === null ? '' : `Legs multiplied: ${fmtOdds(auto)}. If your book prices it differently (same-game parlays usually are), enter your book’s odds.`}</p>
+      <p id="bs-err" class="bs-err" role="alert" hidden>Enter American odds like -110 or +150.</p>
+      <div class="bs-row bs-urow"><span class="lbl">Units</span><div class="bs-units" role="group" aria-label="Units">${MB.UNIT_CHOICES.map((u) => `<button class="bchip${u === bs.units ? ' on' : ''}" data-bsu="${u}" aria-pressed="${u === bs.units}">${uTxt(u)}</button>`).join('')}</div></div>
+      <button class="bs-go" id="pl-go"${n < 2 ? ' disabled' : ''}>${st ? 'Update' : 'Add parlay'}</button>`}
+      ${st ? '<button class="bs-rm" id="pl-del">Remove parlay</button>' : bs.slip ? '<button class="bs-rm" id="pl-clear">Clear slip</button>' : ''}
+      <button class="bs-x" id="bs-x">Close</button>`;
+    bsheet.setAttribute('aria-labelledby', 'bs-title');
+  }
+  function pClick(b) {
+    if (b.dataset.bsu) { bs.units = +b.dataset.bsu; pRender(); const f = $('pl-odds'); if (f) f.focus(); }
+    else if (b.dataset.plrm !== undefined) {
+      const was = bs.legs.length > 1 ? MB.parlayOdds(bs.legs) : null, i = +b.dataset.plrm, gone = bs.legs.splice(i, 1)[0];
+      if (bs.slip) { slip = slip.filter((l) => l.id !== gone.id); slipSave(); }
+      if (MB.parseOdds(bs.oddsTxt) === was) bs.oddsTxt = bs.legs.length > 1 ? fmtOdds(MB.parlayOdds(bs.legs)).replace(MINUS, '-') : ''; // untouched auto price follows the legs
+      if (!bs.legs.length) { bsClose(); return; }
+      pRender();
+    }
+    else if (b.id === 'pl-go') pCommit();
+    else if (b.id === 'pl-clear') { slip = []; slipSave(); bsClose(); toast('Parlay slip cleared'); }
+    else if (b.id === 'pl-del') { const ok = mbCommit([{ t: 'del', id: bs.stored.id }]); bsClose(); render(); toast(ok ? 'Parlay removed' : 'Removed for this visit only: this browser blocks storage'); }
+    else if (b.id === 'bs-x') bsClose();
+  }
+  function pCommit() {
+    if (bs.legs.length < 2) return;
+    const inp = $('pl-odds'), odds = MB.parseOdds(inp ? inp.value : '');
+    if (odds === null) { $('bs-err').hidden = false; inp.setAttribute('aria-invalid', 'true'); inp.focus(); return; }
+    const legs = bs.legs.map(legOf), st = bs.stored;
+    const starts = legs.map((l) => l.start).filter(Boolean).sort(), dates = legs.map((l) => l.date).sort();
+    const bet = Object.assign({}, st || {}, {
+      id: st ? st.id : 'parlay-' + Date.now().toString(36), sport: legs[0].sport, date: dates[dates.length - 1], gid: '', type: 'parlay', market: 'parlay', side: '', line: null,
+      odds, units: bs.units, label: `${legs.length}-leg parlay`, legs: st ? st.legs : legs, addedAt: st ? st.addedAt : new Date().toISOString(),
+      oddsEdited: odds !== MB.parlayOdds(legs), status: st ? st.status : 'open', settledAt: st ? st.settledAt : '', pl: st ? st.pl : 0, start: starts[0] || '',
+    });
+    const ok = mbCommit([{ t: 'set', bet }]), fromSlip = bs.slip;
+    if (fromSlip) { slip = []; slipSave(); }
+    bsClose(); render();
+    toast(ok ? (st ? 'Parlay updated' : 'Parlay added to My Bets') : 'Saved for this visit only: this browser blocks storage');
+  }
+  // a pre-made card's legs as My Bets legs (built from the slate rows, like the + button)
+  function cardLegs(c) {
+    const out = [];
+    for (const l of c.legs) {
+      const i = l.key.indexOf('|'), sp = l.key.slice(0, i), found = slateRow(sp, l.key.slice(i + 1));
+      if (!found || !isNum(found.r.ph.odds)) return null;
+      if (kickPassed(((found.slate.games || {})[found.r.b.gid] || {}).kickoff)) return 'started';
+      out.push(legOf(newBet(sp, found)));
+    }
+    return out;
+  }
   // another tab changed the saved bets (storage event) or this one came back to the front: re-read, close a sheet whose bet is gone, redraw
   function mbRefresh() {
     let raw = null;
@@ -2469,13 +2574,15 @@
   bsheet.addEventListener('click', (e) => {
     const b = e.target.closest('button');
     if (!b || !bs) return;
+    if (bs.kind === 'parlay') { pClick(b); return; }
+    if (b.id === 'bs-slip') { slipToggle(); return; }
     if (b.dataset.bsu) { bs.units = +b.dataset.bsu; const inp = $('bs-odds'), v = inp ? inp.value : null; bsRender(); if (v !== null) $('bs-odds').value = v; $('bs-odds').focus(); }
     else if (b.id === 'bs-go') bsCommit();
     else if (b.id === 'bs-rm') bsRemove();
     else if (b.id === 'bs-x') bsClose();
   });
-  bsheet.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'bs-odds') { e.preventDefault(); bsCommit(); } });
-  bsheet.addEventListener('input', (e) => { if (e.target.id === 'bs-odds') { $('bs-err').hidden = true; e.target.setAttribute('aria-invalid', 'false'); } });
+  bsheet.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'bs-odds') { e.preventDefault(); bsCommit(); } else if (e.key === 'Enter' && e.target.id === 'pl-odds') { e.preventDefault(); pCommit(); } });
+  bsheet.addEventListener('input', (e) => { if (e.target.id === 'pl-odds') { $('bs-err').hidden = true; e.target.setAttribute('aria-invalid', 'false'); bs.oddsTxt = e.target.value; } if (e.target.id === 'bs-odds') { $('bs-err').hidden = true; e.target.setAttribute('aria-invalid', 'false'); } });
   bdrop.addEventListener('click', bsClose);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && bs) bsClose(); });
 
@@ -2497,7 +2604,7 @@
   // settle open bets whose game day has results; returns the number of bets that changed
   function gradeMine() {
     const today = ymd(0);
-    Object.values(mb.bets).forEach((b) => { if (b.status === 'open' && b.date <= today) ensureMyResults(b.sport, b.date.slice(0, 7)); });
+    Object.values(mb.bets).forEach((b) => { if (b.status === 'open') (b.legs || [b]).forEach((x) => { if (x.date <= today && !x.res) ensureMyResults(x.sport, x.date.slice(0, 7)); }); });
     const tmp = MB.emptyStore(), changed = []; // grade a copy, then write only the changed bets (F4: grading never replaces the whole store)
     Object.keys(mb.bets).forEach((id) => { tmp.bets[id] = Object.assign({}, mb.bets[id]); });
     const n = MB.applyGrades(tmp, (b) => { const e = resStore[b.sport + '/' + b.date.slice(0, 7)]; return e && e.st === 'ok' ? e.rows[b.id] : undefined; }, undefined, changed);
@@ -2514,6 +2621,7 @@
   }
   function mbRow(b) { return mbRowL(b, false); }
   function mbRowL(b, live) {
+    if (b.type === 'parlay') return mbParlayRow(b, live);
     const open = b.status === 'open', where = b.away && b.home ? `${b.away} @ ${b.home}` : [b.team, b.opp].filter(Boolean).join(' vs ');
     const when = open ? where : `${mdOf(b.date)} · ${where}`;
     const res = open ? '' : b.status === 'void' ? '<span class="res-pill v">Void</span>' : `<span class="res-pill ${b.status === 'W' ? 'w' : b.status === 'L' ? 'l' : 'p'}">${b.status}</span>`;
@@ -2522,6 +2630,16 @@
       <span class="bet-l"><span class="bet-mkt">${esc(b.label)}</span>
         <span class="bet-sub">${fmtOdds(b.odds)}${b.oddsEdited ? ' edited' : ''} · ${open ? uTxt(b.units) + ' · ' : ''}${esc(when)}${b.note ? `<em class="mb-note">${esc(b.note)}</em>` : ''}</span></span>
       <span class="bet-m">${res}</span><span class="bet-r">${lead}${gradeChip(b)}</span></button>${live && open ? `<div class="lv-wrap" data-lv="${esc(b.id)}">${lvHtml(b)}</div>` : ''}</div>`;
+  }
+  function mbParlayRow(b, live) {
+    const open = b.status === 'open', won = b.legs.filter((l) => l.res === 'W').length;
+    const res = open ? '' : b.status === 'void' ? '<span class="res-pill v">Void</span>' : `<span class="res-pill ${b.status === 'W' ? 'w' : b.status === 'L' ? 'l' : 'p'}">${b.status}</span>`;
+    const lead = open ? `<span class="bet-ev mb-u">${uTxt(b.units)}</span>` : `<span class="bet-ev mb-u ${plCls(b.pl)}">${uSgn(b.pl)}</span>`;
+    const legs = b.legs.map((l, i) => `<li>${legMark(l.res)}<span class="pl-rl">${esc(l.label)}</span>${live && open && !l.res ? `<div class="lv-wrap" data-lvl="${esc(b.id + '|' + i)}">${lvHtml(Object.assign({ status: 'open', units: b.units }, l))}</div>` : ''}</li>`).join('');
+    return `<div class="bet-wrap pl-mb"><button class="bet mbr" data-addbet="${esc(b.sport + '|' + b.id)}" aria-label="${open ? 'Edit' : 'View'} ${esc(b.label)}">
+      <span class="bet-l"><span class="bet-mkt">${esc(b.label)}</span>
+        <span class="bet-sub">${fmtOdds(b.odds)}${b.oddsEdited ? ' edited' : ''} · ${open ? uTxt(b.units) + ' · ' + won + ' of ' + b.legs.length + ' hit' : mdOf(b.date)}${b.note && !(open && /legs settled$/.test(b.note)) ? `<em class="mb-note">${esc(b.note)}</em>` : ''}</span></span>
+      <span class="bet-m">${res}</span><span class="bet-r">${lead}</span></button><ul class="pl-rlegs">${legs}</ul></div>`;
   }
   // ======== Scoring watch shell (prefix sw): shared card + row renderer for the NHL anytime-goal, NBA triple-double and NFL anytime-TD panels and game blocks ========
   // Layered card: sport-tinted header band, body rows with a thin chance bar (model P on a per-panel 0–scale% track) and a break-even tick at the DK price, recessed footer legend.
@@ -2695,7 +2813,7 @@
   function plCard(c, i, n) {
     return `<div class="card pl-card" role="group" aria-label="Parlay ${i + 1} of ${n}"><div class="pl-top"><span class="lbl">${esc(plKind(c))}</span><span class="pl-odds">${fmtOdds(c.american)}</span></div>
       <div class="pl-tiles"><div class="pl-tile"><span class="pl-tl">EV</span><b class="ev ${evCls(c.ev)}">${sgn(c.ev, 1)}%</b></div><div class="pl-tile"><span class="pl-tl">Model P</span><b>${c.chance.toFixed(1)}%</b></div></div>
-      <div class="pl-legs">${c.legs.map(plLeg).join('')}</div>${plWhy(c)}<div class="pl-foot">1 leg per game · paid at multiplied odds</div></div>`;
+      <div class="pl-legs">${c.legs.map(plLeg).join('')}</div>${plWhy(c)}<button class="pl-add" data-pladd="${i}">Add to My Bets</button><div class="pl-foot">1 leg per game · paid at multiplied odds</div></div>`;
   }
   // why it looks good on paper + its weak spot (PARLAY.notes: sentences built from the card's own numbers; user 10/31 23:59)
   function plWhy(c) {
@@ -2703,13 +2821,13 @@
     if (!nt.pros.length && !nt.weak) return '';
     return `<ul class="pl-why">${nt.pros.map((x) => `<li>${esc(x)}</li>`).join('')}${nt.weak ? `<li class="pl-weak">${esc(nt.weak)}</li>` : ''}</ul>`;
   }
-  let plWait = false;
+  let plWait = false, plCards = [];
   function plPanel() {
     if (!store.idxDone && !plWait) { plWait = true; indexP.then(rerender); } // a cold load straight onto #bets has nothing else that re-renders once index.json arrives
     if (!store.idxDone) return `<div class="card pl-sk" aria-hidden="true">${skRows(3)}</div>`;
     const { legs, loading, failed } = plLegs();
     if (loading && !legs.length) return `<div class="card pl-sk" aria-hidden="true">${skRows(3)}</div>`;
-    const cards = PARLAY.build(legs, new Date(Date.now()));
+    const cards = plCards = PARLAY.build(legs, new Date(Date.now()));
     if (!cards.length) return failed ? `<div class="card empty"><p>Couldn’t load today’s slates. Check your connection and try again.</p></div>`
       : `<div class="card empty"><p>No parlays right now: not enough positive-EV legs in games that haven’t started.</p></div>`;
     return `<div class="pl-car" tabindex="0" aria-label="Parlays, swipe sideways">${cards.map((c, i) => plCard(c, i, cards.length)).join('')}</div>
@@ -2817,7 +2935,7 @@
     if (store.idxDone) {
       const L = plLegs(); loading = L.loading && !L.legs.length; failed = L.failed;
       const legs = state.bxSport === 'all' ? L.legs : L.legs.filter((l) => l.sp === state.bxSport);
-      cards = loading ? [] : PARLAY.build(legs, new Date(Date.now()));
+      cards = plCards = loading ? [] : PARLAY.build(legs, new Date(Date.now()));
     }
     const defs = (window.GLOSSARY || {}).parlays || {};
     const info = infoBtn('parlays', 'combined', defs), note = infoNote('parlays', 'combined', defs);
@@ -2923,6 +3041,10 @@
     else if (d.bxmore) { state.bxMore[d.bxmore] = true; render(); }
     else if (d.bxpl) { if (state.bxPl[d.bxpl]) delete state.bxPl[d.bxpl]; else state.bxPl[d.bxpl] = true; render(); plFit(view.querySelector('.pl-car'), 0); }
     else if (d.bxtab) { state.bxTab = d.bxtab; render(); }
+    else if (d.pladd !== undefined) {
+      const c = plCards[+d.pladd], legs = c && cardLegs(c);
+      if (legs === 'started') toast(STARTED_MSG); else if (legs && legs.length > 1) pOpen({ legs, odds: c.american, card: true }, b); else toast('Still loading these legs. Try again in a second.');
+    }
   });
 
   // ---- backup (settings sheet) ----
@@ -2995,6 +3117,7 @@
   const lvNote = () => (lv.cache.failed ? 'Live data unavailable' : '');
   function lvPaint() {
     view.querySelectorAll('[data-lv]').forEach((el) => { const b = mb.bets[el.dataset.lv]; el.innerHTML = b ? lvHtml(b) : ''; });
+    view.querySelectorAll('[data-lvl]').forEach((el) => { const [id, i] = el.dataset.lvl.split('|'), p = mb.bets[id], l = p && p.legs && p.legs[+i]; el.innerHTML = l ? lvHtml(Object.assign({ status: 'open', units: p.units }, l)) : ''; });
     const n = $('lv-note');
     if (n) n.textContent = lvNote();
   }
@@ -3015,7 +3138,7 @@
     const gen = lv.gen;
     lv.busy = true;
     try {
-      const bets = Object.values(mb.bets).filter((b) => b.status === 'open').map(lvBet);
+      const bets = [].concat(...Object.values(mb.bets).filter((b) => b.status === 'open').map((b) => (b.type === 'parlay' ? b.legs.filter((l) => !l.res).map((l) => Object.assign({ status: 'open', units: b.units }, l)) : [b]))).map(lvBet);
       if (LV.pending(bets, Date.now(), lv.cache)) await LV.refresh({ bets, now: Date.now(), cache: lv.cache, fetchJson: lvFetch });
     } catch (e) { lv.cache.failed = true; }
     lv.busy = false;
@@ -3112,15 +3235,16 @@
     const any = dialogs().some((x) => x && !x.hidden);
     ['.topbar', '#view', '#nav'].forEach((q) => { const el = document.querySelector(q); if (el) { if (any) el.setAttribute('inert', ''); else el.removeAttribute('inert'); } });
     modalHistory(any);
+    slipSync();
   }
   // Phone back button (owner 11/12): an open sheet or search adds one history step, so Back closes it instead of leaving the app.
   // Closing with a button marks that step dead; the next Back skips it, so one press always does one visible thing.
-  let modalStep = false, popClosing = false, deadOnTop = false;
+  let modalStep = false, popClosing = false, deadOnTop = false, deadHref = '';
   function modalHistory(any) {
     if (any && !modalStep) { history.pushState({ tbModal: 1 }, '', location.href); modalStep = true; deadOnTop = false; }
     else if (!any && modalStep) {
       modalStep = false;
-      if (!popClosing && history.state && history.state.tbModal) { history.replaceState({ tbDead: 1 }, '', location.href); deadOnTop = true; }
+      if (!popClosing && history.state && history.state.tbModal) { history.replaceState({ tbDead: 1 }, '', location.href); deadOnTop = true; deadHref = location.href; }
     }
   }
   window.addEventListener('popstate', () => {
@@ -3130,7 +3254,10 @@
       finally { popClosing = false; }
       return;
     }
-    if ((history.state && history.state.tbDead) || deadOnTop) { deadOnTop = false; history.back(); }
+    // Back from the dead step lands on the same URL: skip one more. A tap that opens a new page (new URL) after a sheet closed is a real navigation: keep it.
+    const skip = (history.state && history.state.tbDead) || (deadOnTop && location.href === deadHref);
+    deadOnTop = false;
+    if (skip) history.back();
   });
   function modalOpen() { if (!dialogs().some((x) => x && !x.hidden)) modalOpener = document.activeElement; }
   function modalBack(fallback) {

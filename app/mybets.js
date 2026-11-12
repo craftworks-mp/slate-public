@@ -1,6 +1,8 @@
 // My Bets: storage, grading, backup (pure functions; no DOM). Loaded before app.js; also required by tests/test_mybets.js.
 // Store (localStorage key sp.mybets.v1): { schema: 1, bets: { <betId>: { id, sport, date, gid, type, market, side, line, odds, units, label,
 //   team, opp, addedAt, oddsEdited, status: open|W|L|P|void, settledAt, pl, grade?, uncal?, note? } } }
+// Parlays (owner 11/12): type 'parlay', id 'parlay-<time>', legs: [{ id, sport, date, type: prop|game, market, side, line, odds, label, gid, away, home, team, start }],
+//   odds = the combined price (auto from the legs, or the book's own number when oddsEdited). Each leg grades against its own results row.
 // betId is the slate bet id; the published results file keys its rows by the same id.
 (function (root) {
   'use strict';
@@ -17,9 +19,21 @@
   function validBet(b) {
     return !!b && typeof b === 'object' && typeof b.id === 'string' && b.id.length > 0 && b.id.length < 200
       && SPORTS.includes(b.sport) && /^\d{4}-\d{2}-\d{2}$/.test(String(b.date || ''))
-      && (b.type === 'prop' || b.type === 'game') && isNum(b.odds) && Math.abs(b.odds) >= 100
+      && (b.type === 'prop' || b.type === 'game' || (b.type === 'parlay' && validLegs(b.legs))) && isNum(b.odds) && Math.abs(b.odds) >= 100
       && isNum(b.units) && b.units > 0 && b.units <= 100 && (b.line === null || b.line === undefined || isNum(b.line))
       && STATUSES.includes(b.status || 'open');
+  }
+  function validLegs(legs) {
+    return Array.isArray(legs) && legs.length >= 2 && legs.length <= 12 && legs.every((l) => l && typeof l.id === 'string' && SPORTS.includes(l.sport)
+      && /^\d{4}-\d{2}-\d{2}$/.test(String(l.date || '')) && (l.type === 'prop' || l.type === 'game') && isNum(l.odds) && Math.abs(l.odds) >= 100
+      && (l.line === null || l.line === undefined || isNum(l.line)));
+  }
+  function cleanLeg(l) {
+    const o = { id: l.id, sport: l.sport, date: l.date, type: l.type, market: String(l.market || ''), side: String(l.side || ''), line: isNum(l.line) ? l.line : null,
+      odds: l.odds, label: String(l.label || '') };
+    ['gid', 'away', 'home', 'team', 'opp', 'start', 'pid'].forEach((k) => { if (l[k] !== undefined && l[k] !== null && l[k] !== '') o[k] = String(l[k]); });
+    if (l.res && ['W', 'L', 'P', 'void'].includes(l.res)) o.res = l.res;
+    return o;
   }
   function cleanBet(b) { // keep known fields only; defaults for the optional ones
     const o = {
@@ -30,6 +44,7 @@
     };
     ['grade', 'note', 'pid', 'start', 'gradedOn', 'away', 'home'].forEach((k) => { if (b[k] !== undefined && b[k] !== null && b[k] !== '') o[k] = b[k]; });
     if (b.uncal) o.uncal = true;
+    if (b.type === 'parlay') o.legs = b.legs.map(cleanLeg);
     return o;
   }
   // returns a store object; a missing, broken or foreign value gives an empty store (nothing thrown)
@@ -74,7 +89,7 @@
       else if (op.t === 'del') delete bets[op.id];
       else if (op.t === 'grade' && op.bet) { // only if the stored bet is still open with the same odds and units the result was computed from (else it is graded again next pass)
         const cur = bets[op.bet.id];
-        if (cur && cur.status === 'open' && cur.odds === op.bet.odds && cur.units === op.bet.units) bets[op.bet.id] = cleanBet(Object.assign({}, cur, { status: op.bet.status, pl: op.bet.pl, settledAt: op.bet.settledAt, gradedOn: op.bet.gradedOn, note: op.bet.note }));
+        if (cur && cur.status === 'open' && cur.odds === op.bet.odds && cur.units === op.bet.units) bets[op.bet.id] = cleanBet(Object.assign({}, cur, { status: op.bet.status, pl: op.bet.pl, settledAt: op.bet.settledAt, gradedOn: op.bet.gradedOn, note: op.bet.note, legs: op.bet.legs || cur.legs }));
       }
     });
     const store = { schema: SCHEMA, bets };
@@ -127,14 +142,45 @@
     if (res === 'P') return { status: 'P', pl: 0, phase: m.phase };
     return { status: res, pl: r2(calcPL(res, bet.odds, bet.units)), phase: m.phase };
   }
+  // ---- parlays ----
+  const decOf = (o) => (o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o));
+  const amOf = (d) => Math.round(d >= 2 ? (d - 1) * 100 : -100 / (d - 1));
+  // combined American odds of a set of legs (multiplied decimal odds)
+  const parlayOdds = (legs) => amOf(legs.reduce((t, l) => t * decOf(l.odds), 1));
+  const NOTE_REPRICED = 'A leg pushed or was voided, so the payout was recalculated from the legs left. Check your book’s payout.';
+  const NOTE_DROPPED = 'A leg pushed or was voided, so it paid at the odds of the legs left.';
+  // Any leg lost: L. Any leg not settled yet: open. Pushed / voided legs drop out and the price is rebuilt from the legs left
+  // (a book-entered price can't be rebuilt exactly, so that case carries a note). All legs pushed / voided: P.
+  // -> same shape as gradeBet, plus legs: [res per leg]
+  function gradeParlay(bet, rowFor) {
+    const res = bet.legs.map((l) => { const g = gradeBet(l, rowFor(l)); return g && g.status !== 'open' ? g.status : null; });
+    const done = res.filter(Boolean).length;
+    if (res.includes('L')) return { status: 'L', pl: r2(calcPL('L', bet.odds, bet.units)), legs: res };
+    if (done < res.length) return { status: 'open', note: done ? `${done} of ${res.length} legs settled` : undefined, legs: res };
+    const live = bet.legs.filter((l, i) => res[i] === 'W');
+    if (!live.length) return { status: 'P', pl: 0, legs: res };
+    if (live.length === bet.legs.length) return { status: 'W', pl: r2(calcPL('W', bet.odds, bet.units)), legs: res };
+    const odds = parlayOdds(live);
+    return { status: 'W', pl: r2(calcPL('W', odds, bet.units)), legs: res, note: bet.oddsEdited ? NOTE_REPRICED : NOTE_DROPPED, odds };
+  }
   // apply grades to open bets; rowFor(bet) -> results row or undefined. Returns the number of bets that changed.
   // changed (optional array) receives the ids of the bets that changed
   function applyGrades(st, rowFor, nowIso, changed) {
     let n = 0;
     Object.values(st.bets).forEach((b) => {
       if (b.status !== 'open') return;
-      const g = gradeBet(b, rowFor(b));
       const hit = () => { n++; if (changed) changed.push(b.id); };
+      if (b.type === 'parlay') {
+        const g = gradeParlay(b, rowFor);
+        let moved = false;
+        b.legs.forEach((l, i) => { const r = g.legs[i] || undefined; if (l.res !== r) { if (r) l.res = r; else delete l.res; moved = true; } });
+        if (g.status === 'open') { if ((b.note || undefined) !== g.note) { if (g.note) b.note = g.note; else delete b.note; moved = true; } if (moved) hit(); return; }
+        b.status = g.status; b.pl = g.pl; b.settledAt = nowIso || new Date().toISOString();
+        if (g.note) b.note = g.note; else delete b.note;
+        hit();
+        return;
+      }
+      const g = gradeBet(b, rowFor(b));
       if (!g) { if (b.note) { delete b.note; hit(); } return; }
       if (g.status === 'open') { if (b.note !== g.note) { b.note = g.note; hit(); } return; }
       b.status = g.status; b.pl = g.pl; b.settledAt = nowIso || new Date().toISOString(); delete b.note;
@@ -195,6 +241,6 @@
     return { store: out, added, skipped, invalid };
   }
 
-  root.MyBets = { KEY, SCHEMA, UNIT_CHOICES, emptyStore, load, save, commit, validBet, cleanBet, parseOdds, calcPL, matchPhase, gradeBet, applyGrades, resultsPath, summary, clvOf, exportName, exportText, mergeImport };
+  root.MyBets = { KEY, SCHEMA, UNIT_CHOICES, emptyStore, load, save, commit, validBet, cleanBet, parseOdds, calcPL, matchPhase, gradeBet, applyGrades, gradeParlay, parlayOdds, resultsPath, summary, clvOf, exportName, exportText, mergeImport };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.MyBets;
 }(typeof window !== 'undefined' ? window : globalThis));
