@@ -1,6 +1,6 @@
 // Parlays: builds the cross-game parlay cards (pure functions; no DOM). Loaded before app.js; also required by tests/test_parlays.js.
 // Leg in: { key, sp, gid, pid, name, team, label, odds (American), P (percent), ev (percent), kickoff (ISO), recheck, uncal, pick }
-// Card out: { kind: 'flip'|'value'|'longshot', n, legs, dec, american, chance (percent), ev (percent) }
+// Card out: { kind: 'flip'|'value'|'longshot'|'theme', n, legs, dec, american, chance (percent), ev (percent) } (+ theme, name on themed cards)
 // notes(card) -> { pros: [sentence], weak: sentence|null }: plain sentences from the card's own numbers (user 10/31 23:59);
 //   legs may also carry stat, side ('o'|'u'), line, proj, grade
 (function (root) {
@@ -15,6 +15,16 @@
       { kind: 'value', n: 3, by: 'ev' },
       { kind: 'longshot', n: 4, by: 'ev' },
       { kind: 'longshot', n: 5, by: 'ev' },
+    ],
+    // themed cards (owner 11/12): built after the core cards from the whole pool (players may repeat from the core cards, never inside a card);
+    // at most maxThemes shown, Primetime first whenever it fills, the rest by combined EV; a card with the same legs as one already shown is skipped
+    maxThemes: 2,
+    lateHour: 20,        // ET hour: primetime = an NFL game at or after this; its partner legs come from other games at or after it too
+    themes: [
+      { theme: 'primetime', name: 'Primetime', n: 3, by: 'P' },
+      { theme: 'unders', name: 'Unders', n: 3, by: 'P' },
+      { theme: 'onestat', name: 'One-stat', n: 3, by: 'P' },
+      { theme: 'plusmoney', name: 'Plus-money', n: 2, by: 'ev' },
     ],
   };
   const isNum = (v) => typeof v === 'number' && isFinite(v);
@@ -54,6 +64,59 @@
       out.push(Object.assign({ kind: spec.kind, n: spec.n, legs: picked }, cardMath(picked)));
     });
     return out;
+  }
+
+  // ---- themed cards ----
+  const etHour = (iso) => { const d = new Date(iso); if (!isFinite(d.getTime())) return -1;
+    const f = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hourCycle: 'h23' }).formatToParts(d);
+    const g = (t) => +((f.find((x) => x.type === t) || {}).value || 0); return g('hour') + g('minute') / 60; };
+  const isLate = (l, c) => etHour(l.kickoff) >= c.lateHour;
+  function pickLegs(sorted, n, games, players, picked) {
+    for (const l of sorted) {
+      if (picked.length >= n) break;
+      if (games.has(gameOf(l)) || players.has(playerOf(l))) continue;
+      games.add(gameOf(l)); players.add(playerOf(l)); picked.push(l);
+    }
+    return picked;
+  }
+  function sortBy(arr, by) {
+    const other = by === 'P' ? 'ev' : 'P';
+    return arr.slice().sort((x, y) => y[by] - x[by] || y[other] - x[other] || (String(x.key) < String(y.key) ? -1 : String(x.key) > String(y.key) ? 1 : 0));
+  }
+  function themeLegs(spec, pool, c) {
+    const games = new Set(), players = new Set();
+    if (spec.theme === 'primetime') {
+      // anchored on the primetime NFL game when one has eligible legs; otherwise a late-window card from games at lateHour+ in any sport (owner 11/12)
+      const prime = pool.filter((l) => l.sp === 'nfl' && isLate(l, c));
+      const picked = prime.length ? pickLegs([sortBy(prime, spec.by)[0]], 1, games, players, []) : [];
+      return pickLegs(sortBy(pool.filter((l) => isLate(l, c)), spec.by), spec.n, games, players, picked);
+    }
+    if (spec.theme === 'unders') return pickLegs(sortBy(pool.filter((l) => l.side === 'u'), spec.by), spec.n, games, players, []);
+    if (spec.theme === 'plusmoney') return pickLegs(sortBy(pool.filter((l) => l.odds >= 100), spec.by), spec.n, games, players, []);
+    if (spec.theme === 'onestat') {
+      const by = {}; pool.forEach((l) => { if (l.stat) (by[l.sp + '|' + l.stat] = by[l.sp + '|' + l.stat] || []).push(l); });
+      const best = Object.keys(by).map((k) => ({ k, games: new Set(by[k].map(gameOf)).size })).sort((a, b) => b.games - a.games || (a.k < b.k ? -1 : 1))[0];
+      return best ? pickLegs(sortBy(by[best.k], spec.by), spec.n, games, players, []) : [];
+    }
+    return [];
+  }
+  // themes(legs, now, cfg, shown) -> up to maxThemes cards { kind: 'theme', theme, name, n, legs, dec, american, chance, ev }
+  function themes(legs, now, cfg, shown) {
+    const c = Object.assign({}, CFG, cfg || {});
+    const nowMs = now instanceof Date ? now.getTime() : (isNum(now) ? now : new Date(now).getTime());
+    const pool = (legs || []).filter((l) => eligible(l, nowMs, c));
+    const sig = (card) => card.legs.map((l) => l.key).sort().join(',');
+    const seen = new Set((shown || []).map(sig)), all = [];
+    c.themes.forEach((spec) => {
+      const picked = themeLegs(spec, pool, c);
+      if (picked.length < spec.n) return; // short: skip, never shorten
+      const name = spec.theme === 'primetime' && !picked.some((l) => l.sp === 'nfl') ? 'Late window' : spec.name;
+      const card = Object.assign({ kind: 'theme', theme: spec.theme, name, n: spec.n, legs: picked }, cardMath(picked));
+      if (seen.has(sig(card))) return;
+      seen.add(sig(card)); all.push(card);
+    });
+    const prime = all.filter((x) => x.theme === 'primetime'), rest = all.filter((x) => x.theme !== 'primetime').sort((a, b) => b.ev - a.ev);
+    return prime.concat(rest).slice(0, c.maxThemes);
   }
 
   // ---- notes: why the card looks good on paper, plus its weak spot. Facts only, no advice words; wording follows the numbers ----
@@ -112,6 +175,6 @@
     return { pros, weak };
   }
 
-  root.PARLAY = { CFG, decimal, toAmerican, eligible, cardMath, build, notes, lastName };
+  root.PARLAY = { CFG, decimal, toAmerican, eligible, cardMath, build, themes, etHour, notes, lastName };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.PARLAY;
 }(typeof window !== 'undefined' ? window : globalThis));

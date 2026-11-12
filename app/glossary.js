@@ -39,7 +39,7 @@ window.GLOSSARY = {
     exposure: 'Open exposure: units staked on bets that have not settled yet. It is what you can still lose today, not what you have won or lost.',
   },
   parlays: {
-    combined: 'Combined EV = (1 + EV₁) × (1 + EV₂) × … − 1. Exact for parlays across different games, which books pay at the multiplied odds. Each leg is the model’s own side with EV between 0% and 8%; same-game parlays are left out because the legs move together. Model P = the model’s chance that every leg hits (the legs’ chances multiplied). The notes under it are built from these numbers; the amber one is the leg with the least room over its price.',
+    combined: 'Combined EV = (1 + EV₁) × (1 + EV₂) × … − 1. Exact for parlays across different games, which books pay at the multiplied odds. Each leg is the model’s own side with EV between 0% and 8%; same-game parlays are left out because the legs move together. Model P = the model’s chance that every leg hits (the legs’ chances multiplied). The notes under it are built from these numbers; the amber one is the leg with the least room over its price. Themed cards (Primetime, Unders, One-stat, Plus-money) use the same legs and math, picked around one idea: Primetime pairs a leg from the night’s primetime NFL game with legs from other games starting at 8 PM ET or later; on nights without one, Late window uses only games starting at 8 PM ET or later.',
   },
   // Results tab (Model view). Shown with the ⓘ button; keep each to 1-2 lines.
   results: {

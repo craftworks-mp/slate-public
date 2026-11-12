@@ -2782,7 +2782,7 @@
     return swBlock('nfl', 'atd-blk', slate, rows, atdOk, atdBy, atdRow);
   }
   // ---- Parlays panel (Bets > Dashboard): swipeable cross-game parlay cards built by PARLAY.build (app/parlays.js) ----
-  const plKind = (c) => `${c.n}-leg ${c.kind}`;
+  const plKind = (c) => (c.kind === 'theme' ? `${c.name} · ${c.n}-leg` : `${c.n}-leg ${c.kind}`);
   function plLegs() {
     const today = ymd(0), legs = [];
     let loading = false, failed = false;
@@ -2827,7 +2827,7 @@
     if (!store.idxDone) return `<div class="card pl-sk" aria-hidden="true">${skRows(3)}</div>`;
     const { legs, loading, failed } = plLegs();
     if (loading && !legs.length) return `<div class="card pl-sk" aria-hidden="true">${skRows(3)}</div>`;
-    const cards = plCards = PARLAY.build(legs, new Date(Date.now()));
+    const plNow = new Date(Date.now()), core = PARLAY.build(legs, plNow), cards = plCards = core.concat(PARLAY.themes(legs, plNow, null, core));
     if (!cards.length) return failed ? `<div class="card empty"><p>Couldn’t load today’s slates. Check your connection and try again.</p></div>`
       : `<div class="card empty"><p>No parlays right now: not enough positive-EV legs in games that haven’t started.</p></div>`;
     return `<div class="pl-car" tabindex="0" aria-label="Parlays, swipe sideways">${cards.map((c, i) => plCard(c, i, cards.length)).join('')}</div>
@@ -2935,7 +2935,7 @@
     if (store.idxDone) {
       const L = plLegs(); loading = L.loading && !L.legs.length; failed = L.failed;
       const legs = state.bxSport === 'all' ? L.legs : L.legs.filter((l) => l.sp === state.bxSport);
-      cards = plCards = loading ? [] : PARLAY.build(legs, new Date(Date.now()));
+      if (!loading) { const plNow = new Date(Date.now()), core = PARLAY.build(legs, plNow); cards = core.concat(PARLAY.themes(legs, plNow, null, core)); } plCards = cards;
     }
     const defs = (window.GLOSSARY || {}).parlays || {};
     const info = infoBtn('parlays', 'combined', defs), note = infoNote('parlays', 'combined', defs);
