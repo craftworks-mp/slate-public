@@ -35,7 +35,7 @@
   // ---- which bets can be tracked ----
   // stat key -> parts summed (scripts/grade.py PARTS; atd = rushing + receiving TDs). Every NFL / NHL prop key in the slates is listed.
   const PARTS = {
-    nfl: { pyd: ['pyd'], comp: ['comp'], patt: ['patt'], ptd: ['ptd'], ryd: ['ryd'], ratt: ['ratt'], recy: ['recy'], rec: ['rec'], rry: ['ryd', 'recy'], atd: ['rtd', 'rectd'] },
+    nfl: { pyd: ['pyd'], comp: ['comp'], patt: ['patt'], ptd: ['ptd'], ryd: ['ryd'], ratt: ['ratt'], recy: ['recy'], rec: ['rec'], rry: ['ryd', 'recy'], atd: ['rtd', 'rectd'], kpts: ['kpts'], fgm: ['fgm'] },
     nhl: { sog: ['sog'], g: ['g'], a: ['a'], pts: ['g', 'a'] },
     nba: { pts: ['pts'], reb: ['reb'], ast: ['ast'], tpm: ['tpm'], pra: ['pts', 'reb', 'ast'], pr: ['pts', 'reb'], pa: ['pts', 'ast'], ra: ['reb', 'ast'], td3: ['pts', 'reb', 'ast'] },
   };
@@ -75,10 +75,11 @@
   }
 
   // ---- summary (box) ----
-  // ESPN NFL: boxscore.players[team].statistics[] = { name: passing|rushing|receiving, labels, athletes: [{ athlete: { id, displayName }, stats }] } (sources.NFL_BOX)
-  const NFL_BOX = { passing: { 'C/ATT': ['comp', 'patt'], YDS: 'pyd', TD: 'ptd' }, rushing: { CAR: 'ratt', YDS: 'ryd', TD: 'rtd' }, receiving: { REC: 'rec', YDS: 'recy', TGTS: 'tgt', TD: 'rectd' } };
-  const NFL_KEYS = ['patt', 'comp', 'pyd', 'ptd', 'ratt', 'ryd', 'tgt', 'rec', 'recy', 'rtd', 'rectd'];
-  const KEY_CAT = { patt: 'passing', comp: 'passing', pyd: 'passing', ptd: 'passing', ratt: 'rushing', ryd: 'rushing', rtd: 'rushing', rec: 'receiving', recy: 'receiving', tgt: 'receiving', rectd: 'receiving', g: 'skaters', a: 'skaters', sog: 'skaters', pts: 'nba', reb: 'nba', ast: 'nba', tpm: 'nba' };
+  // ESPN NFL: boxscore.players[team].statistics[] = { name: passing|rushing|receiving|kicking, labels, athletes: [{ athlete: { id, displayName }, stats }] } (sources.NFL_BOX)
+  const NFL_BOX = { passing: { 'C/ATT': ['comp', 'patt'], YDS: 'pyd', TD: 'ptd' }, rushing: { CAR: 'ratt', YDS: 'ryd', TD: 'rtd' }, receiving: { REC: 'rec', YDS: 'recy', TGTS: 'tgt', TD: 'rectd' },
+    kicking: { FG: ['fgm', 'fga'], XP: ['xpm', 'xpa'], PTS: 'kpts' } }; // kicker props (owner 11/15); ESPN cells 'made/att', PTS = 3 x FG + XP
+  const NFL_KEYS = ['patt', 'comp', 'pyd', 'ptd', 'ratt', 'ryd', 'tgt', 'rec', 'recy', 'rtd', 'rectd', 'fgm', 'fga', 'xpm', 'xpa', 'kpts'];
+  const KEY_CAT = { patt: 'passing', comp: 'passing', pyd: 'passing', ptd: 'passing', ratt: 'rushing', ryd: 'rushing', rtd: 'rushing', rec: 'receiving', recy: 'receiving', tgt: 'receiving', rectd: 'receiving', fgm: 'kicking', fga: 'kicking', xpm: 'kicking', xpa: 'kicking', kpts: 'kicking', g: 'skaters', a: 'skaters', sog: 'skaters', pts: 'nba', reb: 'nba', ast: 'nba', tpm: 'nba' };
   // a box cell counts as a logged stat when any number in it is > 0 ("0-2" FG = a shot attempt); time, shifts and +/- never count (owner 11/01 18:17:
   // a player shows in the live display only once he has logged at least one stat)
   const NO_ACT = ['MIN', 'TOI', 'PPTOI', 'SHTOI', 'ESTOI', 'SHFT', '+/-', 'LONG'];
