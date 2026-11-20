@@ -1,5 +1,5 @@
 {
- "latest": "2026-11-19",
+ "latest": "2026-11-20",
  "days": {
   "2026-11-18": {
    "file": "2026-11-18-4.jpg",
@@ -8,8 +8,14 @@
    "n": 4
   },
   "2026-11-19": {
-   "file": "2026-11-19.jpg",
-   "alt": "Trend Bettors daily model picks for Thu, Nov 19. Main Event: Jonathan Kuminga under 13.5 points (-104); Dog Pound: Scoot Henderson under 4.5 rebounds + assists (+109); Heat Check: Toumani Camara under 19.5 points + rebounds + assists (-105); Mismatch: Tyler Herro under 8.5 rebounds + assists (-134).",
+   "file": "2026-11-19-3.jpg",
+   "alt": "Trend Bettors daily model picks for Thu, Nov 19. Main Event: Jonathan Kuminga under 13.5 points (-104), lost; Dog Pound: Scoot Henderson under 4.5 rebounds + assists (+109); Heat Check: Toumani Camara under 19.5 points + rebounds + assists (-105), lost; Mismatch: Tyler Herro under 8.5 rebounds + assists (-134), won.",
+   "graded": 3,
+   "n": 4
+  },
+  "2026-11-20": {
+   "file": "2026-11-20.jpg",
+   "alt": "Trend Bettors daily model picks for Fri, Nov 20. Main Event: Jakob Poeltl under 10.5 rebounds + assists (+106); Dog Pound: Jamison Battle under 4.5 rebounds + assists (+115); Heat Check: Isaac Okoro under 3.5 rebounds (-146); Mismatch: Fred VanVleet under 2.5 3-pointers (+105).",
    "graded": 0,
    "n": 4
   }
