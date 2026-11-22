@@ -137,11 +137,15 @@
       }
       return { status: 'open', note: NOTE_NOSETTLE };
     }
-    const res = RES[m.block.result];
+    let res = RES[m.block.result];
     if (!res) return { status: 'open', note: 'Checking: no result yet' };
     if (res === 'P') return { status: 'P', pl: 0, phase: m.phase };
+    if (otherSide(bet, row)) res = res === 'W' ? 'L' : 'W'; // the row's result is the model side's; a Fade (card 20261121-tb-mybets-fade-grade) wins when it loses
     return { status: res, pl: r2(calcPL(res, bet.odds, bet.units)), phase: m.phase };
   }
+  // A bet on the other over/under side of the row's line (a Fade). Rows and bets without an o/u side never count.
+  const OU = (s) => s === 'o' || s === 'u';
+  function otherSide(bet, row) { return OU(bet.side) && OU(row.side) && bet.side !== row.side; }
   // ---- parlays ----
   const decOf = (o) => (o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o));
   const amOf = (d) => Math.round(d >= 2 ? (d - 1) * 100 : -100 / (d - 1));
@@ -215,7 +219,7 @@
     const c = row && typeof row === 'object' ? row.close : null;
     if (!c || typeof c !== 'object' || !isNum(c.odds) || Math.abs(c.odds) < 100 || !bet || !isNum(bet.odds)) return none;
     const sameLine = bet.line === null || bet.line === undefined ? !isNum(c.line) : c.line === bet.line;
-    if (!sameLine) return none;
+    if (!sameLine || otherSide(bet, row)) return none; // the row only carries the model side's close price
     const d = (impl(c.odds) - impl(bet.odds)) * 100;
     return { beat: d > 0, impliedDiff: d };
   }
