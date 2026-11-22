@@ -21,9 +21,15 @@ concurrency:
   group: tiktok-drill-${{ inputs.temperature || 'default' }}
   cancel-in-progress: false
 jobs:
-  render:
+  voice:
+    # Three jobs side by side, each loading the voice and rendering about a third of the clips (balanced by words), so an
+    # ear round lands in ~7 min instead of ~18 and a stuck sentence shows in one job (card 20261122-tb-drill-parallel-render).
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 25
+    strategy:
+      fail-fast: true
+      matrix:
+        part: [0, 1, 2]
     env:
       IN: ${{ inputs.input }}
       LAST: ${{ inputs.last }}
@@ -43,15 +49,64 @@ jobs:
         with:
           python-version: '3.11'
       - name: Script checks (numbers, names, bet words, clock order)
+        if: matrix.part == 0
         run: python -u tiktok/drill/test_episode.py
       - name: Install (pinned to the set that rendered the 11/22 mock, run 45065579888)
         run: |
           CPU=https://download.pytorch.org/whl/cpu
           pip install -q torch==2.15.0 torchaudio==2.11.1 --index-url $CPU
-          pip install -q --extra-index-url $CPU qwen-tts==0.1.1 transformers==4.57.3 accelerate==1.12.0 numpy==2.4.6 soundfile faster-whisper==1.2.1
-          pip freeze | grep -i -E '^(torch|torchaudio|transformers|accelerate|qwen-tts|qwen_tts|faster-whisper|numpy)==' | tee versions.txt
-      - name: Render
-        run: python -u tiktok/drill/render.py "$IN" "$LAST" out
+          pip install -q --extra-index-url $CPU qwen-tts==0.1.1 transformers==4.57.3 accelerate==1.12.0 numpy==2.4.6 soundfile
+          pip freeze | grep -i -E '^(torch|torchaudio|transformers|accelerate|qwen-tts|qwen_tts|numpy)==' | tee versions.txt
+      - name: Render share ${{ matrix.part }} of 3
+        run: python -u tiktok/drill/render.py "$IN" "$LAST" out --part ${{ matrix.part }}/3 clips
+      - name: Encrypt the clips (public repo, and anyone signed in can download artifacts)
+        if: always()
+        env:
+          KEY: ${{ secrets.VOICE_REF_KEY }}
+        run: |
+          rm -f tiktok/nick_ref.wav
+          [ -d clips ] || exit 0
+          cp versions.txt clips/ 2>/dev/null || true
+          tar -cf clips.tar clips
+          gpg --batch --yes --quiet --pinentry-mode loopback --passphrase "$KEY" --symmetric --cipher-algo AES256 -o clips-${{ matrix.part }}.tar.gpg clips.tar
+          rm -rf clips clips.tar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clips-${{ matrix.part }}
+          path: clips-${{ matrix.part }}.tar.gpg
+          retention-days: 1
+          if-no-files-found: error
+  stitch:
+    # Builds episode.wav + cues.json from the three shares exactly as one job would (no voice model), then the words check.
+    needs: voice
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      IN: ${{ inputs.input }}
+      LAST: ${{ inputs.last }}
+      VOICE_TEMP: ${{ inputs.temperature }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tiktok
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install (no voice model needed here)
+        run: pip install -q numpy==2.4.6 soundfile faster-whisper==1.2.1
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: clips-*
+          merge-multiple: true
+          path: enc
+      - name: Decrypt the clips
+        env:
+          KEY: ${{ secrets.VOICE_REF_KEY }}
+        run: |
+          for g in enc/clips-*.tar.gpg; do gpg --batch --yes --quiet --pinentry-mode loopback --passphrase "$KEY" -o x.tar -d "$g" && tar -xf x.tar && rm x.tar; done
+          cp clips/versions.txt . ; ls clips | wc -l
+      - name: Stitch
+        run: python -u tiktok/drill/render.py "$IN" "$LAST" out --clips clips
       - name: Check words (speech to text)
         run: python -u tiktok/drill/check.py out
       - name: Encrypt owner audio (this repo is public)
@@ -59,12 +114,10 @@ jobs:
         env:
           KEY: ${{ secrets.VOICE_REF_KEY }}
         run: |
+          rm -rf clips enc
           [ -e out/episode.wav ] || exit 0
           gpg --batch --yes --quiet --pinentry-mode loopback --passphrase "$KEY" --symmetric --cipher-algo AES256 -o out/episode.wav.gpg out/episode.wav
           rm -f out/episode.wav
-      - name: Remove owner reference
-        if: always()
-        run: rm -f tiktok/nick_ref.wav
       - name: Commit
         if: always()
         run: |
