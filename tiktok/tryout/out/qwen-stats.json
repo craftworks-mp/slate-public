@@ -1,0 +1,10 @@
+{
+ "qwen-ryan": {
+  "audio_s": 46.4,
+  "render_s": 292.4
+ },
+ "qwen-aiden": {
+  "audio_s": 48.2,
+  "render_s": 310.4
+ }
+}
