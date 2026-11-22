@@ -46,7 +46,8 @@ def test_dates():
 def test_episode_shape():
     ep = E.check(E.build(INP, LAST))
     st = ep["steps"]
-    assert st[0]["text"].startswith("First, the answer from our last Drill.") and "Joel Embiid" in st[0]["text"]
+    assert st[0]["text"].startswith("Welcome back to the Two-Minute Drill. Last time, we asked: whose line")
+    assert st[0]["text"].endswith("It was Joel Embiid.") and st[1]["k"] == "gap"
     assert [s["part"] for s in st if s["k"] == "clock"] == ["warmup", "final"]
     assert all(s["count"] == ["Three.", "Two.", "One."] and s["s"] == 10 for s in st if s["k"] == "clock")
     assert "comments" in st[-1]["text"] and "next episode" in st[-1]["text"]

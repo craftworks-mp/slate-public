@@ -64,8 +64,8 @@ def stat_list(q):
 
 
 def line_words(q, post):
-    mins = next((x["v"] for x in q["stats"] if x["l"] == "MIN"), None)
-    text = stat_list(q) + (f", in {words(mins)} minutes" if mins else "") + f", {when(game_day(q, post), post)}."
+    """The stat line for the voice; minutes stay on screen only (trimmed 11/22)."""
+    text = stat_list(q) + f", {when(game_day(q, post), post)}."
     return text[0].upper() + text[1:]
 
 
@@ -99,9 +99,9 @@ def build(inp, last=None):
         steps.append({"k": "clock", "part": part, "s": CLOCK, "count": COUNT})
 
     if last:
-        say("opener", f"First, the answer from our last Drill. {last['text']} That was {last['answer']}. "
-                      "If you had it, take a bow.")
-        say("opener", "Alright. Two questions, ten seconds each. Let's go.")
+        # trimmed 11/22 (owner): the mock ran 76 s against ~65, so the recap is one line and the intro is cut
+        say("opener", f"Welcome back to the Two-Minute Drill. Last time, we asked: {last['text'][0].lower()}"
+                      f"{last['text'][1:]} It was {last['answer']}.")
     else:
         say("opener", "Welcome to the Two-Minute Drill. Two questions, ten seconds each. Let's go.")
     gap(0.4)
@@ -114,7 +114,7 @@ def build(inp, last=None):
     gap(0.6)
     n = four(f)
     say("final", "Final question, and this one's for the comments. Whose line is it? "
-                 f"{line_words(f, post)} Is it {n[0]}, {n[1]}, {n[2]}, or {n[3]}?")
+                 f"{line_words(f, post)} {n[0]}, {n[1]}, {n[2]}, or {n[3]}?")
     gap(BEAT)
     say("final", "Ten seconds on the clock.")
     clock("final")
