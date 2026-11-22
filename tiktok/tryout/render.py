@@ -5,6 +5,7 @@ Usage: python tiktok/tryout/render.py ENGINE OUT_DIR
   round 4: orpheus-leo | orpheus-dan | orpheus-zac (Orpheus 3B GGUF on llama.cpp)
   round 3: c1 (C1 with spoken-number lines + a speech-to-text check, check.py)
   round 2: magpie | qwen-d1..qwen-d4 (1.7B voice design, then cloned) | qwen-nick (clone of nick_ref.wav)
+  round 5: chatterbox-nick | turbo-nick | qwen-nick (clones of nick_ref.wav, read the spoken C1 lines)
 """
 import gc, json, os, sys, time
 import numpy as np
@@ -30,6 +31,10 @@ def save(name, chunks, sr, t0):
 
 def tensor_np(w):
     return w.detach().cpu().squeeze(0).numpy()
+
+
+NICK_REF = os.path.join(HERE, "nick_ref.wav")  # decrypted by the workflow step; never committed
+NICK_LINES = lambda: (L.spoken(L.SIM_C1), L.spoken(L.DRILL_C1))  # numbers in words, names respelled (owner 11/21 22:41)
 
 
 import torch  # noqa: E402
@@ -126,8 +131,7 @@ elif engine.startswith("qwen-"):
     vid = engine.split("-", 1)[1]
     t0 = time.time()
     if vid == "nick":
-        ref_path = os.path.join(HERE, "nick_ref.wav")  # decrypted by the workflow step; never committed
-        ref, ref_sr = sf.read(ref_path, dtype="float32")
+        ref, ref_sr = sf.read(NICK_REF, dtype="float32")
         if ref.ndim > 1:
             ref = ref.mean(axis=1)
         ref_text = L.NICK_REF_TEXT
@@ -143,10 +147,34 @@ elif engine.startswith("qwen-"):
     b = Qwen3TTSModel.from_pretrained("Qwen/Qwen3-TTS-12Hz-1.7B-Base", device_map="cpu", dtype=torch.float32)
     prompt = b.create_voice_clone_prompt(ref_audio=(ref, ref_sr), ref_text=ref_text)
     chunks, sr = [], None
-    for x in (L.SIM, L.DRILL):
+    for x in (NICK_LINES() if vid == "nick" else (L.SIM, L.DRILL)):
+        torch.manual_seed(7)
         wavs, sr = b.generate_voice_clone(text=x, language="English", voice_clone_prompt=prompt)
         chunks.append(wavs[0])
     save(f"qwen17-{vid}", chunks, sr, t0)
+
+elif engine == "chatterbox-nick":
+    # Round 5 (owner 11/22): Nick's own voice. Take a = C1 settings; take b drops cfg_weight to 0.3, which
+    # Chatterbox's notes give for slower, steadier pacing (C1 read too fast). Fixed seed so a re-run gives the same take.
+    from chatterbox.tts import ChatterboxTTS
+    m = ChatterboxTTS.from_pretrained(device="cpu")
+    for name, ex, cfg in (("chatterbox-nick-a", 0.5, 0.5), ("chatterbox-nick-b", 0.5, 0.3)):
+        t0 = time.time()
+        chunks = []
+        for x in NICK_LINES():
+            torch.manual_seed(7)
+            chunks.append(tensor_np(m.generate(x, audio_prompt_path=NICK_REF, exaggeration=ex, cfg_weight=cfg)))
+        save(name, chunks, m.sr, t0)
+
+elif engine == "turbo-nick":
+    from chatterbox.tts_turbo import ChatterboxTurboTTS
+    m = ChatterboxTurboTTS.from_pretrained(device="cpu")
+    t0 = time.time()
+    chunks = []
+    for x in NICK_LINES():
+        torch.manual_seed(7)
+        chunks.append(tensor_np(m.generate(x, audio_prompt_path=NICK_REF)))
+    save("turbo-nick", chunks, m.sr, t0)
 
 else:
     sys.exit(f"unknown engine {engine}")

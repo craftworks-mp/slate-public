@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       engines:
-        description: 'JSON list: chatterbox, turbo, c1, orpheus-leo, orpheus-dan, orpheus-zac, qwen, magpie, qwen-d1..qwen-d4, qwen-nick'
+        description: 'JSON list: chatterbox, turbo, c1, orpheus-leo, orpheus-dan, orpheus-zac, qwen, magpie, qwen-d1..qwen-d4, chatterbox-nick, turbo-nick, qwen-nick'
         default: '["magpie","qwen-d1","qwen-d2","qwen-d3","qwen-d4"]'
 permissions:
   contents: write
@@ -33,7 +33,7 @@ jobs:
         run: |
           CPU=https://download.pytorch.org/whl/cpu
           case "${{ matrix.engine }}" in
-            chatterbox|turbo|c1)
+            chatterbox|turbo|c1|chatterbox-nick|turbo-nick)
               pip install -q torch==2.6.0 torchaudio==2.6.0 --index-url $CPU
               pip install -q chatterbox-tts==0.1.7 soundfile ;;
             magpie)
@@ -48,7 +48,7 @@ jobs:
               pip install -q --extra-index-url $CPU qwen-tts==0.1.1 soundfile ;;
           esac
       - name: Decrypt owner reference
-        if: matrix.engine == 'qwen-nick'
+        if: endsWith(matrix.engine, '-nick')
         env:
           KEY: ${{ secrets.VOICE_REF_KEY }}
         run: |
@@ -58,10 +58,22 @@ jobs:
       - name: Render
         run: python -u tiktok/tryout/render.py ${{ matrix.engine }} out
       - name: Check words (speech to text)
-        if: matrix.engine == 'c1' || startsWith(matrix.engine, 'orpheus')
+        if: matrix.engine == 'c1' || startsWith(matrix.engine, 'orpheus') || endsWith(matrix.engine, '-nick')
         run: |
           pip install -q faster-whisper
-          python -u tiktok/tryout/check.py out ${{ matrix.engine }}
+          P="${{ matrix.engine }}"; [ "$P" = qwen-nick ] && P=qwen17-nick  # qwen saves as qwen17-<voice>
+          python -u tiktok/tryout/check.py out "$P"
+      - name: Encrypt owner clips (this repo is public; Claude decrypts them for Nick)
+        if: endsWith(matrix.engine, '-nick')
+        env:
+          KEY: ${{ secrets.VOICE_REF_KEY }}
+        run: |
+          for f in out/*.wav; do
+            [ -e "$f" ] || continue
+            gpg --batch --yes --quiet --pinentry-mode loopback --passphrase "$KEY" --symmetric --cipher-algo AES256 -o "$f.gpg" "$f"
+            rm -f "$f"
+          done
+          ls -la out
       - name: Remove owner reference
         if: always()
         run: rm -f tiktok/tryout/nick_ref.wav
@@ -92,6 +104,7 @@ jobs:
               "tiktok/tryout/out/$(basename "${f%.wav}").mp3"
           done
           cp raw/*.json tiktok/tryout/out/ 2>/dev/null || true
+          cp raw/*.wav.gpg tiktok/tryout/out/ 2>/dev/null || true  # owner clips stay encrypted
           cp raw/refs/*.wav tiktok/tryout/refs/ 2>/dev/null || true
           rm -f tiktok/tryout/nick_ref.wav
           ls -la tiktok/tryout/out tiktok/tryout/refs
