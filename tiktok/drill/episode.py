@@ -29,6 +29,8 @@ COUNT = ["Three.", "Two.", "One."]  # on the clock's last three seconds (owner 1
 HINT_AT = 5  # the final clock's 5-s mark: "Hint: he's a guard." (owner 11/22 17:1x; NBA only, NFL stat lines show it)
 POS_WORD = {"G": "guard", "F": "forward", "C": "center"}
 PLAYERS = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "players", "nba")
+AFTER_RECAP = 0.9  # pause after the last Drill's answer, before Question one (owner 11/22 17:50: +0.5 s)
+TEAMS = json.load(open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "teams.json")))["teams"]
 # TikTok shorts are pure sports prediction (owner 11/21 20:27): none of these, on screen or in the voice.
 BET = re.compile(r"\b(odds|bets?|betting|wagers?|units?|sportsbooks?|parlays?|spreads?|cover(s|ed)?|moneylines?|"
                  r"picks?|locks?|juice|vig|payouts?|vegas)\b", re.I)
@@ -114,6 +116,35 @@ def hilo_stat(q):
     return STAT.get(s, s)
 
 
+def possessive(team):
+    return team + ("'" if team.endswith("s") else "'s")
+
+
+def recap(last, post):
+    """The last Drill's answer with its game (owner 11/22 17:50): "The answer was C, Joel Embiid, in the Sixers' win
+    over the Nets last Monday." Falls back to "It was <name>." when the saved answer predates the game fields."""
+    g = last.get("game")
+    teams = TEAMS.get(g["sport"], {}) if g else {}
+    if not g or g["team"] not in teams or g["opp"] not in teams:
+        return f"It was {last['answer']}."
+    result = ("overtime " if g["ot"] else "") + ("win over" if g["won"] else "loss to")
+    day = when(date.fromisoformat(g["day"]), post)
+    return (f"The answer was {last['letter']}, {last['answer']}, in the {possessive(teams[g['team']])} {result} "
+            f"the {teams[g['opp']]} {day}.")
+
+
+def game_of(q, post):
+    """What the next Drill's recap needs about the final question's game, from the pool's hints."""
+    h = q.get("hints", {})
+    gm, team, opp = h.get("game"), (h.get("team") or {}).get("a"), h.get("opp")
+    if not (gm and team and opp):
+        return None
+    home = gm["h"]["a"] == team
+    mine, theirs = (gm["sh"], gm["sa"]) if home else (gm["sa"], gm["sh"])
+    return {"sport": q["sport"], "day": game_day(q, post).isoformat(), "team": team, "opp": opp, "won": mine > theirs,
+            "ot": bool(gm.get("ot"))}
+
+
 def build(inp, last=None):
     post = date.fromisoformat(inp["post_date"])
     w, f = inp["warmup"], inp["final"]
@@ -136,10 +167,10 @@ def build(inp, last=None):
     if last:
         # trimmed 11/22 (owner): the mock ran 76 s against ~65, so the recap is one line and the intro is cut
         say("opener", f"Welcome back to the Two-Minute Drill. Last time, we asked: {last['text'][0].lower()}"
-                      f"{last['text'][1:]} It was {last['answer']}.")
+                      f"{last['text'][1:]} {recap(last, post)}")
     else:
         say("opener", "Welcome to the Two-Minute Drill. Two questions, ten seconds each. Let's go.")
-    gap(0.4)
+    gap(AFTER_RECAP if last else 0.4)
     a, b = w["options"]
     say("warmup", f"Question one. Who averages more {hilo_stat(w)} per game this season? {a}, or {b}?")
     gap(BEAT)
@@ -162,7 +193,8 @@ def build(inp, last=None):
             "trial_names": sorted(trial & set(names)),
             "unverified": sorted({x for x in names if x not in NAMES and x not in trial}),
             "next_last": {"date": inp["post_date"], "id": f["id"], "text": f"Whose line was {stat_list(f)}?",
-                          "answer": f["options"][f["answer"]]}}
+                          "answer": f["options"][f["answer"]], "letter": "ABCD"[n.index(f["options"][f["answer"]])],
+                          "game": game_of(f, post)}}
 
 
 def check(ep, strict=True):

@@ -2,5 +2,14 @@
  "date": "2026-11-19",
  "id": "2026-11-20-3",
  "text": "Whose line was thirty seven points, five rebounds and one assist?",
- "answer": "Joel Embiid"
+ "answer": "Joel Embiid",
+ "letter": "C",
+ "game": {
+  "sport": "NBA",
+  "day": "2026-11-16",
+  "team": "PHI",
+  "opp": "BKN",
+  "won": true,
+  "ot": false
+ }
 }

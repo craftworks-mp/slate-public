@@ -49,7 +49,14 @@ def test_episode_shape():
     ep = E.check(E.build(INP, LAST))
     st = ep["steps"]
     assert st[0]["text"].startswith("Welcome back to the Two-Minute Drill. Last time, we asked: whose line")
-    assert st[0]["text"].endswith("It was Joel Embiid.") and st[1]["k"] == "gap"
+    assert st[0]["text"].endswith("The answer was C, Joel Embiid, in the Sixers' win over the Nets last Monday.")
+    assert st[1] == {"k": "gap", "s": 0.9}, "an extra half second after the recap (owner 11/22 17:50)"
+    old = {k: LAST[k] for k in ("date", "id", "text", "answer")}  # a saved answer from before the game fields
+    assert E.check(E.build(INP, old))["steps"][0]["text"].endswith("It was Joel Embiid.")
+    nl = ep["next_last"]
+    assert nl["letter"] == "ABCD"[ep["final_names"].index("Quentin Grimes")]
+    assert nl["game"] == {"sport": "NBA", "day": "2026-11-17", "team": "LAL", "opp": "CHA", "won": True, "ot": True}
+    assert E.recap(nl, E.date(2026, 11, 23)).endswith("in the Lakers' overtime win over the Hornets last Tuesday.")
     assert [s["part"] for s in st if s["k"] == "clock"] == ["warmup", "final"]
     assert all(s["count"] == ["Three.", "Two.", "One."] and s["s"] == 10 for s in st if s["k"] == "clock")
     assert "comments" in st[-1]["text"] and "next episode" in st[-1]["text"]
