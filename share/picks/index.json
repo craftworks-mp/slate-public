@@ -1,5 +1,5 @@
 {
- "latest": "2026-11-21",
+ "latest": "2026-11-22",
  "days": {
   "2026-11-18": {
    "file": "2026-11-18-4.jpg",
@@ -20,8 +20,14 @@
    "n": 4
   },
   "2026-11-21": {
-   "file": "2026-11-21.jpg",
-   "alt": "Trend Bettors daily model picks for Sat, Nov 21. Main Event: Cedric Coward under 16.5 points (-103); Dog Pound: Darius Garland under 9.5 rebounds + assists (+105); Heat Check: Paul George under 33.5 points + rebounds + assists (-109); Mismatch: Cooper Flagg under 31.5 points + assists (-110).",
+   "file": "2026-11-21-4.jpg",
+   "alt": "Trend Bettors daily model picks for Sat, Nov 21. Main Event: Cedric Coward under 16.5 points (-103), lost; Dog Pound: Darius Garland under 9.5 rebounds + assists (+105), won; Heat Check: Paul George under 33.5 points + rebounds + assists (-109), won; Mismatch: Cooper Flagg under 31.5 points + assists (-110), won.",
+   "graded": 4,
+   "n": 4
+  },
+  "2026-11-22": {
+   "file": "2026-11-22.jpg",
+   "alt": "Trend Bettors daily model picks for Sun, Nov 22. Main Event: Yaxel Lendeborg under 24.5 points + assists (-105); Dog Pound: Draymond Green under 10.5 points + assists (+102); Heat Check: Ajay Mitchell under 20.5 points (-107); Mismatch: Trae Young under 2.5 rebounds (-107).",
    "graded": 0,
    "n": 4
   }
