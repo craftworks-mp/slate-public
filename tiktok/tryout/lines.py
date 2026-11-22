@@ -19,7 +19,8 @@ SIM_C1 = ("We simulated tonight's Thunder and Nuggets game ten thousand times. "
           "Oklahoma City won sixty-one percent of them, and on average it finished Thunder one-sixteen, Nuggets one-eleven. "
           "The swing factor was Nikola Jokic. In the sims where he posted a triple-double, "
           "Denver flipped the result more often than not. Here's how all ten thousand played out.")
-DRILL_C1 = DRILL_SPOKEN
+# "Knicks and Celtics" ran together as "Nixon Celtics" in the c1 check (11/21 22:5x): a "the" keeps the names apart.
+DRILL_C1 = DRILL_SPOKEN.replace("the Knicks and Celtics", "the Knicks and the Celtics")
 
 
 def spoken(text):
