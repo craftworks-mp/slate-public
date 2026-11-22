@@ -1,0 +1,18 @@
+{
+ "chatterbox-nick-in-a": {
+  "audio_s": 40.1,
+  "render_s": 199.5
+ },
+ "chatterbox-nick-in-b": {
+  "audio_s": 42.7,
+  "render_s": 208.8
+ },
+ "chatterbox-nick-out-a": {
+  "audio_s": 37.7,
+  "render_s": 184.7
+ },
+ "chatterbox-nick-out-b": {
+  "audio_s": 38.8,
+  "render_s": 190.0
+ }
+}

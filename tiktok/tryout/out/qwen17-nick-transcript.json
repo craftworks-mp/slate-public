@@ -1,0 +1,12 @@
+{
+ "qwen17-nick-in": {
+  "text": "We simulated tonight's Thunder and Nuggets game 10,000 times. Oklahoma City won 61% of them, and on average it finished Thunder 116, Nuggets 111. The swing factor was Nikola Jokic and the Sims where he posted a triple-double. Denver flipped the result more often than not. Here's how all 10,000 played out. It's the two minute drill and you've got 10 seconds. Last Tuesday the Knicks and the Celtics went down to the wire who scored more fourth quarter points, Jalen Brunson or Jason Tatum. Time's up. It was Brunson with 14. Got it right. You're already ahead of half the comment section.",
+  "words": 107,
+  "wpm": 202
+ },
+ "qwen17-nick-out": {
+  "text": "We simulated tonight's Thunder and Nuggets game 10,000 times. Oklahoma City won 61% of them and on average it finished Thunder won 16, Nuggets won 11. The swing factor was Nikola Jokic in the Sims where he posted a triple double. Denver flipped the result more often than not. Here's how all 10,000 played out. It's the two minute drill and you've got 10 seconds. Last Tuesday the Knicks and the Celtics went down to the wire who scored more fourth quarter points Jalen Brunson or Jason Tatum. Time's up. It was Brunson with 14. Got it right. You're already ahead of half the comment section.",
+  "words": 109,
+  "wpm": 194
+ }
+}

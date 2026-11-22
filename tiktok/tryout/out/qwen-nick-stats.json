@@ -1,0 +1,10 @@
+{
+ "qwen17-nick-in": {
+  "audio_s": 33.9,
+  "render_s": 328.3
+ },
+ "qwen17-nick-out": {
+  "audio_s": 34.0,
+  "render_s": 344.4
+ }
+}
