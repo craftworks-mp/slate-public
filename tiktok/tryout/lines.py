@@ -11,6 +11,25 @@ DRILL = ("It's the Two-Minute Drill, and you've got ten seconds. "
 # Same lines with numbers written out, for engines run without a text normalizer (Magpie).
 SIM_SPOKEN = SIM.replace("10,000", "ten thousand").replace("61%", "sixty-one percent").replace("118 to 112", "one eighteen to one twelve")
 DRILL_SPOKEN = DRILL.replace("14", "fourteen")
+# C1 (Chatterbox calm, owner pick 11/21 22:29): Chatterbox has no text normalizer and read "118" as "eleven eighteen",
+# so its lines are written as a broadcaster says them: every number in words, scores rounded and tied to their team,
+# names respelled by sound (captions keep the real spelling). spoken() refuses any digit left in a line.
+PRONOUNCE = {"Jokic": "Yokitch"}
+SIM_C1 = ("We simulated tonight's Thunder and Nuggets game ten thousand times. "
+          "Oklahoma City won sixty-one percent of them, and on average it finished Thunder one-sixteen, Nuggets one-eleven. "
+          "The swing factor was Nikola Jokic. In the sims where he posted a triple-double, "
+          "Denver flipped the result more often than not. Here's how all ten thousand played out.")
+DRILL_C1 = DRILL_SPOKEN
+
+
+def spoken(text):
+    import re
+    for k, v in PRONOUNCE.items():
+        text = re.sub(rf"\b{k}\b", v, text)
+    assert not re.search(r"\d", text), f"digit left in a voice line: {text}"
+    return text
+
+
 # Style prompts, used only by engines that take one (Qwen3-TTS CustomVoice `instruct`, round 1).
 SIM_STYLE = "Confident, smooth sports broadcaster. Warm and natural, measured pace, building a little anticipation at the end."
 DRILL_STYLE = "Upbeat, playful quiz-show host. Quick and lively, with a light teasing smile on the last line."

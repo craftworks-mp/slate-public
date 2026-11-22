@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       engines:
-        description: 'JSON list: chatterbox, turbo, qwen, magpie, qwen-d1..qwen-d4, qwen-nick'
+        description: 'JSON list: chatterbox, turbo, c1, qwen, magpie, qwen-d1..qwen-d4, qwen-nick'
         default: '["magpie","qwen-d1","qwen-d2","qwen-d3","qwen-d4"]'
 permissions:
   contents: write
@@ -33,7 +33,7 @@ jobs:
         run: |
           CPU=https://download.pytorch.org/whl/cpu
           case "${{ matrix.engine }}" in
-            chatterbox|turbo)
+            chatterbox|turbo|c1)
               pip install -q torch==2.6.0 torchaudio==2.6.0 --index-url $CPU
               pip install -q chatterbox-tts==0.1.7 soundfile ;;
             magpie)
@@ -53,6 +53,11 @@ jobs:
             -o tiktok/tryout/nick_ref.wav -d tiktok/tryout/nick_ref.wav.gpg
       - name: Render
         run: python -u tiktok/tryout/render.py ${{ matrix.engine }} out
+      - name: Check words (speech to text)
+        if: matrix.engine == 'c1'
+        run: |
+          pip install -q faster-whisper
+          python -u tiktok/tryout/check.py out c1
       - name: Remove owner reference
         if: always()
         run: rm -f tiktok/tryout/nick_ref.wav

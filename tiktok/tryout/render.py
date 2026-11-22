@@ -2,6 +2,7 @@
 Each voice reads the Sim line, a 1.2 s pause, then the Drill line (lines.py).
 Usage: python tiktok/tryout/render.py ENGINE OUT_DIR
   round 1: chatterbox | turbo | qwen
+  round 3: c1 (C1 with spoken-number lines + a speech-to-text check, check.py)
   round 2: magpie | qwen-d1..qwen-d4 (1.7B voice design, then cloned) | qwen-nick (clone of nick_ref.wav)
 """
 import gc, json, os, sys, time
@@ -40,6 +41,17 @@ if engine == "chatterbox":
     for name, ex, cfg in (("chatterbox-calm", 0.5, 0.5), ("chatterbox-hype", 0.75, 0.3)):
         t0 = time.time()
         save(name, [tensor_np(m.generate(x, exaggeration=ex, cfg_weight=cfg)) for x in (L.SIM, L.DRILL)], m.sr, t0)
+
+elif engine == "c1":
+    # C1 with fixed lines (owner 11/21 22:41): same settings as chatterbox-calm, fixed seed so a re-run gives the same take.
+    from chatterbox.tts import ChatterboxTTS
+    m = ChatterboxTTS.from_pretrained(device="cpu")
+    t0 = time.time()
+    chunks = []
+    for x in (L.spoken(L.SIM_C1), L.spoken(L.DRILL_C1)):
+        torch.manual_seed(7)
+        chunks.append(tensor_np(m.generate(x, exaggeration=0.5, cfg_weight=0.5)))
+    save("c1-v2", chunks, m.sr, t0)
 
 elif engine == "turbo":
     from chatterbox.tts_turbo import ChatterboxTurboTTS
