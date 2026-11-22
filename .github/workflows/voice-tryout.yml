@@ -1,17 +1,14 @@
 name: Voice tryout
 # TikTok shorts narrator tryout (slate-data blueprint 11/21 20:27, step 1): renders narrator samples on CPU and commits
 # loudness-matched MP3s to tiktok/tryout/out/ (designed-voice references to tiktok/tryout/refs/). Kokoro renders in
-# Claude's workspace. Runs the round 2 set when this file or the tryout scripts change on main, or by hand
-# (Actions > Voice tryout > Run workflow) with any engine list, e.g. ["qwen-nick"].
+# Claude's workspace. Manual only (Actions > Voice tryout > Run workflow) with any engine list, e.g. ["qwen-nick"],
+# so a script change never re-designs (and overwrites) voices already picked from.
 on:
   workflow_dispatch:
     inputs:
       engines:
         description: 'JSON list: chatterbox, turbo, qwen, magpie, qwen-d1..qwen-d4, qwen-nick'
         default: '["magpie","qwen-d1","qwen-d2","qwen-d3","qwen-d4"]'
-  push:
-    branches: [main]
-    paths: [".github/workflows/voice-tryout.yml", "tiktok/tryout/*.py"]
 permissions:
   contents: write
 concurrency:
@@ -31,7 +28,7 @@ jobs:
           sparse-checkout: tiktok/tryout
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.engine == 'magpie' && '3.12' || '3.11' }}  # NeMo main needs 3.12+
       - name: Install (CPU torch)
         run: |
           CPU=https://download.pytorch.org/whl/cpu
