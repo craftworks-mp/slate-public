@@ -2,6 +2,7 @@
 # Actions > TikTok Drill > Run workflow. The daily input from slate-data and the video come with the video maker.
 # Runs here because this repo is public (free minutes). Nick's voice stays encrypted in the repo; Claude decrypts it for him.
 name: TikTok Drill
+run-name: TikTok Drill${{ inputs.temperature && format(' t{0}', inputs.temperature) || '' }}
 on:
   workflow_dispatch:
     inputs:
@@ -11,10 +12,13 @@ on:
       last:
         description: 'Last Drill answer JSON (- = the very first episode)'
         default: 'tiktok/drill/input/sample-last.json'
+      temperature:
+        description: 'Voice sampling temperature (blank = model default; accent A/B 11/22)'
+        default: ''
 permissions:
   contents: write
 concurrency:
-  group: tiktok-drill
+  group: tiktok-drill-${{ inputs.temperature || 'default' }}
   cancel-in-progress: false
 jobs:
   render:
@@ -23,6 +27,7 @@ jobs:
     env:
       IN: ${{ inputs.input }}
       LAST: ${{ inputs.last }}
+      VOICE_TEMP: ${{ inputs.temperature }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -64,7 +69,7 @@ jobs:
         if: always()
         run: |
           [ -e out/episode.wav.gpg ] || { echo "nothing rendered"; exit 1; }
-          D="tiktok/drill/out/$(TZ=America/New_York date +%Y-%m-%d)-${{ github.run_id }}"
+          D="tiktok/drill/out/$(TZ=America/New_York date +%Y-%m-%d)-${{ github.run_id }}${VOICE_TEMP:+-t$VOICE_TEMP}"
           mkdir -p "$D"
           cp out/episode.wav.gpg versions.txt "$D"/
           cp out/cues.json out/transcript.json "$D"/ 2>/dev/null || true

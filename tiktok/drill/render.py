@@ -88,7 +88,7 @@ def main(inp_path, last_path, out):
     total = round(len(audio) / sr, 1)
     vers = {p: _version(p) for p in ("qwen-tts", "torch", "transformers", "accelerate")}
     json.dump({"post_date": ep["post_date"], "length_s": total, "long_enough": total >= MIN_S,
-               "render_s": round(time.time() - t0), "sr": sr, "versions": vers, "final_names": ep["final_names"],
+               "render_s": round(time.time() - t0), "sr": sr, "versions": vers, "sampling": v.sampling or "default", "final_names": ep["final_names"],
                "next_last": ep["next_last"], "cues": cues}, open(os.path.join(out, "cues.json"), "w"), indent=1)
     print(f"episode {total}s (floor {MIN_S}s: {'ok' if total >= MIN_S else 'SHORT'}), render {time.time() - t0:.0f}s, {vers}")
 

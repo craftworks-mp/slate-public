@@ -20,6 +20,7 @@ REF_TEXT = ("Hey, it's Nick from Trend Bettors. Every night we run the numbers o
 TOKENS_PER_S = 12  # the 12Hz codec: about 12 audio tokens per second of speech
 SEED = 7  # the same seed for every sentence, so the delivery stays steady
 PAUSE_AFTER = {".": 0.35, "?": 0.5, "!": 0.5}  # seconds of silence after each sentence (owner OK 11/22 12:0x)
+TEMP = os.environ.get("VOICE_TEMP", "").strip()  # accent A/B (11/22): the talker's sampling temperature; blank = model default
 
 
 def split_sentences(text):
@@ -47,6 +48,8 @@ class Voice:
         self.m = Qwen3TTSModel.from_pretrained(MODEL, device_map="cpu", dtype=torch.float32)
         audio, ref_sr = sf.read(ref, dtype="float32")
         self.prompt = self.m.create_voice_clone_prompt(ref_audio=(audio, ref_sr), ref_text=REF_TEXT)
+        self.sampling = {"temperature": float(TEMP)} if TEMP else {}
+        print(f"sampling: model defaults {dict(self.m.generate_defaults)}, override {self.sampling or 'none'}", flush=True)
 
     def sentence(self, text, seed=SEED):
         """One sentence, capped near its natural length. A sentence that never ends (run 45067783656: no line finished
@@ -55,7 +58,7 @@ class Voice:
         for s in (seed, seed + 4, seed + 16, seed + 35):
             self.torch.manual_seed(s)
             wavs, self.sr = self.m.generate_voice_clone(text=text, language="English", voice_clone_prompt=self.prompt,
-                                                        max_new_tokens=cap)
+                                                        max_new_tokens=cap, **self.sampling)
             w = trim(wavs[0], self.sr)
             if len(w) < 0.9 * cap / TOKENS_PER_S * self.sr:
                 print(f"    {len(w) / self.sr:4.1f}s seed {s}: {text}", flush=True)
