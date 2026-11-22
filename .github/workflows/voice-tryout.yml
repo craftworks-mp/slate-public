@@ -1,0 +1,74 @@
+name: Voice tryout
+# TikTok shorts narrator tryout (slate-data blueprint 11/21 20:27, step 1): renders Chatterbox, Chatterbox Turbo and
+# Qwen3-TTS 0.6B samples on CPU, then commits loudness-matched MP3s to tiktok/tryout/out/. Kokoro renders in Claude's
+# workspace. Runs when this file or the tryout scripts change on main, or by hand (Actions > Voice tryout > Run workflow).
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/voice-tryout.yml", "tiktok/tryout/*.py"]
+permissions:
+  contents: write
+concurrency:
+  group: voice-tryout
+  cancel-in-progress: false
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [chatterbox, turbo, qwen]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tiktok/tryout
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install (CPU torch)
+        run: |
+          case "${{ matrix.engine }}" in
+            chatterbox|turbo)
+              pip install -q torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+              pip install -q chatterbox-tts==0.1.7 soundfile ;;
+            qwen)
+              pip install -q torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+              pip install -q qwen-tts==0.1.1 soundfile ;;
+          esac
+      - name: Render
+        run: python -u tiktok/tryout/render.py ${{ matrix.engine }} out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: voices-${{ matrix.engine }}
+          path: out/
+  publish:
+    needs: render
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tiktok/tryout
+      - uses: actions/download-artifact@v4
+        with:
+          path: raw
+          pattern: voices-*
+          merge-multiple: true
+      - name: MP3s + commit
+        run: |
+          command -v ffmpeg >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg; }
+          mkdir -p tiktok/tryout/out
+          for f in raw/*.wav; do
+            ffmpeg -y -loglevel error -i "$f" -af loudnorm=I=-16:TP=-1.5:LRA=11 -ar 44100 -ac 1 -b:a 96k \
+              "tiktok/tryout/out/$(basename "${f%.wav}").mp3"
+          done
+          cp raw/*.json tiktok/tryout/out/ 2>/dev/null || true
+          ls -la tiktok/tryout/out
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tiktok/tryout/out
+          git commit -qm "Voice tryout samples [skip ci]" || exit 0
+          for i in 1 2 3 4; do git pull --rebase --autostash -q && git push -q && exit 0; sleep $((i * 10)); done
+          exit 1
