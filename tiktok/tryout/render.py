@@ -23,8 +23,10 @@ stats = {}
 
 def save(name, chunks, sr, t0):
     gap = np.zeros(int(sr * 1.2), dtype=np.float32)
-    audio = np.concatenate([np.asarray(chunks[0], np.float32).ravel(), gap,
-                            np.asarray(chunks[1], np.float32).ravel()])
+    parts = []
+    for i, c in enumerate(chunks):
+        parts += ([gap] if i else []) + [np.asarray(c, np.float32).ravel()]
+    audio = np.concatenate(parts)
     sf.write(f"{out}/{name}.wav", audio, sr)
     stats[name] = {"audio_s": round(len(audio) / sr, 1), "render_s": round(time.time() - t0, 1)}
     print(name, stats[name], flush=True)
@@ -37,8 +39,31 @@ def tensor_np(w):
 # Owner references, decrypted by the workflow step and never committed. Chatterbox reads only the first 10 s (6 s for
 # its text model), Turbo 10 s (15 s), Qwen the whole clip with its exact words.
 NICK_REFS = [(tag, os.path.join(HERE, f), text) for tag, f, text in
-             (("in", "nick_ref.wav", L.NICK_REF_TEXT), ("out", "nick_ref_out.wav", L.NICK_REF_OUT_TEXT))
+             (("in", "nick_ref.wav", L.NICK_REF_TEXT), ("out", "nick_ref_out.wav", L.NICK_REF_OUT_TEXT),
+              ("sim", "nick_ref_sim.wav", L.NICK_SIM_REF_TEXT), ("drill", "nick_ref_drill.wav", L.NICK_DRILL_REF_TEXT))
              if os.path.exists(os.path.join(HERE, f))]
+# Mood references (owner 11/22 12:0x) read only the line they were recorded for; "in" reads both.
+REF_LINES = {"sim": (0,), "drill": (1,)}
+
+
+def split_sentences(text):
+    import re
+    return [x for x in re.split(r"(?<=[.?!])\s+", text.strip()) if x]
+
+
+def trim(w, sr, db=-45.0, pad=0.03):
+    """Cut the model's own leading/trailing silence so every joint gets exactly the pause we set."""
+    w = np.asarray(w, np.float32).ravel()
+    hop = max(1, int(sr * 0.01))
+    lv = np.array([np.sqrt(np.mean(w[i:i + hop] ** 2)) + 1e-9 for i in range(0, len(w), hop)])
+    on = np.where(20 * np.log10(lv / (np.max(lv) + 1e-9)) > db)[0]
+    if not len(on):
+        return w
+    a, b = max(0, on[0] * hop - int(pad * sr)), min(len(w), (on[-1] + 1) * hop + int(pad * sr))
+    return w[a:b]
+
+
+PAUSE_AFTER = {".": 0.35, "?": 0.5, "!": 0.5}  # owner OK 11/22 12:0x: silence added between sentences, never a speed change
 NICK_LINES = lambda: (L.spoken(L.SIM_V3), L.spoken(L.DRILL_V3))  # numbers in words, names respelled, no hyphenated numbers (11/22)
 
 
@@ -135,18 +160,32 @@ elif engine.startswith("qwen-"):
     from qwen_tts import Qwen3TTSModel
     vid = engine.split("-", 1)[1]
     t0 = time.time()
-    if vid == "nick":
+    if vid in ("nick", "nick-split"):
+        # qwen-nick renders each line whole; qwen-nick-split renders one sentence at a time and joins them with
+        # PAUSE_AFTER silence, so a run-on can't happen (owner 11/22 12:0x: both, side by side).
+        split = vid == "nick-split"
         b = Qwen3TTSModel.from_pretrained("Qwen/Qwen3-TTS-12Hz-1.7B-Base", device_map="cpu", dtype=torch.float32)
         for tag, path, ref_text in NICK_REFS:
+            if tag == "out":
+                continue  # Nick 11/22 11:42: the inside take cloned closer
             t0 = time.time()
             ref, ref_sr = sf.read(path, dtype="float32")
             prompt = b.create_voice_clone_prompt(ref_audio=(ref, ref_sr), ref_text=ref_text)
+            lines = NICK_LINES()
             chunks, sr = [], None
-            for x in NICK_LINES():
-                torch.manual_seed(7)
-                wavs, sr = b.generate_voice_clone(text=x, language="English", voice_clone_prompt=prompt)
-                chunks.append(wavs[0])
-            save(f"qwen17-nick-{tag}", chunks, sr, t0)
+            for i in REF_LINES.get(tag, (0, 1)):
+                if not split:
+                    torch.manual_seed(7)
+                    wavs, sr = b.generate_voice_clone(text=lines[i], language="English", voice_clone_prompt=prompt)
+                    chunks.append(wavs[0])
+                    continue
+                parts = []
+                for sent in split_sentences(lines[i]):
+                    torch.manual_seed(7)
+                    wavs, sr = b.generate_voice_clone(text=sent, language="English", voice_clone_prompt=prompt)
+                    parts += [trim(wavs[0], sr), np.zeros(int(sr * PAUSE_AFTER.get(sent[-1], 0.35)), np.float32)]
+                chunks.append(np.concatenate(parts[:-1]))
+            save(f"qwen17-{vid}-{tag}", chunks, sr, t0)
         json.dump(stats, open(f"{out}/{engine}-stats.json", "w"), indent=1)
         sys.exit(0)
     else:

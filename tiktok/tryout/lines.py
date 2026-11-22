@@ -70,6 +70,13 @@ NICK_REF_OUT_TEXT = ("Hey, welcome back. It is Nick from Trend Bettors again. Ev
                      "biggest games of the slate, and we check it the following morning to see just how close our model got. "
                      "Some nights we'll nail every single pick, and other nights we won't hit a single one, but we'll show you "
                      "every single night. Let's get right into it.")  # outside take 2 as recorded 11/22 (ad-libbed)
+# Mood references (owner 11/22 11:4x): the scripts Nick reads; corrected to his actual words when the takes are cut.
+NICK_SIM_REF_TEXT = ("Alright, here's what the numbers say tonight. We ran Heat and Bucks ten thousand times. Milwaukee took "
+                     "fifty-eight percent of them, and the average final was Bucks one fourteen, Heat one oh nine. The swing "
+                     "factor? Rebounding. Let's see how all ten thousand played out.")
+NICK_DRILL_REF_TEXT = ("It's time for the Two-Minute Drill. You've got ten seconds on the clock. Which team scored more points in "
+                       "the paint last night: the Suns, or the Kings? Three, two, one... time's up! It was Phoenix, fifty-two to "
+                       "forty-four. Got it? Let us know in the comments.")
 
 
 def orpheus_frames(tokens):

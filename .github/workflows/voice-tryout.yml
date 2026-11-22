@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       engines:
-        description: 'JSON list: chatterbox, turbo, c1, orpheus-leo, orpheus-dan, orpheus-zac, qwen, magpie, qwen-d1..qwen-d4, chatterbox-nick, turbo-nick, qwen-nick'
+        description: 'JSON list: chatterbox, turbo, c1, orpheus-leo, orpheus-dan, orpheus-zac, qwen, magpie, qwen-d1..qwen-d4, chatterbox-nick, turbo-nick, qwen-nick, qwen-nick-split'
         default: '["magpie","qwen-d1","qwen-d2","qwen-d3","qwen-d4"]'
 permissions:
   contents: write
@@ -27,7 +27,7 @@ jobs:
         with:
           sparse-checkout: tiktok/tryout
       - name: Decrypt owner references (first, so a missing secret fails in seconds)
-        if: endsWith(matrix.engine, '-nick')
+        if: contains(matrix.engine, '-nick')
         env:
           KEY: ${{ secrets.VOICE_REF_KEY }}
         run: |
@@ -60,13 +60,13 @@ jobs:
       - name: Render
         run: python -u tiktok/tryout/render.py ${{ matrix.engine }} out
       - name: Check words (speech to text)
-        if: matrix.engine == 'c1' || startsWith(matrix.engine, 'orpheus') || endsWith(matrix.engine, '-nick')
+        if: matrix.engine == 'c1' || startsWith(matrix.engine, 'orpheus') || contains(matrix.engine, '-nick')
         run: |
           pip install -q faster-whisper
-          P="${{ matrix.engine }}"; [ "$P" = qwen-nick ] && P=qwen17-nick  # qwen saves as qwen17-<voice>
+          P="${{ matrix.engine }}"; case "$P" in qwen-nick*) P="qwen17-${P#qwen-}" ;; esac  # qwen saves as qwen17-<voice>
           python -u tiktok/tryout/check.py out "$P"
       - name: Encrypt owner clips (this repo is public; Claude decrypts them for Nick)
-        if: endsWith(matrix.engine, '-nick')
+        if: contains(matrix.engine, '-nick')
         env:
           KEY: ${{ secrets.VOICE_REF_KEY }}
         run: |
