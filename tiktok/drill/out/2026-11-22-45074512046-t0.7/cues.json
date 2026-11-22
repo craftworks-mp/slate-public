@@ -1,0 +1,127 @@
+{
+ "post_date": "2026-11-22",
+ "length_s": 66.5,
+ "long_enough": true,
+ "render_s": 700,
+ "sr": 24000,
+ "versions": {
+  "qwen-tts": "0.1.1",
+  "torch": "2.15.0+cpu",
+  "transformers": "4.57.3",
+  "accelerate": "1.12.0"
+ },
+ "sampling": {
+  "temperature": 0.7
+ },
+ "final_names": [
+  "LaMelo Ball",
+  "Christian Anderson",
+  "Quentin Grimes",
+  "Collin Sexton"
+ ],
+ "next_last": {
+  "date": "2026-11-22",
+  "id": "2026-11-21-0",
+  "text": "Whose line was forty seven points, six rebounds and three assists?",
+  "answer": "Quentin Grimes"
+ },
+ "cues": [
+  {
+   "k": "say",
+   "part": "opener",
+   "text": "Welcome back to the Two-Minute Drill. Last time, we asked: whose line was thirty seven points, five rebounds and one assist? It was Joel Embiid.",
+   "start": 0.0,
+   "end": 9.97
+  },
+  {
+   "k": "gap",
+   "s": 0.4,
+   "start": 9.97,
+   "end": 10.37
+  },
+  {
+   "k": "say",
+   "part": "warmup",
+   "text": "Question one. Who averages more points per game this season? Paul George, or Cade Cunningham?",
+   "start": 10.37,
+   "end": 16.95
+  },
+  {
+   "k": "gap",
+   "s": 0.5,
+   "start": 16.95,
+   "end": 17.45
+  },
+  {
+   "k": "say",
+   "part": "warmup",
+   "text": "You've got ten seconds.",
+   "start": 17.45,
+   "end": 19.16
+  },
+  {
+   "k": "clock",
+   "part": "warmup",
+   "s": 10,
+   "count": [
+    "Three.",
+    "Two.",
+    "One."
+   ],
+   "start": 19.16,
+   "end": 29.16
+  },
+  {
+   "k": "say",
+   "part": "warmup",
+   "text": "Time's up. It's Cade Cunningham, at twenty six a game.",
+   "start": 29.16,
+   "end": 33.1
+  },
+  {
+   "k": "gap",
+   "s": 0.6,
+   "start": 33.1,
+   "end": 33.7
+  },
+  {
+   "k": "say",
+   "part": "final",
+   "text": "Final question, and this one's for the comments. Whose line is it? Forty seven points, six rebounds and three assists, last Tuesday. LaMelo Ball, Christian Anderson, Quentin Grimes, or Collin Sexton?",
+   "start": 33.7,
+   "end": 47.7
+  },
+  {
+   "k": "gap",
+   "s": 0.5,
+   "start": 47.7,
+   "end": 48.2
+  },
+  {
+   "k": "say",
+   "part": "final",
+   "text": "Ten seconds on the clock.",
+   "start": 48.2,
+   "end": 49.96
+  },
+  {
+   "k": "clock",
+   "part": "final",
+   "s": 10,
+   "count": [
+    "Three.",
+    "Two.",
+    "One."
+   ],
+   "start": 49.96,
+   "end": 59.96
+  },
+  {
+   "k": "say",
+   "part": "final",
+   "text": "Time's up. Drop your guess in the comments. The answer opens our next episode, so tune in.",
+   "start": 59.96,
+   "end": 66.54
+  }
+ ]
+}
