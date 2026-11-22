@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       engines:
-        description: 'JSON list: chatterbox, turbo, c1, qwen, magpie, qwen-d1..qwen-d4, qwen-nick'
+        description: 'JSON list: chatterbox, turbo, c1, orpheus-leo, orpheus-dan, orpheus-zac, qwen, magpie, qwen-d1..qwen-d4, qwen-nick'
         default: '["magpie","qwen-d1","qwen-d2","qwen-d3","qwen-d4"]'
 permissions:
   contents: write
@@ -39,6 +39,10 @@ jobs:
             magpie)
               pip install -q torch torchaudio --index-url $CPU
               pip install -q --extra-index-url $CPU "nemo_toolkit[tts] @ git+https://github.com/NVIDIA/NeMo.git@main" kaldialign peft soundfile ;;
+            orpheus-*)
+              pip install -q torch --index-url $CPU
+              pip install -q llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+              pip install -q snac soundfile huggingface_hub ;;
             qwen*)
               pip install -q torch torchaudio --index-url $CPU
               pip install -q --extra-index-url $CPU qwen-tts==0.1.1 soundfile ;;
@@ -54,10 +58,10 @@ jobs:
       - name: Render
         run: python -u tiktok/tryout/render.py ${{ matrix.engine }} out
       - name: Check words (speech to text)
-        if: matrix.engine == 'c1'
+        if: matrix.engine == 'c1' || startsWith(matrix.engine, 'orpheus')
         run: |
           pip install -q faster-whisper
-          python -u tiktok/tryout/check.py out c1
+          python -u tiktok/tryout/check.py out ${{ matrix.engine }}
       - name: Remove owner reference
         if: always()
         run: rm -f tiktok/tryout/nick_ref.wav

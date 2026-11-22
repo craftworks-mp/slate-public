@@ -53,3 +53,16 @@ DESIGNS = {
 NICK_REF_TEXT = ("Hey, it's Nick from Trend Bettors. Every night we run the numbers on the biggest games, "
                  "and every morning we check how close we got. Some nights we nail it, some nights we don't, "
                  "and we'll show you both. Let's get into it.")
+
+
+def orpheus_frames(tokens):
+    """Orpheus output token ids -> SNAC's three code layers (Canopy notebook layout). Drops frames with an invalid code."""
+    if 128257 in tokens:  # start-of-speech marker: keep what follows the last one
+        tokens = tokens[len(tokens) - tokens[::-1].index(128257):]
+    codes = [t - 128266 for t in tokens if t >= 128266]
+    l1, l2, l3 = [], [], []
+    for i in range(len(codes) // 7):
+        c = [codes[7 * i + k] - k * 4096 for k in range(7)]
+        if all(0 <= x < 4096 for x in c):
+            l1.append(c[0]); l2 += [c[1], c[4]]; l3 += [c[2], c[3], c[5], c[6]]
+    return l1, l2, l3

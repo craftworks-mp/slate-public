@@ -2,6 +2,7 @@
 Each voice reads the Sim line, a 1.2 s pause, then the Drill line (lines.py).
 Usage: python tiktok/tryout/render.py ENGINE OUT_DIR
   round 1: chatterbox | turbo | qwen
+  round 4: orpheus-leo | orpheus-dan | orpheus-zac (Orpheus 3B GGUF on llama.cpp)
   round 3: c1 (C1 with spoken-number lines + a speech-to-text check, check.py)
   round 2: magpie | qwen-d1..qwen-d4 (1.7B voice design, then cloned) | qwen-nick (clone of nick_ref.wav)
 """
@@ -52,6 +53,41 @@ elif engine == "c1":
         torch.manual_seed(7)
         chunks.append(tensor_np(m.generate(x, exaggeration=0.5, cfg_weight=0.5)))
     save("c1-v2", chunks, m.sr, t0)
+
+elif engine.startswith("orpheus-"):
+    # Orpheus 3B (Canopy Labs, Apache 2.0; owner 11/21 23:1x) as the Q4_K_M GGUF on llama.cpp + the SNAC 24 kHz decoder.
+    # Built-in voices (leo, dan, zac = male). Token layout per Canopy's inference notebook: 7 codes per SNAC frame.
+    import re
+    from llama_cpp import Llama
+    from snac import SNAC
+    voice = engine.split("-", 1)[1]
+    llm = Llama.from_pretrained("isaiahbjork/orpheus-3b-0.1-ft-Q4_K_M-GGUF", filename="*.gguf", n_ctx=4096,
+                                n_threads=os.cpu_count() or 4, verbose=False)
+    snac = SNAC.from_pretrained("hubertsiuzdak/snac_24khz").eval()
+    sr = 24000
+
+    def say(text):
+        ids = [128259] + llm.tokenize(f"{voice}: {text}".encode(), add_bos=True) + [128009, 128260]
+        got = []
+        for t in llm.generate(ids, temp=0.6, top_p=0.95, top_k=40, min_p=0.0, repeat_penalty=1.1):
+            if t == 128258 or t == llm.token_eos() or len(got) >= 1800:
+                break
+            got.append(t)
+        frames = L.orpheus_frames(got)
+        with torch.no_grad():
+            audio = snac.decode([torch.tensor(x).unsqueeze(0) for x in frames])
+        return audio.squeeze().cpu().numpy()
+
+    t0 = time.time()
+    chunks = []
+    for line in (L.spoken(L.SIM_C1), L.spoken(L.DRILL_C1)):
+        gap = np.zeros(int(sr * 0.22), dtype=np.float32)
+        parts = []
+        for sent in re.split(r"(?<=[.?!])\s+", line):
+            parts += [say(sent).astype(np.float32).ravel(), gap]
+            print(voice, round(time.time() - t0), "s:", sent[:40], flush=True)
+        chunks.append(np.concatenate(parts[:-1]))
+    save(f"orpheus-{voice}", chunks, sr, t0)
 
 elif engine == "turbo":
     from chatterbox.tts_turbo import ChatterboxTurboTTS
