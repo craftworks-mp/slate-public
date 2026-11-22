@@ -39,11 +39,11 @@ jobs:
           python-version: '3.11'
       - name: Script checks (numbers, names, bet words, clock order)
         run: python -u tiktok/drill/test_episode.py
-      - name: Install (CPU torch; qwen-tts 0.1.1 pins transformers + accelerate)
+      - name: Install (pinned to the set that rendered the 11/22 mock, run 45065579888)
         run: |
           CPU=https://download.pytorch.org/whl/cpu
-          pip install -q torch torchaudio --index-url $CPU
-          pip install -q --extra-index-url $CPU qwen-tts==0.1.1 soundfile faster-whisper
+          pip install -q torch==2.15.0 torchaudio==2.11.1 --index-url $CPU
+          pip install -q --extra-index-url $CPU qwen-tts==0.1.1 transformers==4.57.3 accelerate==1.12.0 numpy==2.4.6 soundfile faster-whisper==1.2.1
           pip freeze | grep -i -E '^(torch|torchaudio|transformers|accelerate|qwen-tts|qwen_tts|faster-whisper|numpy)==' | tee versions.txt
       - name: Render
         run: python -u tiktok/drill/render.py "$IN" "$LAST" out

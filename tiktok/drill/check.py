@@ -10,13 +10,24 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from faster_whisper import WhisperModel  # noqa: E402
-from speak import spoken  # noqa: E402
+from speak import spoken, words  # noqa: E402
 
 FLOOR = 0.85
 
 
 def norm(text):
-    return re.findall(r"[a-z']+", text.lower().replace("-", " "))
+    """Lowercase words. Whisper writes numbers as digits and "alright" as "all right": both are put back the way the
+    script says them, so only real misreads count as missing (run 45065579888 scored 89% on spelling alone)."""
+    text = re.sub(r"\d[\d,]*", lambda m: words(int(m.group().replace(",", ""))) if int(m.group().replace(",", "")) < 1000
+                  else m.group(), text.lower().replace("all right", "alright"))
+    return re.findall(r"[a-z']+", text.replace("-", " "))
+
+
+def sound_alike(heard, script):
+    """Whisper spells some names its own way (Lamello for LaMelo, Colin for Collin): take the script's spelling when
+    the two are near-identical. A real misread ("Nixon Celtics" for "Knicks and Celtics") still differs."""
+    vocab = set(script)
+    return [w if w in vocab else (difflib.get_close_matches(w, vocab, n=1, cutoff=0.8) or [w])[0] for w in heard]
 
 
 out = sys.argv[1]
@@ -30,7 +41,7 @@ for c in cues:
 segs, _ = WhisperModel("small.en", device="cpu", compute_type="int8").transcribe(
     os.path.join(out, "episode.wav"), beam_size=5, word_timestamps=True, vad_filter=True)
 segs = list(segs)
-heard = norm(" ".join(s.text for s in segs))
+heard = sound_alike(norm(" ".join(s.text for s in segs)), script)
 sm = difflib.SequenceMatcher(None, script, heard, autojunk=False)
 got = sum(b.size for b in sm.get_matching_blocks())
 missing = [" ".join(script[a:b]) for op, a, b, _, _ in sm.get_opcodes() if op in ("replace", "delete")]

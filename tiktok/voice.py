@@ -2,8 +2,8 @@
 take (nick_ref.wav, decrypted only inside Actions; the repo holds nick_ref.wav.gpg), read one sentence at a time and
 joined with set silences so sentences never run together. The audio's speed is never changed after rendering (it adds
 grain, owner 11/21 23:11): pace comes from the model and the reference. One voice for every series.
-Picked by ear 11/22 (round 6, run 45058426817: qwen17-nick-split-in). Versions: qwen-tts 0.1.1 pins transformers
-4.57.3 + accelerate 1.12.0; each run writes the torch it used to versions.txt."""
+Picked by ear 11/22 (round 6, run 45058426817: qwen17-nick-split-in). Versions (pinned in tiktok-drill.yml): qwen-tts
+0.1.1, transformers 4.57.3, accelerate 1.12.0, torch 2.15.0 + torchaudio 2.11.1 (CPU); each run writes versions.txt."""
 import os
 import re
 
