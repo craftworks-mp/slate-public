@@ -2,7 +2,7 @@
 # Actions > TikTok Drill > Run workflow. The daily input from slate-data and the video come with the video maker.
 # Runs here because this repo is public (free minutes). Nick's voice stays encrypted in the repo; Claude decrypts it for him.
 name: TikTok Drill
-run-name: TikTok Drill${{ inputs.temperature && format(' t{0}', inputs.temperature) || '' }}
+run-name: TikTok Drill${{ inputs.temperature && format(' t{0}', inputs.temperature) || '' }}${{ inputs.ref_speed && format(' s{0}', inputs.ref_speed) || '' }}
 on:
   workflow_dispatch:
     inputs:
@@ -15,10 +15,13 @@ on:
       temperature:
         description: 'Voice sampling temperature (blank = model default; accent A/B 11/22)'
         default: ''
+      ref_speed:
+        description: 'Speed up the voice reference before cloning, pitch kept (blank = as recorded; 1.06 = +6%; pace A/B 11/22)'
+        default: ''
 permissions:
   contents: write
 concurrency:
-  group: tiktok-drill-${{ inputs.temperature || 'default' }}
+  group: tiktok-drill-${{ inputs.temperature || 'default' }}-${{ inputs.ref_speed || '1' }}
   cancel-in-progress: false
 jobs:
   voice:
@@ -34,6 +37,7 @@ jobs:
       IN: ${{ inputs.input }}
       LAST: ${{ inputs.last }}
       VOICE_TEMP: ${{ inputs.temperature }}
+      REF_SPEED: ${{ inputs.ref_speed }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -45,6 +49,13 @@ jobs:
           [ -n "$KEY" ] || { echo "VOICE_REF_KEY secret is missing"; exit 1; }
           gpg --batch --yes --quiet --pinentry-mode loopback --passphrase "$KEY" -o tiktok/nick_ref.wav -d tiktok/nick_ref.wav.gpg
           ls -la tiktok/nick_ref.wav
+      - name: Speed up the reference (tempo only, pitch kept; the clone re-voices it, so the output's speed is never touched)
+        if: inputs.ref_speed != ''
+        run: |
+          [[ "$REF_SPEED" =~ ^1\.[0-9]{1,2}$ ]] || { echo "ref_speed must look like 1.06"; exit 1; }
+          sudo apt-get install -y -qq rubberband-cli >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y -qq rubberband-cli >/dev/null; }
+          rubberband -q --fine -T "$REF_SPEED" tiktok/nick_ref.wav ref_fast.wav || rubberband -q -c 6 -T "$REF_SPEED" tiktok/nick_ref.wav ref_fast.wav
+          mv ref_fast.wav tiktok/nick_ref.wav
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -85,6 +96,7 @@ jobs:
       IN: ${{ inputs.input }}
       LAST: ${{ inputs.last }}
       VOICE_TEMP: ${{ inputs.temperature }}
+      REF_SPEED: ${{ inputs.ref_speed }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -122,7 +134,7 @@ jobs:
         if: always()
         run: |
           [ -e out/episode.wav.gpg ] || { echo "nothing rendered"; exit 1; }
-          D="tiktok/drill/out/$(TZ=America/New_York date +%Y-%m-%d)-${{ github.run_id }}${VOICE_TEMP:+-t$VOICE_TEMP}"
+          D="tiktok/drill/out/$(TZ=America/New_York date +%Y-%m-%d)-${{ github.run_id }}${VOICE_TEMP:+-t$VOICE_TEMP}${REF_SPEED:+-s$REF_SPEED}"
           mkdir -p "$D"
           cp out/episode.wav.gpg versions.txt "$D"/
           cp out/cues.json out/transcript.json "$D"/ 2>/dev/null || true

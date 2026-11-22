@@ -92,6 +92,50 @@ def test_pick_uses_a_past_pool():
     assert raises(E.pick, pool, "2026-11-21"), "today's pool would spoil the site game"
 
 
+def test_position_hint():
+    ab = json.load(open(os.path.join(HERE, "input", "ab-hint.json")))
+    ep = E.check(E.build(ab, LAST))
+    clk = [s for s in ep["steps"] if s["k"] == "clock"]
+    assert "hint" not in clk[0], "the warm-up never gets a hint"
+    assert clk[1]["hint"] == {"at": 5, "text": "Hint: he's a guard."}
+    assert ep["final_pos"].count("G") == 3 and "Collin Murray-Boyles" in ep["final_names"]
+    # verified names alone are all guards here: all 4 would share it, so no hint (never all 4, owner 11/22)
+    plain = E.check(E.build(INP, LAST))
+    assert "hint" not in [s for s in plain["steps"] if s["k"] == "clock"][1] and plain["final_pos"].count("G") == 4
+    for tamper in ("text", "at", "pos"):
+        bad = copy.deepcopy(ep)
+        h = [s for s in bad["steps"] if s["k"] == "clock"][1]["hint"]
+        if tamper == "text":
+            h["text"] = "Hint: he's a forward."
+        elif tamper == "at":
+            h["at"] = 7  # would run into "three"
+        else:
+            bad["final_pos"] = ["G", "G", "G", "G"]
+        assert raises(E.check, bad), tamper
+    nfl = copy.deepcopy(ab)
+    nfl["final"]["sport"] = "NFL"
+    assert "hint" not in [s for s in E.build(nfl, LAST)["steps"] if s["k"] == "clock"][1], "NFL stat lines show it"
+
+
+def test_trial_names_only_pass_when_listed():
+    ab = json.load(open(os.path.join(HERE, "input", "ab-hint.json")))
+    assert E.check(E.build(ab, LAST))["trial_names"] == ["Collin Murray-Boyles"]
+    ab["trial_names"] = []
+    ep = E.build(ab, LAST)
+    assert "Collin Murray-Boyles" not in ep["final_names"] and not ep["unverified"]
+    ab["warmup"]["options"][0] = "Kevin Huerter"  # unverified and not on the trial list: still holds the draft
+    assert raises(E.check, E.build(ab, LAST))
+
+
+def test_pick_carries_positions():
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        for i, (n, p) in enumerate((("Quentin Grimes", "G"), ("Collin Murray-Boyles", "F"), ("LaMelo Ball", "G"))):
+            json.dump({"name": n, "pos": p}, open(os.path.join(d, f"{i}.json"), "w"))
+        got = E.pick({"date": "2026-11-21", "drill": [INP["warmup"], INP["final"]]}, "2026-11-22", players=d)
+    assert got["final"]["pos_of"] == {"Quentin Grimes": "G", "Collin Murray-Boyles": "F", "LaMelo Ball": "G"}
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for t in tests:

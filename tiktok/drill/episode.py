@@ -11,6 +11,9 @@ spoiled), NBA and NFL only (NHL names are initials), no spread questions. Pure s
 build(inp, last) -> {"steps": [...], "next_last": {...}, "unverified": [...]}; a step is
   {"k": "say", "part", "text"} | {"k": "gap", "s"} | {"k": "clock", "part", "s": 10, "count": [...]}.
 """
+import glob
+import itertools
+import json
 import os
 import random
 import re
@@ -23,6 +26,9 @@ from speak import NAMES, ordinal, spoken, words  # noqa: E402
 BEAT = 0.5  # after a question is read, before "ten seconds" (owner 11/22)
 CLOCK = 10
 COUNT = ["Three.", "Two.", "One."]  # on the clock's last three seconds (owner 11/22)
+HINT_AT = 5  # the final clock's 5-s mark: "Hint: he's a guard." (owner 11/22 17:1x; NBA only, NFL stat lines show it)
+POS_WORD = {"G": "guard", "F": "forward", "C": "center"}
+PLAYERS = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "players", "nba")
 # TikTok shorts are pure sports prediction (owner 11/21 20:27): none of these, on screen or in the voice.
 BET = re.compile(r"\b(odds|bets?|betting|wagers?|units?|sportsbooks?|parlays?|spreads?|cover(s|ed)?|moneylines?|"
                  r"picks?|locks?|juice|vig|payouts?|vegas)\b", re.I)
@@ -69,11 +75,36 @@ def line_words(q, post):
     return text[0].upper() + text[1:]
 
 
-def four(q):
-    """The answer plus three other names, verified names first, in an order fixed by the question id."""
+def positions(names, folder=PLAYERS):
+    """{name: "G" | "F" | "C"} from slate-public players/nba/<id>.json `pos`, for the names found there."""
+    want, got = set(names), {}
+    for p in glob.glob(os.path.join(folder, "*.json")):
+        d = json.load(open(p))
+        if d.get("name") in want and d.get("pos") in POS_WORD:
+            got[d["name"]] = d["pos"]
+    return got
+
+
+def hint_word(q, names):
+    """The position hint, only when it narrows the field without giving it away: 2 or 3 of the 4 names share the
+    answer's position, never all 4 (owner 11/22). NBA only; None when any position is unknown."""
+    pos, right = q.get("pos_of") or {}, q["options"][q["answer"]]
+    if q.get("sport") != "NBA" or pos.get(right) not in POS_WORD or any(n not in pos for n in names):
+        return None
+    return POS_WORD[pos[right]] if 2 <= sum(pos[n] == pos[right] for n in names) <= 3 else None
+
+
+def four(q, ok=None):
+    """The answer plus three other names, verified names first, in an order fixed by the question id. On an NBA final
+    with positions, the first set (in that order) that lets the position hint play wins."""
+    ok = set(NAMES) if ok is None else ok
     right = q["options"][q["answer"]]
-    rest = sorted((n for n in q["options"] if n != right), key=lambda n: n not in NAMES)[:3]
-    names = [right] + rest
+    rest = sorted((n for n in q["options"] if n != right), key=lambda n: n not in ok)
+    names = [right] + rest[:3]
+    for combo in itertools.combinations([n for n in rest if n in ok], 3):
+        if hint_word(q, [right, *combo]):
+            names = [right, *combo]
+            break
     random.Random(q["id"]).shuffle(names)
     return names
 
@@ -87,6 +118,9 @@ def build(inp, last=None):
     post = date.fromisoformat(inp["post_date"])
     w, f = inp["warmup"], inp["final"]
     assert w["type"] == "hilo" and f["type"] == "line", "warm-up = who averages more, final = Whose Line"
+    # trial_names: names heard for the first time in this render, for the words check and Nick's ear (owner 11/22);
+    # only drafts that list them get through check(), every other unverified name still holds the draft
+    trial = set(inp.get("trial_names", []))
     steps = []
 
     def say(part, text):
@@ -95,8 +129,9 @@ def build(inp, last=None):
     def gap(s):
         steps.append({"k": "gap", "s": s})
 
-    def clock(part):
-        steps.append({"k": "clock", "part": part, "s": CLOCK, "count": COUNT})
+    def clock(part, hint=None):
+        steps.append({"k": "clock", "part": part, "s": CLOCK, "count": COUNT,
+                      **({"hint": {"at": HINT_AT, "text": f"Hint: he's a {hint}."}} if hint else {})})
 
     if last:
         # trimmed 11/22 (owner): the mock ran 76 s against ~65, so the recap is one line and the intro is cut
@@ -112,16 +147,20 @@ def build(inp, last=None):
     clock("warmup")
     say("warmup", f"Time's up. It's {w['options'][w['answer']]}, at {words(round(w['vals'][w['answer']]))} a game.")
     gap(0.6)
-    n = four(f)
+    n = four(f, set(NAMES) | trial)
+    hint = hint_word(f, n)
     say("final", "Final question, and this one's for the comments. Whose line is it? "
                  f"{line_words(f, post)} {n[0]}, {n[1]}, {n[2]}, or {n[3]}?")
     gap(BEAT)
     say("final", "Ten seconds on the clock.")
-    clock("final")
+    clock("final", hint)
     say("final", "Time's up. Drop your guess in the comments. The answer opens our next episode, so tune in.")
     names = [a, b] + n + ([last["answer"]] if last else [])
+    pos = f.get("pos_of") or {}
     return {"post_date": inp["post_date"], "steps": steps, "final_names": n,
-            "unverified": sorted({x for x in names if x not in NAMES}),
+            "final_pos": [pos.get(x) for x in n], "answer_pos": pos.get(f["options"][f["answer"]]),
+            "trial_names": sorted(trial & set(names)),
+            "unverified": sorted({x for x in names if x not in NAMES and x not in trial}),
             "next_last": {"date": inp["post_date"], "id": f["id"], "text": f"Whose line was {stat_list(f)}?",
                           "answer": f["options"][f["answer"]]}}
 
@@ -142,12 +181,23 @@ def check(ep, strict=True):
         assert beat["k"] == "gap" and beat["s"] >= BEAT, "no beat between the question and the clock"
         assert q["k"] == "say" and q["text"].endswith("?"), "the clock must follow the full question"
         assert st[i + 1]["k"] == "say" and st[i + 1]["text"].startswith("Time's up."), "clock ends on Time's up"
+        h = st[i].get("hint")
+        if h:
+            # the hint plays inside the final clock and ends before Nick's "three"; it has to be true and narrow the
+            # field without giving it away: 2 or 3 of the 4 names at the answer's position, never all 4
+            assert st[i]["part"] == "final", "only the final gets a position hint"
+            assert 1 <= h["at"] <= st[i]["s"] - len(st[i]["count"]) - 2, "the hint needs 2 s before the count"
+            spoken(h["text"])
+            assert not BET.search(h["text"]), f"bet talk in a TikTok line: {h['text']}"
+            fp, ap = ep.get("final_pos") or [], ep.get("answer_pos")
+            assert ap in POS_WORD and h["text"] == f"Hint: he's a {POS_WORD[ap]}.", "the hint must name the answer's position"
+            assert None not in fp and 2 <= fp.count(ap) <= 3, "2 or 3 of the 4 names share the hinted position"
     if strict:
         assert not ep["unverified"], f"names not yet heard right in a render: {ep['unverified']}"
     return ep
 
 
-def pick(pool, post_date):
+def pick(pool, post_date, players=PLAYERS):
     """Choose the warm-up and the final from a past day's pool doc (deterministic per post date)."""
     assert pool["date"] < post_date, "use a past day's pool so the site game isn't spoiled"
     q = [x for x in pool["drill"] if x["sport"] in ("NBA", "NFL")]
@@ -158,4 +208,7 @@ def pick(pool, post_date):
                                                                    for s in x["stats"])]
     assert warm and final, "no question in this pool has only verified names"
     r = random.Random(post_date)
-    return {"post_date": post_date, "pool_date": pool["date"], "warmup": r.choice(warm), "final": r.choice(final)}
+    warm, final = r.choice(warm), dict(r.choice(final))
+    if final["sport"] == "NBA":  # positions travel with the input: the render jobs only check out tiktok/
+        final["pos_of"] = positions(final["options"], players)
+    return {"post_date": post_date, "pool_date": pool["date"], "warmup": warm, "final": final}

@@ -22,6 +22,8 @@ from speak import spoken  # noqa: E402
 from voice import Voice, trim  # noqa: E402
 
 MIN_S = 61  # TikTok Creator Rewards counts videos of 1 min+ (owner 11/21)
+HINT_MAX_S = 1.85  # the hint starts at its mark + 0.06 s and must end before the count's first word
+REF_SPEED = os.environ.get("REF_SPEED", "").strip() or "1"  # pace A/B 11/22: the reference's speed-up
 
 
 def _version(p):
@@ -40,7 +42,8 @@ def needs(ep):
     """Every clip the episode uses, once each, in script order: ("say", line) and ("count", word)."""
     out = []
     for st in ep["steps"]:
-        items = [("say", st["text"])] if st["k"] == "say" else [] if st["k"] == "gap" else [("count", w) for w in st["count"]]
+        items = [("say", st["text"])] if st["k"] == "say" else [] if st["k"] == "gap" else (
+            ([("hint", st["hint"]["text"])] if st.get("hint") else []) + [("count", w) for w in st["count"]])
         out += [x for x in items if x not in out]
     return out
 
@@ -62,6 +65,13 @@ def clip_file(kind, text):
 def render_clip(v, kind, text):
     if kind == "say":
         return v.say(text)
+    if kind == "hint":  # has to end before Nick's "three", two seconds after it starts
+        for seed in (7, 11, 23, 42, 99, 123):
+            w = trim(v.sentence(spoken(text), seed), v.sr, db=-30)
+            if len(w) < HINT_MAX_S * v.sr:
+                return w
+            print(f"hint {text!r}: {len(w) / v.sr:.2f}s with seed {seed}, trying the next seed", flush=True)
+        raise RuntimeError(f"the hint never fit in {HINT_MAX_S}s: {text}")
     # A one-word count line has to fit inside its second. Qwen sometimes trails a lone word (run 45064576430:
     # "Two." came out 1.2 s), so cut breath tails harder and try the next fixed seed until it fits.
     for seed in (7, 11, 23, 42, 99, 123):
@@ -93,7 +103,7 @@ def main(inp_path, last_path, out, part=None, clips=None):
             sf.write(os.path.join(clips, clip_file(kind, text)), w, v.sr)
             print(f"{len(w) / v.sr:5.1f}s  {kind}: {text}", flush=True)
         json.dump({"part": part, "clips": len(mine), "render_s": round(time.time() - t0), "sr": v.sr,
-                   "versions": versions(), "sampling": v.sampling or "default"},
+                   "versions": versions(), "sampling": v.sampling or "default", "ref_speed": REF_SPEED},
                   open(os.path.join(clips, f"part-{k}.json"), "w"), indent=1)
         print(f"part {part}: {len(mine)} of {len(items)} clips in {time.time() - t0:.0f}s")
         return
@@ -102,7 +112,7 @@ def main(inp_path, last_path, out, part=None, clips=None):
         parts = [json.load(open(os.path.join(clips, f))) for f in sorted(os.listdir(clips)) if f.startswith("part-")]
         assert parts, f"no part-*.json in {clips}"
         meta = {"render_s": max(p["render_s"] for p in parts), "versions": parts[0]["versions"],
-                "sampling": parts[0]["sampling"], "parts": len(parts)}
+                "sampling": parts[0]["sampling"], "ref_speed": parts[0].get("ref_speed", "1"), "parts": len(parts)}
         for kind, text in items:
             f = os.path.join(clips, clip_file(kind, text))
             assert os.path.exists(f), f"missing clip for {kind}: {text}"
@@ -115,7 +125,8 @@ def main(inp_path, last_path, out, part=None, clips=None):
             cache[(kind, text)] = render_clip(v, kind, text)
             print(f"{len(cache[(kind, text)]) / v.sr:5.1f}s  {kind}: {text}", flush=True)
         sr = v.sr
-        meta = {"render_s": round(time.time() - t0), "versions": versions(), "sampling": v.sampling or "default"}
+        meta = {"render_s": round(time.time() - t0), "versions": versions(), "sampling": v.sampling or "default",
+                "ref_speed": REF_SPEED}
 
     chunks, cues, at = [], [], 0
     for st in ep["steps"]:
@@ -133,6 +144,11 @@ def main(inp_path, last_path, out, part=None, clips=None):
                 assert len(w) < 0.9 * sr, f"count word {word!r} runs past its second ({len(w) / sr:.2f}s)"
                 s0 = (st["s"] - len(st["count"]) + j) * sr + int(0.06 * sr)
                 a[s0:s0 + len(w)] += w
+            if st.get("hint"):  # "Hint: he's a guard." at the final clock's 5-s mark, done before "three"
+                w, h0 = cache[("hint", st["hint"]["text"])], st["hint"]["at"] * sr + int(0.06 * sr)
+                assert h0 + len(w) < (st["s"] - len(st["count"])) * sr, f"hint runs into the count ({len(w) / sr:.2f}s)"
+                a[h0:h0 + len(w)] += w
+                st = {**st, "hint": {**st["hint"], "start": round((at + h0) / sr, 2), "end": round((at + h0 + len(w)) / sr, 2)}}
         cues.append({**st, "start": round(at / sr, 2), "end": round((at + len(a)) / sr, 2)})
         chunks.append(a)
         at += len(a)
@@ -143,7 +159,8 @@ def main(inp_path, last_path, out, part=None, clips=None):
     sf.write(os.path.join(out, "episode.wav"), audio, sr)
     total = round(len(audio) / sr, 1)
     json.dump({"post_date": ep["post_date"], "length_s": total, "long_enough": total >= MIN_S, "sr": sr, **meta,
-               "final_names": ep["final_names"], "next_last": ep["next_last"], "cues": cues},
+               "final_names": ep["final_names"], "final_pos": ep["final_pos"], "trial_names": ep["trial_names"],
+               "next_last": ep["next_last"], "cues": cues},
               open(os.path.join(out, "cues.json"), "w"), indent=1)
     print(f"episode {total}s (floor {MIN_S}s: {'ok' if total >= MIN_S else 'SHORT'}), {meta}")
 

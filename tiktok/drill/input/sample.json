@@ -96,6 +96,14 @@
    "opp": "CHA"
   },
   "id": "2026-11-21-0",
-  "seconds": 40
+  "seconds": 40,
+  "pos_of": {
+   "Collin Murray-Boyles": "F",
+   "LaMelo Ball": "G",
+   "Christian Anderson": "G",
+   "Quentin Grimes": "G",
+   "Collin Sexton": "G",
+   "Kevin Huerter": "G"
+  }
  }
 }

@@ -37,7 +37,7 @@ for c in cues:
     if c["k"] == "say":
         script += norm(spoken(c["text"]))
     elif c["k"] == "clock":
-        script += norm(" ".join(c["count"]))
+        script += (norm(spoken(c["hint"]["text"])) if c.get("hint") else []) + norm(" ".join(c["count"]))
 segs, _ = WhisperModel("small.en", device="cpu", compute_type="int8").transcribe(
     os.path.join(out, "episode.wav"), beam_size=5, word_timestamps=True, vad_filter=True)
 segs = list(segs)
@@ -47,7 +47,10 @@ got = sum(b.size for b in sm.get_matching_blocks())
 missing = [" ".join(script[a:b]) for op, a, b, _, _ in sm.get_opcodes() if op in ("replace", "delete")]
 talk = sum(s.end - s.start for s in segs)
 res = {"text": " ".join(s.text.strip() for s in segs), "match": round(got / len(script), 3),
-       "wpm": round(len(heard) / talk * 60) if talk else 0, "missing": missing}
+       "wpm": round(len(heard) / talk * 60) if talk else 0, "missing": missing,
+       # a name tried for the first time: heard word for word? (it joins names.json only after Nick's ear too)
+       "trial_names": {n: " ".join(norm(spoken(n))) in " ".join(heard)
+                       for n in json.load(open(os.path.join(out, "cues.json"))).get("trial_names", [])}}
 json.dump(res, open(os.path.join(out, "transcript.json"), "w"), indent=1)
 print(json.dumps(res, indent=1))
 sys.exit(0 if res["match"] >= FLOOR else f"words check {res['match']:.0%} < {FLOOR:.0%}")

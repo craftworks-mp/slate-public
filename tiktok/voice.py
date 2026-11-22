@@ -47,6 +47,7 @@ class Voice:
         self.torch, self.sr = torch, None
         self.m = Qwen3TTSModel.from_pretrained(MODEL, device_map="cpu", dtype=torch.float32)
         audio, ref_sr = sf.read(ref, dtype="float32")
+        print(f"reference {len(audio) / ref_sr:.2f}s (speed {os.environ.get('REF_SPEED') or 'as recorded'})", flush=True)
         self.prompt = self.m.create_voice_clone_prompt(ref_audio=(audio, ref_sr), ref_text=REF_TEXT)
         self.sampling = {"temperature": float(TEMP)} if TEMP else {}
         print(f"sampling: model defaults {dict(self.m.generate_defaults)}, override {self.sampling or 'none'}", flush=True)
