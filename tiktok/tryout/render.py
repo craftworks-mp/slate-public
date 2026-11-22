@@ -39,7 +39,7 @@ def tensor_np(w):
 NICK_REFS = [(tag, os.path.join(HERE, f), text) for tag, f, text in
              (("in", "nick_ref.wav", L.NICK_REF_TEXT), ("out", "nick_ref_out.wav", L.NICK_REF_OUT_TEXT))
              if os.path.exists(os.path.join(HERE, f))]
-NICK_LINES = lambda: (L.spoken(L.SIM_C1), L.spoken(L.DRILL_C1))  # numbers in words, names respelled (owner 11/21 22:41)
+NICK_LINES = lambda: (L.spoken(L.SIM_V3), L.spoken(L.DRILL_V3))  # numbers in words, names respelled, no hyphenated numbers (11/22)
 
 
 import torch  # noqa: E402

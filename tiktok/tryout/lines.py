@@ -21,6 +21,16 @@ SIM_C1 = ("We simulated tonight's Thunder and Nuggets game ten thousand times. "
           "Denver flipped the result more often than not. Here's how all ten thousand played out.")
 # "Knicks and Celtics" ran together as "Nixon Celtics" in the c1 check (11/21 22:5x): a "the" keeps the names apart.
 DRILL_C1 = DRILL_SPOKEN.replace("the Knicks and Celtics", "the Knicks and the Celtics")
+# V3 (owner 11/22 11:42): Qwen's clone read "Thunder one-sixteen" as one rushed word and ran sentences together.
+# Number words carry no hyphens (spoken() refuses them), each score gets its own beat ("and"), and a short
+# question or "So," marks every turn so the model pauses there.
+SIM_V3 = ("We simulated tonight's Thunder and Nuggets game ten thousand times. Oklahoma City won sixty one percent of them. "
+          "On average, it finished Thunder one sixteen, and Nuggets one eleven. The swing factor? Nikola Jokic. "
+          "In the sims where he posted a triple-double, Denver flipped the result more often than not. "
+          "Here's how all ten thousand played out.")
+DRILL_V3 = ("It's the Two-Minute Drill, and you've got ten seconds. Last Tuesday, the Knicks and the Celtics went down to the wire. "
+            "So, who scored more fourth-quarter points: Jalen Brunson, or Jayson Tatum? Time's up. It was Brunson, with fourteen. "
+            "Got it right? You're already ahead of half the comment section.")
 
 
 def spoken(text):
@@ -28,6 +38,9 @@ def spoken(text):
     for k, v in PRONOUNCE.items():
         text = re.sub(rf"\b{k}\b", v, text)
     assert not re.search(r"\d", text), f"digit left in a voice line: {text}"
+    num = (r"(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|"
+           r"seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|oh)")
+    assert not re.search(rf"\b{num}-{num}\b", text, re.I), f"hyphenated number in a voice line (reads as one rushed word): {text}"
     return text
 
 
