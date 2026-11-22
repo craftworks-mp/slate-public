@@ -1,0 +1,14 @@
+{
+ "qwen17-nick-split-in": {
+  "audio_s": 43.4,
+  "render_s": 534.1
+ },
+ "qwen17-nick-split-sim": {
+  "audio_s": 26.4,
+  "render_s": 382.6
+ },
+ "qwen17-nick-split-drill": {
+  "audio_s": 19.5,
+  "render_s": 303.2
+ }
+}
