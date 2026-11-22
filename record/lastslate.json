@@ -2,86 +2,125 @@
  "breakEven": 0.5238,
  "sports": {
   "NBA": {
-   "date": "2026-11-20",
+   "date": "2026-11-21",
    "all": {
-    "w": 46,
-    "l": 41,
+    "w": 29,
+    "l": 28,
     "p": 0,
-    "winPct": 0.5287,
-    "be": 0.5254
+    "winPct": 0.5088,
+    "be": 0.528
    },
    "markets": [
     {
+     "key": "pts",
+     "name": "Points",
+     "w": 6,
+     "l": 10,
+     "p": 0,
+     "winPct": 0.375,
+     "be": 0.529
+    },
+    {
      "key": "pra",
      "name": "Pts + Reb + Ast",
-     "w": 10,
-     "l": 11,
+     "w": 5,
+     "l": 6,
      "p": 0,
-     "winPct": 0.4762,
-     "be": 0.5245
+     "winPct": 0.4545,
+     "be": 0.5279
     },
     {
      "key": "pr",
      "name": "Pts + Reb",
-     "w": 10,
-     "l": 8,
+     "w": 7,
+     "l": 3,
      "p": 0,
-     "winPct": 0.5556,
-     "be": 0.5269
+     "winPct": 0.7,
+     "be": 0.5252
     },
     {
      "key": "pa",
      "name": "Pts + Ast",
-     "w": 12,
+     "w": 5,
      "l": 4,
      "p": 0,
-     "winPct": 0.75,
-     "be": 0.5288
-    },
-    {
-     "key": "pts",
-     "name": "Points",
-     "w": 7,
-     "l": 5,
-     "p": 0,
-     "winPct": 0.5833,
-     "be": 0.5355
-    },
-    {
-     "key": "reb",
-     "name": "Rebounds",
-     "w": 4,
-     "l": 6,
-     "p": 0,
-     "winPct": 0.4,
-     "be": 0.5328
+     "winPct": 0.5556,
+     "be": 0.5261
     },
     {
      "key": "ra",
      "name": "Reb + Ast",
      "w": 3,
-     "l": 5,
+     "l": 4,
      "p": 0,
-     "winPct": 0.375,
-     "be": 0.4932
+     "winPct": 0.4286,
+     "be": 0.5303
+    },
+    {
+     "key": "reb",
+     "name": "Rebounds",
+     "w": 1,
+     "l": 1,
+     "p": 0,
+     "winPct": 0.5,
+     "be": 0.5238
     },
     {
      "key": "tpm",
      "name": "3-pointers",
-     "w": 0,
-     "l": 1,
+     "w": 1,
+     "l": 0,
      "p": 0,
-     "winPct": 0.0,
-     "be": 0.4878
+     "winPct": 1.0,
+     "be": 0.5918
     },
     {
      "key": "ast",
      "name": "Assists",
-     "w": 0,
+     "w": 1,
+     "l": 0,
+     "p": 0,
+     "winPct": 1.0,
+     "be": 0.4878
+    }
+   ]
+  },
+  "NHL": {
+   "date": "2026-11-21",
+   "all": {
+    "w": 4,
+    "l": 2,
+    "p": 0,
+    "winPct": 0.6667,
+    "be": 0.6203
+   },
+   "markets": [
+    {
+     "key": "a",
+     "name": "Assists",
+     "w": 2,
      "l": 1,
      "p": 0,
-     "winPct": 0.0,
-     "be": 0.5652
+     "winPct": 0.6667,
+     "be": 0.6426
+    },
+    {
+     "key": "sog",
+     "name": "Shots on goal",
+     "w": 1,
+     "l": 1,
+     "p": 0,
+     "winPct": 0.5,
+     "be": 0.5694
+    },
+    {
+     "key": "pts",
+     "name": "Points",
+     "w": 1,
+     "l": 0,
+     "p": 0,
+     "winPct": 1.0,
+     "be": 0.6552
     }
    ]
   },
@@ -188,5 +227,5 @@
    ]
   }
  },
- "updated": "2026-11-21T23:38:13-05:00"
+ "updated": "2026-11-22T00:08:42-05:00"
 }
