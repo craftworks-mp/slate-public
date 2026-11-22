@@ -5,7 +5,8 @@ Usage: python tiktok/tryout/render.py ENGINE OUT_DIR
   round 4: orpheus-leo | orpheus-dan | orpheus-zac (Orpheus 3B GGUF on llama.cpp)
   round 3: c1 (C1 with spoken-number lines + a speech-to-text check, check.py)
   round 2: magpie | qwen-d1..qwen-d4 (1.7B voice design, then cloned) | qwen-nick (clone of nick_ref.wav)
-  round 5: chatterbox-nick | turbo-nick | qwen-nick (clones of nick_ref.wav, read the spoken C1 lines)
+  round 5: chatterbox-nick | turbo-nick | qwen-nick: clones of each owner reference present (nick_ref.wav = inside take 1,
+           the exact script; nick_ref_out.wav = outside take 2, full voice), named <engine>-in / -out, spoken C1 lines
 """
 import gc, json, os, sys, time
 import numpy as np
@@ -33,7 +34,11 @@ def tensor_np(w):
     return w.detach().cpu().squeeze(0).numpy()
 
 
-NICK_REF = os.path.join(HERE, "nick_ref.wav")  # decrypted by the workflow step; never committed
+# Owner references, decrypted by the workflow step and never committed. Chatterbox reads only the first 10 s (6 s for
+# its text model), Turbo 10 s (15 s), Qwen the whole clip with its exact words.
+NICK_REFS = [(tag, os.path.join(HERE, f), text) for tag, f, text in
+             (("in", "nick_ref.wav", L.NICK_REF_TEXT), ("out", "nick_ref_out.wav", L.NICK_REF_OUT_TEXT))
+             if os.path.exists(os.path.join(HERE, f))]
 NICK_LINES = lambda: (L.spoken(L.SIM_C1), L.spoken(L.DRILL_C1))  # numbers in words, names respelled (owner 11/21 22:41)
 
 
@@ -131,10 +136,19 @@ elif engine.startswith("qwen-"):
     vid = engine.split("-", 1)[1]
     t0 = time.time()
     if vid == "nick":
-        ref, ref_sr = sf.read(NICK_REF, dtype="float32")
-        if ref.ndim > 1:
-            ref = ref.mean(axis=1)
-        ref_text = L.NICK_REF_TEXT
+        b = Qwen3TTSModel.from_pretrained("Qwen/Qwen3-TTS-12Hz-1.7B-Base", device_map="cpu", dtype=torch.float32)
+        for tag, path, ref_text in NICK_REFS:
+            t0 = time.time()
+            ref, ref_sr = sf.read(path, dtype="float32")
+            prompt = b.create_voice_clone_prompt(ref_audio=(ref, ref_sr), ref_text=ref_text)
+            chunks, sr = [], None
+            for x in NICK_LINES():
+                torch.manual_seed(7)
+                wavs, sr = b.generate_voice_clone(text=x, language="English", voice_clone_prompt=prompt)
+                chunks.append(wavs[0])
+            save(f"qwen17-nick-{tag}", chunks, sr, t0)
+        json.dump(stats, open(f"{out}/{engine}-stats.json", "w"), indent=1)
+        sys.exit(0)
     else:
         d = Qwen3TTSModel.from_pretrained("Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign", device_map="cpu", dtype=torch.float32)
         wavs, ref_sr = d.generate_voice_design(text=L.REF_TEXT, language="English", instruct=L.DESIGNS[vid])
@@ -147,8 +161,7 @@ elif engine.startswith("qwen-"):
     b = Qwen3TTSModel.from_pretrained("Qwen/Qwen3-TTS-12Hz-1.7B-Base", device_map="cpu", dtype=torch.float32)
     prompt = b.create_voice_clone_prompt(ref_audio=(ref, ref_sr), ref_text=ref_text)
     chunks, sr = [], None
-    for x in (NICK_LINES() if vid == "nick" else (L.SIM, L.DRILL)):
-        torch.manual_seed(7)
+    for x in (L.SIM, L.DRILL):
         wavs, sr = b.generate_voice_clone(text=x, language="English", voice_clone_prompt=prompt)
         chunks.append(wavs[0])
     save(f"qwen17-{vid}", chunks, sr, t0)
@@ -158,23 +171,25 @@ elif engine == "chatterbox-nick":
     # Chatterbox's notes give for slower, steadier pacing (C1 read too fast). Fixed seed so a re-run gives the same take.
     from chatterbox.tts import ChatterboxTTS
     m = ChatterboxTTS.from_pretrained(device="cpu")
-    for name, ex, cfg in (("chatterbox-nick-a", 0.5, 0.5), ("chatterbox-nick-b", 0.5, 0.3)):
-        t0 = time.time()
-        chunks = []
-        for x in NICK_LINES():
-            torch.manual_seed(7)
-            chunks.append(tensor_np(m.generate(x, audio_prompt_path=NICK_REF, exaggeration=ex, cfg_weight=cfg)))
-        save(name, chunks, m.sr, t0)
+    for tag, path, _ in NICK_REFS:
+        for take, ex, cfg in (("a", 0.5, 0.5), ("b", 0.5, 0.3)):
+            t0 = time.time()
+            chunks = []
+            for x in NICK_LINES():
+                torch.manual_seed(7)
+                chunks.append(tensor_np(m.generate(x, audio_prompt_path=path, exaggeration=ex, cfg_weight=cfg)))
+            save(f"chatterbox-nick-{tag}-{take}", chunks, m.sr, t0)
 
 elif engine == "turbo-nick":
     from chatterbox.tts_turbo import ChatterboxTurboTTS
     m = ChatterboxTurboTTS.from_pretrained(device="cpu")
-    t0 = time.time()
-    chunks = []
-    for x in NICK_LINES():
-        torch.manual_seed(7)
-        chunks.append(tensor_np(m.generate(x, audio_prompt_path=NICK_REF)))
-    save("turbo-nick", chunks, m.sr, t0)
+    for tag, path, _ in NICK_REFS:
+        t0 = time.time()
+        chunks = []
+        for x in NICK_LINES():
+            torch.manual_seed(7)
+            chunks.append(tensor_np(m.generate(x, audio_prompt_path=path)))
+        save(f"turbo-nick-{tag}", chunks, m.sr, t0)
 
 else:
     sys.exit(f"unknown engine {engine}")

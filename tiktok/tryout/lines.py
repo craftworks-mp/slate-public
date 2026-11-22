@@ -53,6 +53,10 @@ DESIGNS = {
 NICK_REF_TEXT = ("Hey, it's Nick from Trend Bettors. Every night we run the numbers on the biggest games, "
                  "and every morning we check how close we got. Some nights we nail it, some nights we don't, "
                  "and we'll show you both. Let's get into it.")
+NICK_REF_OUT_TEXT = ("Hey, welcome back. It is Nick from Trend Bettors again. Every single night we run the numbers on the "
+                     "biggest games of the slate, and we check it the following morning to see just how close our model got. "
+                     "Some nights we'll nail every single pick, and other nights we won't hit a single one, but we'll show you "
+                     "every single night. Let's get right into it.")  # outside take 2 as recorded 11/22 (ad-libbed)
 
 
 def orpheus_frames(tokens):

@@ -26,6 +26,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           sparse-checkout: tiktok/tryout
+      - name: Decrypt owner references (first, so a missing secret fails in seconds)
+        if: endsWith(matrix.engine, '-nick')
+        env:
+          KEY: ${{ secrets.VOICE_REF_KEY }}
+        run: |
+          [ -n "$KEY" ] || { echo "VOICE_REF_KEY secret is missing"; exit 1; }
+          for g in tiktok/tryout/nick_ref*.wav.gpg; do
+            gpg --batch --yes --quiet --pinentry-mode loopback --passphrase "$KEY" -o "${g%.gpg}" -d "$g"
+          done
+          ls tiktok/tryout/nick_ref*.wav
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.engine == 'magpie' && '3.12' || '3.11' }}  # NeMo main needs 3.12+
@@ -47,14 +57,6 @@ jobs:
               pip install -q torch torchaudio --index-url $CPU
               pip install -q --extra-index-url $CPU qwen-tts==0.1.1 soundfile ;;
           esac
-      - name: Decrypt owner reference
-        if: endsWith(matrix.engine, '-nick')
-        env:
-          KEY: ${{ secrets.VOICE_REF_KEY }}
-        run: |
-          [ -n "$KEY" ] || { echo "VOICE_REF_KEY secret is missing"; exit 1; }
-          gpg --batch --yes --quiet --pinentry-mode loopback --passphrase "$KEY" \
-            -o tiktok/tryout/nick_ref.wav -d tiktok/tryout/nick_ref.wav.gpg
       - name: Render
         run: python -u tiktok/tryout/render.py ${{ matrix.engine }} out
       - name: Check words (speech to text)
@@ -76,7 +78,7 @@ jobs:
           ls -la out
       - name: Remove owner reference
         if: always()
-        run: rm -f tiktok/tryout/nick_ref.wav
+        run: rm -f tiktok/tryout/nick_ref*.wav
       - uses: actions/upload-artifact@v4
         with:
           name: voices-${{ matrix.engine }}
@@ -106,7 +108,7 @@ jobs:
           cp raw/*.json tiktok/tryout/out/ 2>/dev/null || true
           cp raw/*.wav.gpg tiktok/tryout/out/ 2>/dev/null || true  # owner clips stay encrypted
           cp raw/refs/*.wav tiktok/tryout/refs/ 2>/dev/null || true
-          rm -f tiktok/tryout/nick_ref.wav
+          rm -f tiktok/tryout/nick_ref*.wav
           ls -la tiktok/tryout/out tiktok/tryout/refs
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
