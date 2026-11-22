@@ -17,6 +17,7 @@ REF = os.path.join(HERE, "nick_ref.wav")
 REF_TEXT = ("Hey, it's Nick from Trend Bettors. Every night we run the numbers on the biggest games, "
             "and every morning we check how close we got. Some nights we nail it, some nights we don't, "
             "and we'll show you both. Let's get into it.")  # the inside take's exact words (Qwen reads the whole clip)
+TOKENS_PER_S = 12  # the 12Hz codec: about 12 audio tokens per second of speech
 SEED = 7  # the same seed for every sentence, so the delivery stays steady
 PAUSE_AFTER = {".": 0.35, "?": 0.5, "!": 0.5}  # seconds of silence after each sentence (owner OK 11/22 12:0x)
 
@@ -48,9 +49,19 @@ class Voice:
         self.prompt = self.m.create_voice_clone_prompt(ref_audio=(audio, ref_sr), ref_text=REF_TEXT)
 
     def sentence(self, text, seed=SEED):
-        self.torch.manual_seed(seed)
-        wavs, self.sr = self.m.generate_voice_clone(text=text, language="English", voice_clone_prompt=self.prompt)
-        return trim(wavs[0], self.sr)
+        """One sentence, capped near its natural length. A sentence that never ends (run 45067783656: no line finished
+        in 48 min) hits the cap and is tried again on the next fixed seed instead of running for an hour."""
+        cap = int(TOKENS_PER_S * (len(text.split()) / 2.0 + 3))  # ~2 words a second + 3 s of slack
+        for s in (seed, seed + 4, seed + 16, seed + 35):
+            self.torch.manual_seed(s)
+            wavs, self.sr = self.m.generate_voice_clone(text=text, language="English", voice_clone_prompt=self.prompt,
+                                                        max_new_tokens=cap)
+            w = trim(wavs[0], self.sr)
+            if len(w) < 0.9 * cap / TOKENS_PER_S * self.sr:
+                print(f"    {len(w) / self.sr:4.1f}s seed {s}: {text}", flush=True)
+                return w
+            print(f"    runaway at {len(w) / self.sr:.1f}s on seed {s}, trying the next: {text}", flush=True)
+        raise RuntimeError(f"every seed ran away: {text}")
 
     def say(self, text):
         """One line, any length: sentence by sentence, joined with PAUSE_AFTER silence. Returns float32 at self.sr."""
