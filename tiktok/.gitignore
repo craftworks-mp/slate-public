@@ -1,0 +1,3 @@
+/nick_ref*.wav
+__pycache__/
+drill/out/**/*.wav

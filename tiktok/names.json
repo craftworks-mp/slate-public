@@ -1,0 +1,13 @@
+{
+ "note": "Names the TikTok voice says right. null = reads fine as spelled; a string = how the voice should say it. Add a name only after a render's words check and Nick's ear on the draft (11/22).",
+ "verified": {
+  "Nikola Jokic": "Nikola Yokitch",
+  "Joel Embiid": null,
+  "Paul George": null,
+  "Cade Cunningham": null,
+  "Quentin Grimes": null,
+  "LaMelo Ball": null,
+  "Collin Sexton": null,
+  "Christian Anderson": null
+ }
+}

@@ -1,0 +1,78 @@
+# 2-Minute Drill TikTok episode audio in Nick's locked voice (tiktok/voice.py, tiktok/drill/). Manual for now:
+# Actions > TikTok Drill > Run workflow. The daily input from slate-data and the video come with the video maker.
+# Runs here because this repo is public (free minutes). Nick's voice stays encrypted in the repo; Claude decrypts it for him.
+name: TikTok Drill
+on:
+  workflow_dispatch:
+    inputs:
+      input:
+        description: 'Episode input JSON (2 questions from a past day''s pool)'
+        default: 'tiktok/drill/input/sample.json'
+      last:
+        description: 'Last Drill answer JSON (- = the very first episode)'
+        default: 'tiktok/drill/input/sample-last.json'
+permissions:
+  contents: write
+concurrency:
+  group: tiktok-drill
+  cancel-in-progress: false
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      IN: ${{ inputs.input }}
+      LAST: ${{ inputs.last }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tiktok
+      - name: Decrypt the voice reference (first, so a missing secret fails in seconds)
+        env:
+          KEY: ${{ secrets.VOICE_REF_KEY }}
+        run: |
+          [ -n "$KEY" ] || { echo "VOICE_REF_KEY secret is missing"; exit 1; }
+          gpg --batch --yes --quiet --pinentry-mode loopback --passphrase "$KEY" -o tiktok/nick_ref.wav -d tiktok/nick_ref.wav.gpg
+          ls -la tiktok/nick_ref.wav
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Script checks (numbers, names, bet words, clock order)
+        run: python -u tiktok/drill/test_episode.py
+      - name: Install (CPU torch; qwen-tts 0.1.1 pins transformers + accelerate)
+        run: |
+          CPU=https://download.pytorch.org/whl/cpu
+          pip install -q torch torchaudio --index-url $CPU
+          pip install -q --extra-index-url $CPU qwen-tts==0.1.1 soundfile faster-whisper
+          pip freeze | grep -i -E '^(torch|torchaudio|transformers|accelerate|qwen-tts|qwen_tts|faster-whisper|numpy)==' | tee versions.txt
+      - name: Render
+        run: python -u tiktok/drill/render.py "$IN" "$LAST" out
+      - name: Check words (speech to text)
+        run: python -u tiktok/drill/check.py out
+      - name: Encrypt owner audio (this repo is public)
+        if: always()
+        env:
+          KEY: ${{ secrets.VOICE_REF_KEY }}
+        run: |
+          [ -e out/episode.wav ] || exit 0
+          gpg --batch --yes --quiet --pinentry-mode loopback --passphrase "$KEY" --symmetric --cipher-algo AES256 -o out/episode.wav.gpg out/episode.wav
+          rm -f out/episode.wav
+      - name: Remove owner reference
+        if: always()
+        run: rm -f tiktok/nick_ref.wav
+      - name: Commit
+        if: always()
+        run: |
+          [ -e out/episode.wav.gpg ] || { echo "nothing rendered"; exit 1; }
+          D="tiktok/drill/out/$(TZ=America/New_York date +%Y-%m-%d)-${{ github.run_id }}"
+          mkdir -p "$D"
+          cp out/episode.wav.gpg versions.txt "$D"/
+          cp out/cues.json out/transcript.json "$D"/ 2>/dev/null || true
+          ls -la "$D"
+          ! git status --porcelain | grep -E '\.wav$' || { echo "plain wav in the tree"; exit 1; }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$D"
+          git commit -qm "TikTok Drill audio [skip ci]" || exit 0
+          for i in 1 2 3 4; do git pull --rebase --autostash -q && git push -q && exit 0; sleep $((i * 10)); done
+          exit 1
