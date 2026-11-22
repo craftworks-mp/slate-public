@@ -14,7 +14,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.dirname(HERE))
 import episode as E  # noqa: E402
-from voice import Voice  # noqa: E402
+from speak import spoken  # noqa: E402
+from voice import Voice, trim  # noqa: E402
 
 MIN_S = 61  # TikTok Creator Rewards counts videos of 1 min+ (owner 11/21)
 
@@ -46,6 +47,19 @@ def main(inp_path, last_path, out):
             print(f"{len(cache[text]) / v.sr:5.1f}s  {text}", flush=True)
         return cache[text]
 
+    def count(word):
+        """A one-word count line has to fit inside its second. Qwen sometimes trails a lone word (run 45064576430:
+        "Two." came out 1.2 s), so cut breath tails harder and try the next fixed seed until it fits."""
+        if word not in cache:
+            for seed in (7, 11, 23, 42, 99, 123):
+                w = trim(v.sentence(spoken(word), seed), v.sr, db=-30)
+                if len(w) < 0.85 * v.sr:
+                    break
+                print(f"count word {word!r}: {len(w) / v.sr:.2f}s with seed {seed}, trying the next seed", flush=True)
+            cache[word] = w
+            print(f"{len(w) / v.sr:5.1f}s  {word} (seed {seed})", flush=True)
+        return cache[word]
+
     say(ep["steps"][0]["text"])  # sets v.sr
     sr, chunks, cues, at = v.sr, [], [], 0
     for st in ep["steps"]:
@@ -59,7 +73,7 @@ def main(inp_path, last_path, out):
             for i in range(st["s"]):
                 a[i * sr:i * sr + len(k)] += k
             for j, word in enumerate(st["count"]):
-                w = say(word)
+                w = count(word)
                 assert len(w) < 0.9 * sr, f"count word {word!r} runs past its second ({len(w) / sr:.2f}s)"
                 s0 = (st["s"] - len(st["count"]) + j) * sr + int(0.06 * sr)
                 a[s0:s0 + len(w)] += w

@@ -47,8 +47,8 @@ class Voice:
         audio, ref_sr = sf.read(ref, dtype="float32")
         self.prompt = self.m.create_voice_clone_prompt(ref_audio=(audio, ref_sr), ref_text=REF_TEXT)
 
-    def sentence(self, text):
-        self.torch.manual_seed(SEED)
+    def sentence(self, text, seed=SEED):
+        self.torch.manual_seed(seed)
         wavs, self.sr = self.m.generate_voice_clone(text=text, language="English", voice_clone_prompt=self.prompt)
         return trim(wavs[0], self.sr)
 
