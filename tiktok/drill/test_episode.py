@@ -33,6 +33,8 @@ def test_spoken_guard():
     assert raises(spoken, "It finished one 16.")
     assert raises(spoken, "Thunder one-sixteen, Nuggets one-eleven.")
     assert spoken("Nikola Jokic again.") == "Nikola Yokitch again."
+    assert raises(spoken, "If you had it, take a bow.")
+    assert raises(spoken, "Boston took the lead late.")
 
 
 def test_dates():

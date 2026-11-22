@@ -14,6 +14,10 @@ ONES = ("zero one two three four five six seven eight nine ten eleven twelve thi
         "seventeen eighteen nineteen").split()
 TENS = "_ _ twenty thirty forty fifty sixty seventy eighty ninety".split()
 ORD = {1: "first", 2: "second", 3: "third", 5: "fifth", 8: "eighth", 9: "ninth", 12: "twelfth"}
+# Words spelled the same but said two ways: the clone guesses, and guessed wrong on "take a bow" (said like a hair
+# bow, owner 11/22 15:41). Voice lines never use them; reword instead ("took the lead" -> "went ahead").
+HETERONYMS = {"bow", "bows", "bowed", "tear", "tears", "wound", "wind", "winds", "lead", "leads", "live", "read",
+              "row", "rows", "bass", "dove"}
 NUM = (r"(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|"
        r"seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|oh)")
 
@@ -50,4 +54,6 @@ def spoken(text):
             text = re.sub(rf"\b{re.escape(name)}\b", say, text)
     assert not re.search(r"\d", text), f"digit left in a voice line: {text}"
     assert not re.search(rf"\b{NUM}-{NUM}\b", text, re.I), f"hyphenated number in a voice line: {text}"
+    said_two_ways = sorted(HETERONYMS & set(re.findall(r"[a-z]+", text.lower())))
+    assert not said_two_ways, f"word the voice can say two ways ({', '.join(said_two_ways)}), reword: {text}"
     return text
