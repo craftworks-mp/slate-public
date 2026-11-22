@@ -1,0 +1,131 @@
+{
+ "post_date": "2026-11-22",
+ "length_s": 75.6,
+ "long_enough": true,
+ "render_s": 945,
+ "sr": 24000,
+ "versions": {
+  "qwen-tts": "0.1.1",
+  "torch": "2.15.0+cpu",
+  "transformers": "4.57.3",
+  "accelerate": "1.12.0"
+ },
+ "final_names": [
+  "LaMelo Ball",
+  "Christian Anderson",
+  "Quentin Grimes",
+  "Collin Sexton"
+ ],
+ "next_last": {
+  "date": "2026-11-22",
+  "id": "2026-11-21-0",
+  "text": "Whose line was forty seven points, six rebounds and three assists?",
+  "answer": "Quentin Grimes"
+ },
+ "cues": [
+  {
+   "k": "say",
+   "part": "opener",
+   "text": "First, the answer from our last Drill. Whose line was thirty seven points, five rebounds and one assist? That was Joel Embiid. If you had it, take a bow.",
+   "start": 0.0,
+   "end": 10.62
+  },
+  {
+   "k": "say",
+   "part": "opener",
+   "text": "Alright. Two questions, ten seconds each. Let's go.",
+   "start": 10.62,
+   "end": 14.8
+  },
+  {
+   "k": "gap",
+   "s": 0.4,
+   "start": 14.8,
+   "end": 15.2
+  },
+  {
+   "k": "say",
+   "part": "warmup",
+   "text": "Question one. Who averages more points per game this season? Paul George, or Cade Cunningham?",
+   "start": 15.2,
+   "end": 22.96
+  },
+  {
+   "k": "gap",
+   "s": 0.5,
+   "start": 22.96,
+   "end": 23.46
+  },
+  {
+   "k": "say",
+   "part": "warmup",
+   "text": "You've got ten seconds.",
+   "start": 23.46,
+   "end": 24.79
+  },
+  {
+   "k": "clock",
+   "part": "warmup",
+   "s": 10,
+   "count": [
+    "Three.",
+    "Two.",
+    "One."
+   ],
+   "start": 24.79,
+   "end": 34.79
+  },
+  {
+   "k": "say",
+   "part": "warmup",
+   "text": "Time's up. It's Cade Cunningham, at twenty six a game.",
+   "start": 34.79,
+   "end": 38.69
+  },
+  {
+   "k": "gap",
+   "s": 0.6,
+   "start": 38.69,
+   "end": 39.29
+  },
+  {
+   "k": "say",
+   "part": "final",
+   "text": "Final question, and this one's for the comments. Whose line is it? Forty seven points, six rebounds and three assists, in forty two minutes, last Tuesday. Is it LaMelo Ball, Christian Anderson, Quentin Grimes, or Collin Sexton?",
+   "start": 39.29,
+   "end": 56.82
+  },
+  {
+   "k": "gap",
+   "s": 0.5,
+   "start": 56.82,
+   "end": 57.32
+  },
+  {
+   "k": "say",
+   "part": "final",
+   "text": "Ten seconds on the clock.",
+   "start": 57.32,
+   "end": 59.08
+  },
+  {
+   "k": "clock",
+   "part": "final",
+   "s": 10,
+   "count": [
+    "Three.",
+    "Two.",
+    "One."
+   ],
+   "start": 59.08,
+   "end": 69.08
+  },
+  {
+   "k": "say",
+   "part": "final",
+   "text": "Time's up. Drop your guess in the comments. The answer opens our next episode, so tune in.",
+   "start": 69.08,
+   "end": 75.6
+  }
+ ]
+}
