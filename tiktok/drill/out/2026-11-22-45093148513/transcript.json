@@ -1,0 +1,19 @@
+{
+ "text": "Welcome back to the two minute drill. Last time we asked whose line was 37 points, five rebounds, and one assist. The answer was C, Joel Embiid in the Sixers win over the Nets last Monday. Alright, let's warm up. Who averages more points per game this season? Paul George or Cade Cunningham. You've got 10 seconds. Three. Two. One. Time's up. It's Cade Cunningham at 26 a game. Now for the one that counts, and it's all yours in the comments. Whose line is it? 47 points, six rebounds, and three assists last Tuesday. Lamello Ball, Colin Murray-Boyles, Quinton Grimes, or Colin Sexton. Ten seconds on the clock. Hen T is a guard. Three. Two. One. Time's up. Drop your guess in the comments and check out our next video for the answer.",
+ "match": 0.985,
+ "wpm": 150,
+ "missing": [
+  "hint he's"
+ ],
+ "trial_names": {},
+ "whole_file_match": 0.978,
+ "lines": [
+  {
+   "text": "Three. Two. One.",
+   "match": 0.714,
+   "missing": [
+    "hint he's"
+   ]
+  }
+ ]
+}
