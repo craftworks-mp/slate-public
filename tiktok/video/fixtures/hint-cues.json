@@ -1,0 +1,144 @@
+{
+ "post_date": "2026-11-22",
+ "length_s": 64.4,
+ "long_enough": true,
+ "sr": 24000,
+ "render_s": 1098,
+ "versions": {
+  "qwen-tts": "0.1.1",
+  "torch": "2.15.0+cpu",
+  "transformers": "4.57.3",
+  "accelerate": "1.12.0"
+ },
+ "sampling": {
+  "temperature": 0.7
+ },
+ "ref_speed": "1.06",
+ "parts": 3,
+ "final_names": [
+  "LaMelo Ball",
+  "Collin Murray-Boyles",
+  "Quentin Grimes",
+  "Collin Sexton"
+ ],
+ "final_pos": [
+  "G",
+  "F",
+  "G",
+  "G"
+ ],
+ "trial_names": [
+  "Collin Murray-Boyles"
+ ],
+ "next_last": {
+  "date": "2026-11-22",
+  "id": "2026-11-21-0",
+  "text": "Whose line was forty seven points, six rebounds and three assists?",
+  "answer": "Quentin Grimes"
+ },
+ "cues": [
+  {
+   "k": "say",
+   "part": "opener",
+   "text": "Welcome back to the Two-Minute Drill. Last time, we asked: whose line was thirty seven points, five rebounds and one assist? It was Joel Embiid.",
+   "start": 0.0,
+   "end": 9.93
+  },
+  {
+   "k": "gap",
+   "s": 0.4,
+   "start": 9.93,
+   "end": 10.33
+  },
+  {
+   "k": "say",
+   "part": "warmup",
+   "text": "Question one. Who averages more points per game this season? Paul George, or Cade Cunningham?",
+   "start": 10.33,
+   "end": 17.45
+  },
+  {
+   "k": "gap",
+   "s": 0.5,
+   "start": 17.45,
+   "end": 17.95
+  },
+  {
+   "k": "say",
+   "part": "warmup",
+   "text": "You've got ten seconds.",
+   "start": 17.95,
+   "end": 19.58
+  },
+  {
+   "k": "clock",
+   "part": "warmup",
+   "s": 10,
+   "count": [
+    "Three.",
+    "Two.",
+    "One."
+   ],
+   "start": 19.58,
+   "end": 29.58
+  },
+  {
+   "k": "say",
+   "part": "warmup",
+   "text": "Time's up. It's Cade Cunningham, at twenty six a game.",
+   "start": 29.58,
+   "end": 32.81
+  },
+  {
+   "k": "gap",
+   "s": 0.6,
+   "start": 32.81,
+   "end": 33.41
+  },
+  {
+   "k": "say",
+   "part": "final",
+   "text": "Final question, and this one's for the comments. Whose line is it? Forty seven points, six rebounds and three assists, last Tuesday. LaMelo Ball, Collin Murray-Boyles, Quentin Grimes, or Collin Sexton?",
+   "start": 33.41,
+   "end": 47.08
+  },
+  {
+   "k": "gap",
+   "s": 0.5,
+   "start": 47.08,
+   "end": 47.58
+  },
+  {
+   "k": "say",
+   "part": "final",
+   "text": "Ten seconds on the clock.",
+   "start": 47.58,
+   "end": 48.78
+  },
+  {
+   "k": "clock",
+   "part": "final",
+   "s": 10,
+   "count": [
+    "Three.",
+    "Two.",
+    "One."
+   ],
+   "hint": {
+    "at": 5,
+    "text": "Hint: he's a guard.",
+    "start": 53.84,
+    "end": 55.0
+   },
+   "start": 48.78,
+   "end": 58.78
+  },
+  {
+   "k": "say",
+   "part": "final",
+   "text": "Time's up. Drop your guess in the comments. The answer opens our next episode, so tune in.",
+   "start": 58.78,
+   "end": 64.39
+  }
+ ]
+}

@@ -1,0 +1,9 @@
+{
+ "note": "One CC0 OpenGameArt track per part (owner 11/22), fetched on the runner by music.py. page = the track's OpenGameArt page; file = the file name on it (blank = first ogg/mp3); gain_db = bed level before ducking (-18 default; clock sits lower under the ticks and the count). Empty parts = voice only.",
+ "parts": {
+  "opener": null,
+  "question": null,
+  "clock": null,
+  "reveal": null
+ }
+}
