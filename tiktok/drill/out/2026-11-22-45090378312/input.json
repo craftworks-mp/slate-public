@@ -1,0 +1,109 @@
+{
+ "post_date": "2026-11-22",
+ "pool_date": "2026-11-21",
+ "warmup": {
+  "sport": "NBA",
+  "type": "hilo",
+  "tier": 2,
+  "prompt": "Who averages more points per game this season?",
+  "options": [
+   "Paul George",
+   "Cade Cunningham"
+  ],
+  "answer": 1,
+  "stat": "points",
+  "unit": "PTS",
+  "teams": [
+   {
+    "a": "BOS",
+    "c": "#008348",
+    "x": "#ffffff"
+   },
+   {
+    "a": "DET",
+    "c": "#1d428a",
+    "x": "#c8102e"
+   }
+  ],
+  "vals": [
+   19.9,
+   25.8
+  ],
+  "id": "2026-11-21-71",
+  "seconds": 15
+ },
+ "final": {
+  "sport": "NBA",
+  "type": "line",
+  "tier": 1,
+  "prompt": "Whose line is it? 47 PTS \u00b7 6 REB \u00b7 3 AST \u00b7 42 MIN on Nov 17.",
+  "options": [
+   "Kevin Huerter",
+   "LaMelo Ball",
+   "Collin Sexton",
+   "Collin Murray-Boyles",
+   "Quentin Grimes",
+   "Christian Anderson"
+  ],
+  "answer": 4,
+  "stats": [
+   {
+    "l": "PTS",
+    "v": 47,
+    "a": 12.6
+   },
+   {
+    "l": "REB",
+    "v": 6,
+    "a": 3.4
+   },
+   {
+    "l": "AST",
+    "v": 3,
+    "a": 2.6
+   },
+   {
+    "l": "MIN",
+    "v": 42,
+    "a": 28.6
+   }
+  ],
+  "when": "Nov 17",
+  "tries": 4,
+  "pos": "G",
+  "hints": {
+   "game": {
+    "a": {
+     "a": "CHA",
+     "c": "#008ca8",
+     "x": "#1d1060"
+    },
+    "h": {
+     "a": "LAL",
+     "c": "#552583",
+     "x": "#fdb927"
+    },
+    "sa": 114,
+    "sh": 118,
+    "ot": true
+   },
+   "div": "Pacific",
+   "team": {
+    "a": "LAL",
+    "c": "#552583",
+    "x": "#fdb927"
+   },
+   "opp": "CHA"
+  },
+  "id": "2026-11-21-0",
+  "seconds": 40,
+  "pos_of": {
+   "Collin Murray-Boyles": "F",
+   "LaMelo Ball": "G",
+   "Christian Anderson": "G",
+   "Quentin Grimes": "G",
+   "Collin Sexton": "G",
+   "Kevin Huerter": "G"
+  }
+ }
+}
