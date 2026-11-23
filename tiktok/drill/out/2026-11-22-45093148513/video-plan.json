@@ -1,0 +1,288 @@
+{
+ "dur": 69.83,
+ "fps": 30,
+ "caps": [
+  {
+   "t0": 0.0,
+   "t1": 1.86,
+   "text": "Welcome back to the Two-Minute Drill."
+  },
+  {
+   "t0": 2.21,
+   "t1": 2.956,
+   "text": "Last time,"
+  },
+  {
+   "t0": 2.956,
+   "t1": 4.65,
+   "text": "we asked: whose line was"
+  },
+  {
+   "t0": 4.65,
+   "t1": 6.073,
+   "text": "thirty seven points,"
+  },
+  {
+   "t0": 6.073,
+   "t1": 8.039,
+   "text": "five rebounds and one assist?"
+  },
+  {
+   "t0": 8.55,
+   "t1": 9.734,
+   "text": "The answer was C,"
+  },
+  {
+   "t0": 9.734,
+   "t1": 10.589,
+   "text": "Joel Embiid,"
+  },
+  {
+   "t0": 10.589,
+   "t1": 12.168,
+   "text": "in the Sixers' win over"
+  },
+  {
+   "t0": 12.168,
+   "t1": 13.55,
+   "text": "the Nets last Monday."
+  },
+  {
+   "t0": 14.45,
+   "t1": 15.45,
+   "text": "Alright, let's warm up."
+  },
+  {
+   "t0": 15.8,
+   "t1": 17.471,
+   "text": "Who averages more points per"
+  },
+  {
+   "t0": 17.471,
+   "t1": 18.45,
+   "text": "game this season?"
+  },
+  {
+   "t0": 18.95,
+   "t1": 19.73,
+   "text": "Paul George,"
+  },
+  {
+   "t0": 19.73,
+   "t1": 20.87,
+   "text": "or Cade Cunningham?"
+  },
+  {
+   "t0": 21.37,
+   "t1": 23.08,
+   "text": "You've got ten seconds."
+  },
+  {
+   "t0": 33.08,
+   "t1": 34.07,
+   "text": "Time's up."
+  },
+  {
+   "t0": 34.42,
+   "t1": 35.75,
+   "text": "It's Cade Cunningham,"
+  },
+  {
+   "t0": 35.75,
+   "t1": 37.02,
+   "text": "at twenty six a game."
+  },
+  {
+   "t0": 37.62,
+   "t1": 38.709,
+   "text": "Now for the one that"
+  },
+  {
+   "t0": 38.709,
+   "t1": 40.11,
+   "text": "counts, and it's all yours"
+  },
+  {
+   "t0": 40.11,
+   "t1": 40.94,
+   "text": "in the comments."
+  },
+  {
+   "t0": 41.29,
+   "t1": 42.54,
+   "text": "Whose line is it?"
+  },
+  {
+   "t0": 43.04,
+   "t1": 44.306,
+   "text": "Forty seven points,"
+  },
+  {
+   "t0": 44.306,
+   "t1": 46.332,
+   "text": "six rebounds and three assists,"
+  },
+  {
+   "t0": 46.332,
+   "t1": 47.155,
+   "text": "last Tuesday."
+  },
+  {
+   "t0": 47.51,
+   "t1": 48.55,
+   "text": "LaMelo Ball,"
+  },
+  {
+   "t0": 48.55,
+   "t1": 50.31,
+   "text": "Collin Murray-Boyles,"
+  },
+  {
+   "t0": 50.31,
+   "t1": 51.59,
+   "text": "Quentin Grimes,"
+  },
+  {
+   "t0": 51.59,
+   "t1": 52.95,
+   "text": "or Collin Sexton?"
+  },
+  {
+   "t0": 53.45,
+   "t1": 55.21,
+   "text": "Ten seconds on the clock."
+  },
+  {
+   "t0": 65.21,
+   "t1": 66.2,
+   "text": "Time's up."
+  },
+  {
+   "t0": 66.55,
+   "t1": 67.53,
+   "text": "Drop your guess in the"
+  },
+  {
+   "t0": 67.53,
+   "t1": 68.722,
+   "text": "comments, and check out our"
+  },
+  {
+   "t0": 68.722,
+   "t1": 69.83,
+   "text": "next video for the answer."
+  }
+ ],
+ "opener": {
+  "mode": "back",
+  "t0": 0.0,
+  "t1": 14.45,
+  "ask_at": 2.21,
+  "answer_at": 8.55,
+  "question": "Whose line was thirty seven points, five rebounds and one assist?",
+  "letter": "C",
+  "answer": "Joel Embiid",
+  "game": "Sixers' win over the Nets \u00b7 Mon, Nov 16"
+ },
+ "warm": {
+  "t0": 14.45,
+  "prompt_at": 15.8,
+  "names_at": [
+   18.95,
+   19.91
+  ],
+  "clock": [
+   23.08,
+   33.08
+  ],
+  "ready": 21.37,
+  "up": 33.08,
+  "t1": 37.62,
+  "prompt": "Who averages more points per game this season?",
+  "unit": "PTS / GAME",
+  "answer": 1,
+  "opts": [
+   {
+    "name": "Paul George",
+    "team": "BOS",
+    "color": "#008348",
+    "ink": "#F3F5F9",
+    "val": "20"
+   },
+   {
+    "name": "Cade Cunningham",
+    "team": "DET",
+    "color": "#1d428a",
+    "ink": "#F3F5F9",
+    "val": "26"
+   }
+  ]
+ },
+ "final": {
+  "t0": 37.62,
+  "ask_at": 41.29,
+  "stat_at": 43.04,
+  "names_at": [
+   47.51,
+   48.55,
+   50.31,
+   51.83
+  ],
+  "clock": [
+   55.21,
+   65.21
+  ],
+  "ready": 53.45,
+  "up": 65.21,
+  "t1": 69.83,
+  "stats": [
+   {
+    "v": "47",
+    "l": "PTS"
+   },
+   {
+    "v": "6",
+    "l": "REB"
+   },
+   {
+    "v": "3",
+    "l": "AST"
+   },
+   {
+    "v": "42",
+    "l": "MIN"
+   }
+  ],
+  "date": "Tue, Nov 17",
+  "names": [
+   "LaMelo Ball",
+   "Collin Murray-Boyles",
+   "Quentin Grimes",
+   "Collin Sexton"
+  ],
+  "letters": [
+   "A",
+   "B",
+   "C",
+   "D"
+  ],
+  "hint": {
+   "t0": 60.27,
+   "text": "he's a guard"
+  }
+ },
+ "clocks": [
+  [
+   21.37,
+   33.08
+  ],
+  [
+   53.45,
+   65.21
+  ],
+  [
+   65.21,
+   70.83
+  ]
+ ]
+}
