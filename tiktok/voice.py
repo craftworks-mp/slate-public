@@ -20,7 +20,9 @@ REF_TEXT = ("Hey, it's Nick from Trend Bettors. Every night we run the numbers o
 TOKENS_PER_S = 12  # the 12Hz codec: about 12 audio tokens per second of speech
 SEED = 7  # the same seed for every sentence, so the delivery stays steady
 PAUSE_AFTER = {".": 0.35, "?": 0.5, "!": 0.5}  # seconds of silence after each sentence (owner OK 11/22 12:0x)
-TEMP = os.environ.get("VOICE_TEMP", "").strip()  # accent A/B (11/22): the talker's sampling temperature; blank = model default
+# The talker's sampling temperature: 0.7 locked (owner 11/22, card drill-lock-07: steadiest accent); "model" = the model's
+# own default (~0.9, qwen-tts _merge_generate_kwargs), any number = an A/B
+TEMP = os.environ.get("VOICE_TEMP", "").strip() or "0.7"
 
 
 def split_sentences(text):
@@ -49,7 +51,7 @@ class Voice:
         audio, ref_sr = sf.read(ref, dtype="float32")
         print(f"reference {len(audio) / ref_sr:.2f}s (speed {os.environ.get('REF_SPEED') or 'as recorded'})", flush=True)
         self.prompt = self.m.create_voice_clone_prompt(ref_audio=(audio, ref_sr), ref_text=REF_TEXT)
-        self.sampling = {"temperature": float(TEMP)} if TEMP else {}
+        self.sampling = {} if TEMP == "model" else {"temperature": float(TEMP)}
         print(f"sampling: model defaults {dict(self.m.generate_defaults)}, override {self.sampling or 'none'}", flush=True)
 
     def sentence(self, text, seed=SEED):

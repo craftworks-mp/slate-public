@@ -106,9 +106,17 @@ def test_position_hint():
     assert "hint" not in clk[0], "the warm-up never gets a hint"
     assert clk[1]["hint"] == {"at": 5, "text": "Hint: he's a guard."}
     assert ep["final_pos"].count("G") == 3 and "Collin Murray-Boyles" in ep["final_names"]
-    # verified names alone are all guards here: all 4 would share it, so no hint (never all 4, owner 11/22)
+    # Murray-Boyles verified (card drill-lock-07): the sample final now carries the hint too
     plain = E.check(E.build(INP, LAST))
-    assert "hint" not in [s for s in plain["steps"] if s["k"] == "clock"][1] and plain["final_pos"].count("G") == 4
+    assert [s for s in plain["steps"] if s["k"] == "clock"][1].get("hint") and "Collin Murray-Boyles" in plain["final_names"]
+    # verified guards alone: all 4 would share it, so no hint (never all 4, owner 11/22)
+    keep = E.NAMES
+    E.NAMES = {k: v for k, v in keep.items() if k != "Collin Murray-Boyles"}
+    try:
+        guards = E.check(E.build(INP, LAST))
+    finally:
+        E.NAMES = keep
+    assert "hint" not in [s for s in guards["steps"] if s["k"] == "clock"][1] and guards["final_pos"].count("G") == 4
     for tamper in ("text", "at", "pos"):
         bad = copy.deepcopy(ep)
         h = [s for s in bad["steps"] if s["k"] == "clock"][1]["hint"]
@@ -125,13 +133,19 @@ def test_position_hint():
 
 
 def test_trial_names_only_pass_when_listed():
-    ab = json.load(open(os.path.join(HERE, "input", "ab-hint.json")))
-    assert E.check(E.build(ab, LAST))["trial_names"] == ["Collin Murray-Boyles"]
-    ab["trial_names"] = []
-    ep = E.build(ab, LAST)
-    assert "Collin Murray-Boyles" not in ep["final_names"] and not ep["unverified"]
-    ab["warmup"]["options"][0] = "Kevin Huerter"  # unverified and not on the trial list: still holds the draft
-    assert raises(E.check, E.build(ab, LAST))
+    # as it stood before Murray-Boyles was verified (card drill-lock-07): he was the trial name in ab-hint.json
+    keep = E.NAMES
+    E.NAMES = {k: v for k, v in keep.items() if k != "Collin Murray-Boyles"}
+    try:
+        ab = json.load(open(os.path.join(HERE, "input", "ab-hint.json")))
+        assert E.check(E.build(ab, LAST))["trial_names"] == ["Collin Murray-Boyles"]
+        ab["trial_names"] = []
+        ep = E.build(ab, LAST)
+        assert "Collin Murray-Boyles" not in ep["final_names"] and not ep["unverified"]
+        ab["warmup"]["options"][0] = "Kevin Huerter"  # unverified and not on the trial list: still holds the draft
+        assert raises(E.check, E.build(ab, LAST))
+    finally:
+        E.NAMES = keep
 
 
 def test_pick_carries_positions():
@@ -141,6 +155,42 @@ def test_pick_carries_positions():
             json.dump({"name": n, "pos": p}, open(os.path.join(d, f"{i}.json"), "w"))
         got = E.pick({"date": "2026-11-21", "drill": [INP["warmup"], INP["final"]]}, "2026-11-22", players=d)
     assert got["final"]["pos_of"] == {"Quentin Grimes": "G", "Collin Murray-Boyles": "F", "LaMelo Ball": "G"}
+
+
+def test_words_check_relistens_line_by_line():
+    """Card 20261122-tb-drill-words-per-line: a whole-file skip isn't a blunder; a word missing from its own line is."""
+    import tempfile
+    try:
+        import numpy as np
+    except ImportError:  # the voice job's script checks run before its install; the video job runs this one
+        print("words-check test skipped: no numpy here")
+        return
+    import check as C
+    run = json.load(open(os.path.join(os.path.dirname(HERE), "video", "fixtures", "recap-cues.json")))
+    cues = run["cues"]
+    audio = np.zeros(int((cues[-1]["end"] + 1) * C.SR), np.float32)
+    for i, c in enumerate(cues):  # each cue's slice carries its own index, so the stub knows which line it hears
+        audio[int(c["start"] * C.SR):int(c["end"] * C.SR)] = i + 1
+    said = {i: (" ".join(C.cue_words(c))) for i, c in enumerate(cues)}
+    drop = next(i for i, c in enumerate(cues) if c.get("text", "").startswith("Time's up. It's"))
+    said[drop] = said[drop].replace("twenty six", "six")  # a real dropped word on one line
+
+    class Seg:
+        def __init__(self, text):
+            self.text, self.start, self.end = text, 0.0, 60.0
+
+    class Model:
+        def transcribe(self, x, **kw):
+            if isinstance(x, str):  # the whole file: Whisper skips the warm-up stretch (run 45081924498)
+                return [Seg(" ".join(t for i, t in sorted(said.items()) if cues[i].get("part") != "warmup"))], None
+            vals = x[x > 0]
+            return [Seg(said[int(np.median(vals)) - 1] if len(vals) else "")], None
+
+    with tempfile.TemporaryDirectory() as d:
+        json.dump(run, open(os.path.join(d, "cues.json"), "w"))
+        res = C.check(d, Model(), lambda p: audio)
+    assert res["whole_file_match"] < 0.85 <= res["match"] < 1
+    assert res["missing"] == ["twenty"] and len(res["lines"]) == 1 and res["lines"][0]["text"].startswith("Time's up")
 
 
 if __name__ == "__main__":

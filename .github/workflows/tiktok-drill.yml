@@ -13,7 +13,7 @@ on:
         description: 'Last Drill answer JSON (- = the very first episode)'
         default: 'tiktok/drill/input/sample-last.json'
       temperature:
-        description: 'Voice sampling temperature (blank = model default; accent A/B 11/22)'
+        description: 'Voice sampling temperature (blank = 0.7, locked 11/22; model = the model default ~0.9; a number = an A/B)'
         default: ''
       ref_speed:
         description: 'Speed up the voice reference before cloning, pitch kept (blank = as recorded; 1.06 = +6%; pace A/B 11/22)'
@@ -189,7 +189,7 @@ jobs:
           python -m playwright install --with-deps chromium > /dev/null
           command -v ffmpeg || { sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null; }
       - name: Video checks (letters, screen text, timing)
-        run: python tiktok/video/test_video.py
+        run: python tiktok/video/test_video.py && python tiktok/drill/test_episode.py
       - name: Music (CC0 tracks from OpenGameArt, checked again at fetch)
         run: |
           python tiktok/video/music.py fetch tiktok/video/music.json "$RUNNER_TEMP/music"
