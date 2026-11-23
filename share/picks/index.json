@@ -1,5 +1,5 @@
 {
- "latest": "2026-11-22",
+ "latest": "2026-11-23",
  "days": {
   "2026-11-18": {
    "file": "2026-11-18-4.jpg",
@@ -26,8 +26,14 @@
    "n": 4
   },
   "2026-11-22": {
-   "file": "2026-11-22.jpg",
-   "alt": "Trend Bettors daily model picks for Sun, Nov 22. Main Event: Yaxel Lendeborg under 24.5 points + assists (-105); Dog Pound: Draymond Green under 10.5 points + assists (+102); Heat Check: Ajay Mitchell under 20.5 points (-107); Mismatch: Trae Young under 2.5 rebounds (-107).",
+   "file": "2026-11-22-4.jpg",
+   "alt": "Trend Bettors daily model picks for Sun, Nov 22. Main Event: Yaxel Lendeborg under 24.5 points + assists (-105), won; Dog Pound: Draymond Green under 10.5 points + assists (+102), lost; Heat Check: Ajay Mitchell under 20.5 points (-107), won; Mismatch: Trae Young under 2.5 rebounds (-107), lost.",
+   "graded": 4,
+   "n": 4
+  },
+  "2026-11-23": {
+   "file": "2026-11-23.jpg",
+   "alt": "Trend Bettors daily model picks for Mon, Nov 23. Main Event: Damian Lillard under 7.5 rebounds + assists (+110); Dog Pound: Toumani Camara under 4.5 rebounds (+106); Heat Check: Julian Champagnie under 13.5 points (-125); Mismatch: Darius Garland under 6.5 assists (-105).",
    "graded": 0,
    "n": 4
   }
