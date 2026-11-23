@@ -1,9 +1,9 @@
 {
- "note": "One CC0 OpenGameArt track per part (owner 11/22), fetched on the runner by music.py. page = the track's OpenGameArt page; file = the file name on it (blank = first ogg/mp3); gain_db = bed level before ducking (-18 default; clock sits lower under the ticks and the count). Empty parts = voice only.",
+ "note": "One CC0 OpenGameArt track per part (owner 11/22), fetched on the runner by music.py. page = the track's OpenGameArt page; file = the file name on it (blank = first ogg/mp3); gain_db = bed level before ducking (-18 default; clock sits lower under the ticks and the count). Empty parts = voice only. Picks 11/22 23:0x: Claude's call from Nick's shortlist (owner OK), pending his ear on the re-cut.",
  "parts": {
-  "opener": null,
-  "question": null,
-  "clock": null,
-  "reveal": null
+  "opener": {"title": "Upbeat Title Theme Loop", "page": "https://opengameart.org/node/165344", "gain_db": -18},
+  "question": {"title": "8-bit Concentration Loop", "page": "https://opengameart.org/content/8-bit-concentration-loop", "gain_db": -20},
+  "clock": {"title": "Tension (Komiku)", "page": "https://opengameart.org/content/tension", "gain_db": -24},
+  "reveal": {"title": "Victory Fanfare Short", "page": "https://opengameart.org/content/victory-fanfare-short", "gain_db": -16}
  }
 }
