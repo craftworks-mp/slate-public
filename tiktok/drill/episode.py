@@ -181,7 +181,7 @@ def build(inp, last=None):
     gap(0.6)
     n = four(f, set(NAMES) | trial)
     hint = hint_word(f, n)
-    say("final", "Now for the one that counts, and it's all yours in the comments. Whose line is it? "
+    say("final", "Now for the one that counts. This one's for you guys to answer down below. Whose line is it? "
                  f"{line_words(f, post)} {n[0]}, {n[1]}, {n[2]}, or {n[3]}?")
     gap(BEAT)
     say("final", "Ten seconds on the clock.")
