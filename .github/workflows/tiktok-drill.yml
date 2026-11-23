@@ -1,9 +1,14 @@
-# 2-Minute Drill TikTok episode audio in Nick's locked voice (tiktok/voice.py, tiktok/drill/). Manual for now:
-# Actions > TikTok Drill > Run workflow. The daily input from slate-data and the video come with the video maker.
+# 2-Minute Drill TikTok episode in Nick's locked voice (tiktok/voice.py, tiktok/drill/), voice + video. Manual:
+# Actions > TikTok Drill > Run workflow. Daily (owner OK 11/22 23:0x): slate-data's props run pushes
+# tiktok/drill/daily/<date>/input.json (+ last.json), which starts this run; a Drill that passes every check leaves a plain
+# drill.mp4 + done.json there for slate-data's Buffer draft (anything else stays encrypted; done.json says why).
 # Runs here because this repo is public (free minutes). Nick's voice stays encrypted in the repo; Claude decrypts it for him.
 name: TikTok Drill
 run-name: TikTok Drill${{ inputs.temperature && format(' t{0}', inputs.temperature) || '' }}${{ inputs.ref_speed && format(' s{0}', inputs.ref_speed) || '' }}${{ inputs.video_from && format(' video {0}', inputs.video_from) || '' }}
 on:
+  push:
+    branches: [main]
+    paths: ['tiktok/drill/daily/*/input.json']
   workflow_dispatch:
     inputs:
       input:
@@ -27,8 +32,39 @@ concurrency:
   group: tiktok-drill-${{ inputs.temperature || 'default' }}-${{ inputs.ref_speed || '1' }}
   cancel-in-progress: false
 jobs:
+  pick:
+    # Manual runs use the inputs; a push of a daily input renders that day's Drill (the newest daily folder without done.json).
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      input: ${{ steps.p.outputs.input }}
+      last: ${{ steps.p.outputs.last }}
+      daily: ${{ steps.p.outputs.daily }}
+      day: ${{ steps.p.outputs.day }}
+      skip: ${{ steps.p.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tiktok/drill/daily
+      - id: p
+        env:
+          EV: ${{ github.event_name }}
+          IN: ${{ inputs.input }}
+          LAST: ${{ inputs.last }}
+        run: |
+          if [ "$EV" != "push" ]; then
+            { echo "input=$IN"; echo "last=$LAST"; echo "daily=false"; echo "skip=false"; } >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          F=$(ls tiktok/drill/daily/*/input.json 2>/dev/null | sort | tail -1)
+          [ -n "$F" ] || { echo "no daily input"; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; }
+          O=$(dirname "$F"); DAY=$(basename "$O")
+          if [ -e "$O/done.json" ]; then echo "$DAY is already done"; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          L="$O/last.json"; [ -e "$L" ] || L="-"
+          { echo "input=$F"; echo "last=$L"; echo "daily=true"; echo "day=$DAY"; echo "skip=false"; } >> "$GITHUB_OUTPUT"
+          echo "daily Drill for $DAY (last: $L)"
   voice:
-    if: ${{ inputs.video_from == '' }}
+    needs: pick
+    if: ${{ inputs.video_from == '' && needs.pick.outputs.skip != 'true' }}
     # Three jobs side by side, each loading the voice and rendering about a third of the clips (balanced by words), so an
     # ear round lands in ~7 min instead of ~18 and a stuck sentence shows in one job (card 20261122-tb-drill-parallel-render).
     runs-on: ubuntu-latest
@@ -38,8 +74,8 @@ jobs:
       matrix:
         part: [0, 1, 2]
     env:
-      IN: ${{ inputs.input }}
-      LAST: ${{ inputs.last }}
+      IN: ${{ needs.pick.outputs.input }}
+      LAST: ${{ needs.pick.outputs.last }}
       VOICE_TEMP: ${{ inputs.temperature }}
       REF_SPEED: ${{ inputs.ref_speed }}
     steps:
@@ -93,14 +129,14 @@ jobs:
           if-no-files-found: error
   stitch:
     # Builds episode.wav + cues.json from the three shares exactly as one job would (no voice model), then the words check.
-    needs: voice
+    needs: [pick, voice]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
       dir: ${{ steps.commit.outputs.dir }}
     env:
-      IN: ${{ inputs.input }}
-      LAST: ${{ inputs.last }}
+      IN: ${{ needs.pick.outputs.input }}
+      LAST: ${{ needs.pick.outputs.last }}
       VOICE_TEMP: ${{ inputs.temperature }}
       REF_SPEED: ${{ inputs.ref_speed }}
     steps:
@@ -160,13 +196,15 @@ jobs:
   video:
     # The video (owner OK 11/22 18:5x): frames from tiktok/video/make.py over the episode's audio + the CC0 music bed.
     # Runs after a fresh render, or alone with video_from = an out folder name (re-cut a past run, no re-voicing).
-    needs: stitch
+    needs: [pick, stitch]
     if: ${{ !cancelled() && (needs.stitch.result == 'success' || (inputs.video_from != '' && needs.stitch.result == 'skipped')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      IN: ${{ inputs.input }}
-      LAST: ${{ inputs.last }}
+      IN: ${{ needs.pick.outputs.input }}
+      LAST: ${{ needs.pick.outputs.last }}
+      DAILY: ${{ needs.pick.outputs.daily }}
+      DAY: ${{ needs.pick.outputs.day }}
       D: ${{ inputs.video_from != '' && format('tiktok/drill/out/{0}', inputs.video_from) || needs.stitch.outputs.dir }}
     steps:
       - uses: actions/checkout@v4
@@ -202,6 +240,11 @@ jobs:
           [ -e "$D/last.json" ] && L="$D/last.json"
           python -u tiktok/video/make.py "$D" "$I" "$L" --audio "$RUNNER_TEMP/v/episode.wav" $MUSIC --out "$RUNNER_TEMP/v/episode.mp4"
           ffprobe -v error -show_entries format=duration -of csv=p=0 "$RUNNER_TEMP/v/episode.mp4"
+      - name: Daily Drill gate (a plain MP4 only when every check passed; owner OK 11/22 23:0x)
+        if: env.DAILY == 'true'
+        run: |
+          O="tiktok/drill/daily/$DAY"
+          python tiktok/drill/daily.py gate "$D" "$O" "$RUNNER_TEMP/v/episode.mp4" ${{ github.run_id }}
       - name: Encrypt the video (his voice is in it; this repo is public)
         env:
           KEY: ${{ secrets.VOICE_REF_KEY }}
@@ -210,10 +253,38 @@ jobs:
           rm -rf "$RUNNER_TEMP/v" "$D/stills"
       - name: Commit
         run: |
-          ! git status --porcelain --untracked-files=all | grep -E '\.(wav|mp4)$' || { echo "plain audio or video in the tree"; exit 1; }
+          # the only plain video allowed: a daily Drill that passed the gate (it goes public on TikTok anyway)
+          ! git status --porcelain --untracked-files=all | grep -E '\.(wav|mp4)$' | grep -v -E '^\?\? tiktok/drill/daily/[0-9-]+/drill\.mp4$' || { echo "plain audio or video in the tree"; exit 1; }
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "$D/episode.mp4.gpg" "$D/video-plan.json"
+          if [ "$DAILY" = true ]; then git add "tiktok/drill/daily/$DAY/done.json"; [ -e "tiktok/drill/daily/$DAY/drill.mp4" ] && git add "tiktok/drill/daily/$DAY/drill.mp4"; fi
           git commit -qm "TikTok Drill video [skip ci]" || exit 0
+          for i in 1 2 3 4; do git pull --rebase --autostash -q && git push -q && exit 0; sleep $((i * 10)); done
+          exit 1
+
+  report:
+    # A daily Drill that stopped before its gate tells slate-data why (done.json ok false), so its draft step stops waiting.
+    needs: [pick, voice, stitch, video]
+    if: ${{ always() && needs.pick.outputs.daily == 'true' && needs.video.result != 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tiktok/drill
+      - name: done.json with the failed step
+        env:
+          DAY: ${{ needs.pick.outputs.day }}
+          WHY: "voice ${{ needs.voice.result }}, stitch ${{ needs.stitch.result }}, video ${{ needs.video.result }}"
+        run: |
+          git pull -q --rebase
+          O="tiktok/drill/daily/$DAY"
+          [ -e "$O/done.json" ] && { echo "done.json already there"; exit 0; }
+          python tiktok/drill/daily.py failed "$O" "$WHY" ${{ github.run_id }}
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$O/done.json"
+          git commit -qm "TikTok Drill daily: stopped [skip ci]"
           for i in 1 2 3 4; do git pull --rebase --autostash -q && git push -q && exit 0; sleep $((i * 10)); done
           exit 1

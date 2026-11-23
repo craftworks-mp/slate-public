@@ -193,6 +193,17 @@ def test_words_check_relistens_line_by_line():
     assert res["missing"] == ["twenty"] and len(res["lines"]) == 1 and res["lines"][0]["text"].startswith("Time's up")
 
 
+def test_daily_gate():
+    """Only a render that passes every check goes public (owner OK 11/22 23:0x)."""
+    import daily
+    good = {"next_last": {"answer": "Joel Embiid"}, "trial_names": {}}
+    assert daily.verdict(good, {"match": 0.97}, 69.8) == []
+    assert daily.verdict(good, {"match": 0.97}, 58.0) == ["58.0 s is under 61 s"]
+    assert daily.verdict(good, {"match": 0.80}, 69.8) == ["words check 80% under 85%"]
+    assert daily.verdict(good, None, 69.8) == ["words check None under 85%"]
+    assert "a trial name is in it" in daily.verdict({**good, "trial_names": {"New Guy": True}}, {"match": 0.99}, 70)
+    assert "no answer saved for the next Drill" in daily.verdict({}, {"match": 0.99}, 70)
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for t in tests:
