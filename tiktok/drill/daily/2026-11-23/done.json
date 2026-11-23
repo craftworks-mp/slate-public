@@ -1,0 +1,23 @@
+{
+ "ok": true,
+ "why": [],
+ "run": "45185992911",
+ "dir": "tiktok/drill/out/2026-11-23-45185992911",
+ "length_s": 61.0,
+ "words": 0.982,
+ "next_last": {
+  "date": "2026-11-23",
+  "id": "2026-11-21-0",
+  "text": "Whose line was forty seven points, six rebounds and three assists?",
+  "answer": "Quentin Grimes",
+  "letter": "C",
+  "game": {
+   "sport": "NBA",
+   "day": "2026-11-17",
+   "team": "LAL",
+   "opp": "CHA",
+   "won": true,
+   "ot": true
+  }
+ }
+}

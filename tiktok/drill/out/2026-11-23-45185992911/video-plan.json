@@ -1,0 +1,252 @@
+{
+ "dur": 61.04,
+ "fps": 30,
+ "caps": [
+  {
+   "t0": 0.0,
+   "t1": 1.56,
+   "text": "Welcome to the Two-Minute Drill."
+  },
+  {
+   "t0": 1.91,
+   "t1": 2.908,
+   "text": "Two questions,"
+  },
+  {
+   "t0": 2.908,
+   "t1": 4.04,
+   "text": "ten seconds each."
+  },
+  {
+   "t0": 4.44,
+   "t1": 5.44,
+   "text": "Alright, let's warm up."
+  },
+  {
+   "t0": 5.79,
+   "t1": 7.461,
+   "text": "Who averages more points per"
+  },
+  {
+   "t0": 7.461,
+   "t1": 8.44,
+   "text": "game this season?"
+  },
+  {
+   "t0": 8.94,
+   "t1": 9.72,
+   "text": "Paul George,"
+  },
+  {
+   "t0": 9.72,
+   "t1": 10.86,
+   "text": "or Cade Cunningham?"
+  },
+  {
+   "t0": 11.36,
+   "t1": 13.07,
+   "text": "You've got ten seconds."
+  },
+  {
+   "t0": 23.07,
+   "t1": 24.06,
+   "text": "Time's up."
+  },
+  {
+   "t0": 24.41,
+   "t1": 25.74,
+   "text": "It's Cade Cunningham,"
+  },
+  {
+   "t0": 25.74,
+   "t1": 27.01,
+   "text": "at twenty six a game."
+  },
+  {
+   "t0": 27.61,
+   "t1": 29.57,
+   "text": "Now for the one that counts."
+  },
+  {
+   "t0": 29.92,
+   "t1": 31.109,
+   "text": "This one's for you guys"
+  },
+  {
+   "t0": 31.109,
+   "t1": 32.15,
+   "text": "to answer down below."
+  },
+  {
+   "t0": 32.5,
+   "t1": 33.75,
+   "text": "Whose line is it?"
+  },
+  {
+   "t0": 34.25,
+   "t1": 35.516,
+   "text": "Forty seven points,"
+  },
+  {
+   "t0": 35.516,
+   "t1": 37.542,
+   "text": "six rebounds and three assists,"
+  },
+  {
+   "t0": 37.542,
+   "t1": 38.365,
+   "text": "last Tuesday."
+  },
+  {
+   "t0": 38.72,
+   "t1": 39.76,
+   "text": "LaMelo Ball,"
+  },
+  {
+   "t0": 39.76,
+   "t1": 41.52,
+   "text": "Collin Murray-Boyles,"
+  },
+  {
+   "t0": 41.52,
+   "t1": 42.8,
+   "text": "Quentin Grimes,"
+  },
+  {
+   "t0": 42.8,
+   "t1": 44.16,
+   "text": "or Collin Sexton?"
+  },
+  {
+   "t0": 44.66,
+   "t1": 46.42,
+   "text": "Ten seconds on the clock."
+  },
+  {
+   "t0": 56.42,
+   "t1": 57.41,
+   "text": "Time's up."
+  },
+  {
+   "t0": 57.76,
+   "t1": 58.74,
+   "text": "Drop your guess in the"
+  },
+  {
+   "t0": 58.74,
+   "t1": 59.932,
+   "text": "comments, and check out our"
+  },
+  {
+   "t0": 59.932,
+   "t1": 61.04,
+   "text": "next video for the answer."
+  }
+ ],
+ "opener": {
+  "mode": "first",
+  "t0": 0.0,
+  "t1": 4.44
+ },
+ "warm": {
+  "t0": 4.44,
+  "prompt_at": 5.79,
+  "names_at": [
+   8.94,
+   9.9
+  ],
+  "clock": [
+   13.07,
+   23.07
+  ],
+  "ready": 11.36,
+  "up": 23.07,
+  "t1": 27.61,
+  "prompt": "Who averages more points per game this season?",
+  "unit": "PTS / GAME",
+  "answer": 1,
+  "opts": [
+   {
+    "name": "Paul George",
+    "team": "BOS",
+    "color": "#008348",
+    "ink": "#F3F5F9",
+    "val": "20"
+   },
+   {
+    "name": "Cade Cunningham",
+    "team": "DET",
+    "color": "#1d428a",
+    "ink": "#F3F5F9",
+    "val": "26"
+   }
+  ]
+ },
+ "final": {
+  "t0": 27.61,
+  "ask_at": 32.5,
+  "stat_at": 34.25,
+  "names_at": [
+   38.72,
+   39.76,
+   41.52,
+   43.04
+  ],
+  "clock": [
+   46.42,
+   56.42
+  ],
+  "ready": 44.66,
+  "up": 56.42,
+  "t1": 61.04,
+  "stats": [
+   {
+    "v": "47",
+    "l": "PTS"
+   },
+   {
+    "v": "6",
+    "l": "REB"
+   },
+   {
+    "v": "3",
+    "l": "AST"
+   },
+   {
+    "v": "42",
+    "l": "MIN"
+   }
+  ],
+  "date": "Tue, Nov 17",
+  "names": [
+   "LaMelo Ball",
+   "Collin Murray-Boyles",
+   "Quentin Grimes",
+   "Collin Sexton"
+  ],
+  "letters": [
+   "A",
+   "B",
+   "C",
+   "D"
+  ],
+  "hint": {
+   "t0": 51.48,
+   "text": "he's a guard"
+  }
+ },
+ "clocks": [
+  [
+   11.36,
+   23.07
+  ],
+  [
+   44.66,
+   56.42
+  ],
+  [
+   56.42,
+   62.04
+  ]
+ ]
+}
