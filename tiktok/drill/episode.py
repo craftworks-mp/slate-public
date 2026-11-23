@@ -29,7 +29,7 @@ COUNT = ["Three.", "Two.", "One."]  # on the clock's last three seconds (owner 1
 HINT_AT = 5  # the final clock's 5-s mark: "Hint: he's a guard." (owner 11/22 17:1x; NBA only, NFL stat lines show it)
 POS_WORD = {"G": "guard", "F": "forward", "C": "center"}
 PLAYERS = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "players", "nba")
-AFTER_RECAP = 0.9  # pause after the last Drill's answer, before Question one (owner 11/22 17:50: +0.5 s)
+AFTER_RECAP = 0.9  # pause after the last Drill's answer, before the warm-up (owner 11/22 17:50: +0.5 s)
 TEAMS = json.load(open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "teams.json")))["teams"]
 # TikTok shorts are pure sports prediction (owner 11/21 20:27): none of these, on screen or in the voice.
 BET = re.compile(r"\b(odds|bets?|betting|wagers?|units?|sportsbooks?|parlays?|spreads?|cover(s|ed)?|moneylines?|"
@@ -169,10 +169,11 @@ def build(inp, last=None):
         say("opener", f"Welcome back to the Two-Minute Drill. Last time, we asked: {last['text'][0].lower()}"
                       f"{last['text'][1:]} {recap(last, post)}")
     else:
-        say("opener", "Welcome to the Two-Minute Drill. Two questions, ten seconds each. Let's go.")
+        say("opener", "Welcome to the Two-Minute Drill. Two questions, ten seconds each.")
     gap(AFTER_RECAP if last else 0.4)
     a, b = w["options"]
-    say("warmup", f"Question one. Who averages more {hilo_stat(w)} per game this season? {a}, or {b}?")
+    # host flow (owner 11/22 20:1x): spoken bridges instead of "Question one" / "Final question"
+    say("warmup", f"Alright, let's warm up. Who averages more {hilo_stat(w)} per game this season? {a}, or {b}?")
     gap(BEAT)
     say("warmup", "You've got ten seconds.")
     clock("warmup")
@@ -180,12 +181,12 @@ def build(inp, last=None):
     gap(0.6)
     n = four(f, set(NAMES) | trial)
     hint = hint_word(f, n)
-    say("final", "Final question, and this one's for the comments. Whose line is it? "
+    say("final", "Now for the one that counts, and it's all yours in the comments. Whose line is it? "
                  f"{line_words(f, post)} {n[0]}, {n[1]}, {n[2]}, or {n[3]}?")
     gap(BEAT)
     say("final", "Ten seconds on the clock.")
     clock("final", hint)
-    say("final", "Time's up. Drop your guess in the comments. The answer opens our next episode, so tune in.")
+    say("final", "Time's up. Drop your guess in the comments, and check out our next video for the answer.")
     names = [a, b] + n + ([last["answer"]] if last else [])
     pos = f.get("pos_of") or {}
     return {"post_date": inp["post_date"], "steps": steps, "final_names": n,

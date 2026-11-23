@@ -31,9 +31,11 @@ import episode as E  # noqa: E402
 W, H, FPS = 1080, 1920, 30
 MIN_S = 61  # Creator Rewards counts 1 min+ (owner 11/21)
 LUFS = -14  # final loudness of the mix
+END_LINE = "Check out our next video for the answer!"  # owner 11/22 20:06
 SENT = re.compile(r"(?<=[.?!])\s+")
 BG, INK, DIM, MUTED, DARK = "#09090A", "#F3F5F9", "#82828C", "#A1A1AA", "#0E0E11"
 BLUE, GREEN = "#5B7CFF", "#2FD67B"  # the mark's colors
+DY = 0.022  # digit nudge (share of font size) so the count sits on the timer's true center
 
 
 # ---------- timing ----------
@@ -127,10 +129,12 @@ def plan(run, inp, last, audio=None, sr=None):
     assert len(names) == 4 and all(n in f["options"] for n in names), "final names don't match the input"
 
     op = find(cues, "opener", "say")
-    wq = find(cues, "warmup", "say", lambda c: c["text"].startswith("Question one"))
+    wq = find(cues, "warmup", "say")
     wc = find(cues, "warmup", "clock")
     wu = find(cues, "warmup", "say", lambda c: c["text"].startswith("Time's up"))
-    fq = find(cues, "final", "say", lambda c: c["text"].startswith("Final question"))
+    fq = find(cues, "final", "say")
+    ten = lambda c: "ten seconds" in c["text"].lower()  # noqa: E731
+    wr, fr = find(cues, "warmup", "say", ten), find(cues, "final", "say", ten)
     fc = find(cues, "final", "clock")
     fu = find(cues, "final", "say", lambda c: c["text"].startswith("Time's up"))
     assert bool(last) == op["text"].startswith("Welcome back"), "the opener's voice and the last-answer input disagree"
@@ -167,7 +171,7 @@ def plan(run, inp, last, audio=None, sr=None):
     last_s = len(wss) - 1
     warm = {"t0": wq["start"], "prompt_at": wsp[1][0] if len(wsp) > 1 else wsp[0][0],
             "names_at": [at_char(wss[last_s], wsp[last_s], a), at_char(wss[last_s], wsp[last_s], b)],
-            "clock": [wc["start"], wc["end"]], "up": wu["start"], "t1": fq["start"],
+            "clock": [wc["start"], wc["end"]], "ready": wr["start"], "up": wu["start"], "t1": fq["start"],
             "prompt": w["prompt"],
             "unit": f"{w['unit']} / GAME", "answer": w["answer"],
             "opts": [{"name": n, "team": t["a"], "color": t["c"], "ink": on(t["c"]), "val": whole(v)}
@@ -180,21 +184,22 @@ def plan(run, inp, last, audio=None, sr=None):
     hint = fc.get("hint")
     final = {"t0": fq["start"], "ask_at": fsp[ask_i][0], "stat_at": fsp[stat_i][0],
              "names_at": [at_char(fss[name_i], fsp[name_i], n) for n in names],
-             "clock": [fc["start"], fc["end"]], "up": fu["start"], "t1": fu["end"],
+             "clock": [fc["start"], fc["end"]], "ready": fr["start"], "up": fu["start"], "t1": fu["end"],
              "stats": [{"v": whole(s["v"]), "l": s["l"]} for s in f["stats"]],
              "date": f"{day.strftime('%a, %b')} {day.day}", "names": names, "letters": list("ABCD"),
              "hint": ({"t0": hint.get("start", fc["start"] + hint["at"]), "text": hint["text"].replace("Hint: ", "")
                        .rstrip(".")} if hint else None)}
     dur = round(cues[-1]["end"], 2)
-    return {"dur": dur, "fps": FPS, "caps": caps, "opener": opener, "warm": warm, "final": final,
-            "clocks": [[wc["start"], wc["end"]], [fc["start"], fc["end"]]]}
+    return {"dur": dur, "fps": FPS, "caps": caps, "opener": opener, "warm": warm, "final": final, 
+            # captions step aside while a timer is up (its "ten seconds" line to Time's up) and on the end card,
+            # which says the closing line on screen
+            "clocks": [[wr["start"], wc["end"]], [fr["start"], fc["end"]], [fu["start"], dur + 1]]}
 
 
 def screen_text(D):
     """Every string the page can draw, for the tests (bet words, names, numbers)."""
-    out = ["2-Minute Drill", "Two questions", "Ten seconds each", "Question 1", "Warm-up", "Final question",
-           "For the comments", "Whose line is it?", "Last time", "The answer", "Time's up", "Comment A, B, C or D",
-           "The answer opens the next Drill", "@TrendBettorsHQ", "Hint"]
+    out = ["2-Minute Drill", "Two questions", "Ten seconds each", "Warm-up", "Your call", "Seconds left", "Whose line is it?", "Last time", "The answer", "Time's up", "Comment A, B, C or D",
+           END_LINE, "@TrendBettorsHQ", "Hint"]
     o, w, f = D["opener"], D["warm"], D["final"]
     out += [c["text"] for c in D["caps"]]
     out += [o.get("question", ""), o.get("answer", ""), o.get("game", ""), w["prompt"], w["unit"]]
@@ -246,21 +251,17 @@ const E = x => 1 - Math.pow(1 - Math.min(Math.max(x, 0), 1), 3);
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const fit = (name, room, most) => Math.min(most, Math.floor(room / (0.47 * Math.max(...name.split(' ').map(x => x.length)))));
 const pop = (t, t0, d = 0.35) => { const k = E((t - t0) / d); return `opacity:${k};transform:translateY(${(1 - k) * 36}px)`; };
-function ring(t, c, cx, cy, r) {
+function bar(t, c, top) {
   const left = Math.max(0, Math.min(10, c[1] - t)), on = t >= c[0], n = on ? Math.ceil(left - 1e-6) : 10;
-  const frac = on ? left / 10 : 1, len = 2 * Math.PI * r, hot = on && left <= 3;
-  const col = hot ? '#FF5C5C' : '__BLUE__', pulse = hot ? 1 + 0.06 * Math.max(0, 1 - ((c[1] - t) % 1) * 3) : 1;
-  return `<svg class='a' style='left:${cx - r - 22}px;top:${cy - r - 22}px' width='${2 * r + 44}' height='${2 * r + 44}'>`
-    + `<circle cx='${r + 22}' cy='${r + 22}' r='${r}' fill='none' stroke='rgba(255,255,255,.1)' stroke-width='22'/>`
-    + `<circle cx='${r + 22}' cy='${r + 22}' r='${r}' fill='none' stroke='${col}' stroke-width='22' stroke-linecap='round'`
-    + ` stroke-dasharray='${len}' stroke-dashoffset='${len * (1 - frac)}' transform='rotate(-90 ${r + 22} ${r + 22})'/></svg>`
-    + `<div class='a big' style='left:${cx - r}px;width:${2 * r}px;top:${cy - 0.42 * r * 1.9 * pulse}px;text-align:center;font-size:${r * 1.25 * pulse}px;color:${hot ? '#FF5C5C' : '__INK__'}'>${n}</div>`;
+  const frac = on ? left / 10 : 1, hot = on && left <= 3, col = hot ? '#FF5C5C' : '__BLUE__';
+  const pulse = hot ? 1 + 0.06 * Math.max(0, 1 - ((c[1] - t) % 1) * 3) : 1;
+  return `<div class='a L' style='top:${top}px;height:170px;display:flex;align-items:center;gap:28px'>`
+    + `<div style='flex:none;width:150px;height:170px;display:flex;align-items:center;justify-content:center'><span class='big' style='line-height:1;font-size:${170 * pulse}px;transform:translateY(${__DY__ * 170 * pulse}px);color:${hot ? '#FF5C5C' : '__INK__'}'>${n}</span></div>`
+    + `<div style='flex:1'><div class='mut' style='font-size:30px;letter-spacing:3px;font-weight:900;margin-bottom:14px'>SECONDS LEFT</div>`
+    + `<div style='height:44px;border-radius:22px;background:rgba(255,255,255,.1);overflow:hidden'><div style='height:100%;width:${frac * 100}%;background:${col};border-radius:22px'></div></div></div></div>`;
 }
 function header(t) {
-  let p = '';
-  if (t >= D.final.t0) p = 'For the comments';
-  else if (t >= D.warm.t0) p = 'Warm-up';
-  return `<div class='a L hd'><img src='__MARK__'><div class='t'>2-Minute Drill</div>${p ? `<div class='pill'>${p}</div>` : ''}</div>`;
+  return `<div class='a L hd'><img src='__MARK__'><div class='t'>2-Minute Drill</div></div>`;
 }
 function opener(t) {
   const o = D.opener; let h = '';
@@ -280,7 +281,7 @@ function opener(t) {
   return h;
 }
 function warm(t) {
-  const w = D.warm; let h = `<div class='a L' style='top:236px'><span class='chip' style='background:__BLUE__;color:__INK__'>Question 1</span></div>`;
+  const w = D.warm; let h = `<div class='a L' style='top:236px'><span class='chip' style='background:__BLUE__;color:__INK__'>Warm-up</span></div>`;
   if (t >= w.prompt_at) h += `<div class='a L q' style='top:330px;${pop(t, w.prompt_at)}'>${esc(w.prompt)}</div>`;
   const rev = t >= w.up;
   h += `<div class='a L' style='top:610px;height:400px'>`;
@@ -294,12 +295,12 @@ function warm(t) {
   });
   if (t >= w.names_at[1]) h += `<div class='or'>OR</div>`;
   h += `</div>`;
-  if (t >= w.names_at[1] - .2 && !rev) h += ring(t, w.clock, 540, 1160, 125);
-  if (rev) h += `<div class='a L big' style='top:1100px;text-align:center;font-size:150px;color:__GREEN__;${pop(t, w.up, .3)}'>Time's up</div>`;
+  if (t >= w.ready && !rev) h += `<div style='${pop(t, w.ready, .3)}'>` + bar(t, w.clock, 1185) + `</div>`;
+  if (rev) h += `<div class='a L big' style='top:1185px;text-align:center;font-size:150px;color:__GREEN__;${pop(t, w.up, .3)}'>Time's up</div>`;
   return h;
 }
 function fin(t) {
-  const f = D.final; let h = `<div class='a L' style='top:236px'><span class='chip' style='background:__GREEN__;color:__DARK__'>Final question</span></div>`;
+  const f = D.final; let h = `<div class='a L' style='top:236px'><span class='chip' style='background:__GREEN__;color:__DARK__'>Your call</span></div>`;
   if (t >= f.ask_at) h += `<div class='a L big' style='top:322px;font-size:96px;${pop(t, f.ask_at)}'>Whose line is it?</div>`;
   if (t >= f.stat_at) {
     h += `<div class='a L' style='top:436px;display:flex;gap:16px'>`;
@@ -312,11 +313,12 @@ function fin(t) {
     h += `<div class='nm4' style='left:${x}px;top:${y}px;${pop(t, f.names_at[i], .3)}'><div class='b'>${f.letters[i]}</div><div class='n' style='font-size:${fit(n, 279, 50)}px'>${esc(n).replace(' ', '<br>')}</div></div>`;
   });
   if (t < f.up) {
-    if (t >= f.names_at[3] - .2) h += ring(t, f.clock, 250, 1160, 112);
-    if (f.hint && t >= f.hint.t0) h += `<div class='a' style='left:450px;top:1100px;${pop(t, f.hint.t0, .3)}'><div class='mut' style='font-size:30px;letter-spacing:3px;font-weight:900'>HINT</div><div class='big' style='font-size:84px;color:__GREEN__'>${esc(f.hint.text)}</div></div>`;
+    if (t >= f.ready) h += `<div style='${pop(t, f.ready, .3)}'>` + bar(t, f.clock, 1185) + `</div>`;
+    if (f.hint && t >= f.hint.t0) h += `<div class='a L' style='top:1080px;display:flex;align-items:baseline;gap:18px;${pop(t, f.hint.t0, .3)}'><span class='mut' style='font-size:34px;letter-spacing:3px;font-weight:900'>HINT</span><span class='big' style='font-size:84px;color:__GREEN__'>${esc(f.hint.text)}</span></div>`;
   } else {
     h += `<div class='a L cta' style='top:1060px;${pop(t, f.up, .35)}'>Comment<br><span style='color:__GREEN__'>A, B, C or D</span></div>`
-       + `<div class='a L mut' style='top:1265px;font-size:40px;${pop(t, f.up + .5)}'>The answer opens the next Drill · @TrendBettorsHQ</div>`;
+       + `<div class='a L' style='top:1290px;font-weight:900;font-style:italic;font-size:50px;${pop(t, f.up + .5)}'>__END__</div>`
+       + `<div class='a L mut' style='top:1366px;font-size:36px;${pop(t, f.up + .7)}'>@TrendBettorsHQ</div>`;
   }
   return h;
 }
@@ -337,7 +339,8 @@ function draw(t) {
 def page(D, folder):
     mark = "file://" + os.path.join(HERE, "mark.svg")
     js = (JS.replace("__DATA__", json.dumps(D)).replace("__MARK__", mark).replace("__BLUE__", BLUE)
-          .replace("__GREEN__", GREEN).replace("__INK__", INK).replace("__DARK__", DARK).replace("__MUTED__", MUTED))
+          .replace("__GREEN__", GREEN).replace("__INK__", INK).replace("__DARK__", DARK).replace("__MUTED__", MUTED)
+          .replace("__END__", END_LINE).replace("__DY__", str(DY)))
     p = os.path.join(folder, "drill.html")
     open(p, "w").write(f"<!doctype html><html><head><meta charset='utf-8'><style>{css()}</style></head>"
                        f"<body></body><script>{js}</script></html>")

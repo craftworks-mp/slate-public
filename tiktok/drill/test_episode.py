@@ -59,7 +59,7 @@ def test_episode_shape():
     assert E.recap(nl, E.date(2026, 11, 23)).endswith("in the Lakers' overtime win over the Hornets last Tuesday.")
     assert [s["part"] for s in st if s["k"] == "clock"] == ["warmup", "final"]
     assert all(s["count"] == ["Three.", "Two.", "One."] and s["s"] == 10 for s in st if s["k"] == "clock")
-    assert "comments" in st[-1]["text"] and "next episode" in st[-1]["text"]
+    assert "comments" in st[-1]["text"] and "next video for the answer" in st[-1]["text"]
     assert ep["next_last"]["answer"] == "Quentin Grimes" and len(ep["final_names"]) == 4
     assert "Quentin Grimes" in ep["final_names"] and E.four(INP["final"]) == ep["final_names"], "order is fixed per id"
     first = E.check(E.build(INP))  # very first episode: a welcome line, no recap
