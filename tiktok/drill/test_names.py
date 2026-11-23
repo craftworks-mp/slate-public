@@ -54,11 +54,13 @@ def test_accept_keeps_respellings_and_drops():
     old, N.NAMES_FILE = N.NAMES_FILE, names_file
     try:
         added, held = N.accept(chk, drop=[2])
+        assert added == ["Michael Porter Jr."] and len(held) == 2
+        added, held = N.accept(chk, keep=[3])  # flagged, but Nick says it sounds right
     finally:
         N.NAMES_FILE = old
     v = json.load(open(names_file))["verified"]
-    assert v == {"Joel Embiid": None, "Michael Porter Jr.": "Michael Porter Junior"}
-    assert added == ["Michael Porter Jr."] and len(held) == 2
+    assert v == {"Joel Embiid": None, "Michael Porter Jr.": "Michael Porter Junior", "Jalen Brunson": None, "Luka Doncic": None}
+    assert added == ["Jalen Brunson", "Luka Doncic"] and held == []
 
 
 if __name__ == "__main__":

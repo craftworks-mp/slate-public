@@ -9,7 +9,7 @@ check and that he doesn't call out join names.json; the rest stay off the Drill 
     python tiktok/drill/names.py render LIST.json clips --part K/N                             # voice share K of N
     python tiktok/drill/names.py stitch LIST.json clips OUT                                    # names.wav + cues + check
     python tiktok/drill/names.py video LIST.json OUT                                          # OUT/names.mp4 (needs OUT/names.wav)
-    python tiktok/drill/names.py accept OUT/names-check.json [--drop 3,17]                    # passes -> names.json
+    python tiktok/drill/names.py accept OUT/names-check.json [--drop 3,17] [--keep 9,40]      # passes (+ kept) -> names.json
 """
 import collections
 import json
@@ -202,16 +202,18 @@ def video(lst, out):
     print(f"video: {len(cues)} names")
 
 
-def accept(check_path, drop=()):
-    """Names that passed the words check, minus the numbers Nick called out, join names.json (null = reads as spelled)."""
+def accept(check_path, drop=(), keep=()):
+    """Names that passed the words check, minus the numbers Nick called out, plus flagged ones he says sound right
+    (Whisper spells some right names its own way: Randall for Randle), join names.json (null = reads as spelled)."""
     chk = json.load(open(check_path))
     doc = json.load(open(NAMES_FILE))
-    added = [c["name"] for c in chk["names"] if c["pass"] and c["n"] not in set(drop) and c["name"] not in doc["verified"]]
+    ok = lambda c: (c["pass"] or c["n"] in set(keep)) and not c.get("missing") and c["n"] not in set(drop)
+    added = [c["name"] for c in chk["names"] if ok(c) and c["name"] not in doc["verified"]]
     say = {c["name"]: c.get("say") for c in chk["names"]}
     for n in added:
         doc["verified"][n] = say.get(n)
     open(NAMES_FILE, "w").write(json.dumps(doc, indent=1, ensure_ascii=False) + "\n")
-    held = [f"#{c['n']} {c['name']}" for c in chk["names"] if not c["pass"] or c["n"] in set(drop)]
+    held = [f"#{c['n']} {c['name']}" for c in chk["names"] if not ok(c)]
     print(f"added {len(added)} names; held {len(held)}: {', '.join(held) or 'none'}")
     return added, held
 
@@ -235,7 +237,7 @@ if __name__ == "__main__":
     elif cmd == "video":
         video(json.load(open(a[1])), a[2])
     elif cmd == "accept":
-        d = _opt(a, "--drop", "")
-        accept(a[1], [int(x) for x in re.findall(r"\d+", d)])
+        nums = lambda k: [int(x) for x in re.findall(r"\d+", _opt(a, k, ""))]
+        accept(a[1], nums("--drop"), nums("--keep"))
     else:
         sys.exit(__doc__)
