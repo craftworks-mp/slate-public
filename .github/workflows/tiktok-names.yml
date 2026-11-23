@@ -1,0 +1,120 @@
+# Drill name bank (owner OK 11/22 23:0x): reads a batch of players' names in Nick's locked voice, one short line each,
+# checks each by speech to text, and makes one numbered video for his ear (tiktok/drill/names.py). Names that pass and
+# that he doesn't call out join tiktok/names.json, so the daily Drill picker has enough names to build every day.
+# Output: tiktok/drill/out/<date>-<run id>-names/ (episode.wav.gpg + episode.mp4.gpg, so slate-data's TikTok ears works
+# unchanged, plus names-check.json). Runs here because this repo is public (free minutes); his voice stays encrypted.
+name: TikTok names
+on:
+  workflow_dispatch:
+    inputs:
+      list:
+        description: 'Name batch JSON (from names.py batch)'
+        default: 'tiktok/drill/input/names-2026-11-22.json'
+permissions:
+  contents: write
+concurrency:
+  group: tiktok-names
+  cancel-in-progress: false
+jobs:
+  voice:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [0, 1, 2, 3]
+    env:
+      LIST: ${{ inputs.list }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tiktok
+      - name: Decrypt the voice reference (first, so a missing secret fails in seconds)
+        env:
+          KEY: ${{ secrets.VOICE_REF_KEY }}
+        run: |
+          [ -n "$KEY" ] || { echo "VOICE_REF_KEY secret is missing"; exit 1; }
+          [ -e "$LIST" ] || { echo "no $LIST"; exit 1; }
+          gpg --batch --yes --quiet --pinentry-mode loopback --passphrase "$KEY" -o tiktok/nick_ref.wav -d tiktok/nick_ref.wav.gpg
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install (the same pinned set as the Drill)
+        run: |
+          CPU=https://download.pytorch.org/whl/cpu
+          pip install -q torch==2.15.0 torchaudio==2.11.1 --index-url $CPU
+          pip install -q --extra-index-url $CPU qwen-tts==0.1.1 transformers==4.57.3 accelerate==1.12.0 numpy==2.4.6 soundfile
+      - name: Render share ${{ matrix.part }} of 4
+        timeout-minutes: 28
+        run: python -u tiktok/drill/names.py render "$LIST" clips --part ${{ matrix.part }}/4
+      - name: Encrypt the clips (public repo, and anyone signed in can download artifacts)
+        if: always()
+        env:
+          KEY: ${{ secrets.VOICE_REF_KEY }}
+        run: |
+          rm -f tiktok/nick_ref.wav
+          [ -d clips ] || exit 0
+          tar -cf clips.tar clips
+          gpg --batch --yes --quiet --pinentry-mode loopback --passphrase "$KEY" --symmetric --cipher-algo AES256 -o clips-${{ matrix.part }}.tar.gpg clips.tar
+          rm -rf clips clips.tar
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: names-clips-${{ matrix.part }}
+          path: clips-${{ matrix.part }}.tar.gpg
+          retention-days: 1
+          if-no-files-found: ignore
+  check:
+    # Stitches every name in order, checks each by speech to text, and makes the numbered video. A share that failed
+    # leaves its names out (shown as not rendered), so one stuck job never costs the whole batch.
+    needs: voice
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      LIST: ${{ inputs.list }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tiktok
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install (no voice model needed here)
+        run: |
+          pip install -q numpy==2.4.6 soundfile pillow faster-whisper==1.2.1
+          command -v ffmpeg || { sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null; }
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: names-clips-*
+          merge-multiple: true
+          path: enc
+      - name: Decrypt the clips
+        env:
+          KEY: ${{ secrets.VOICE_REF_KEY }}
+        run: |
+          for g in enc/clips-*.tar.gpg; do gpg --batch --yes --quiet --pinentry-mode loopback --passphrase "$KEY" -o x.tar -d "$g" && tar -xf x.tar && rm x.tar; done
+          ls clips | wc -l
+      - name: Name bank checks
+        run: python tiktok/drill/test_names.py
+      - name: Stitch + words check
+        run: python -u tiktok/drill/names.py stitch "$LIST" clips out
+      - name: Video (number + name on screen)
+        run: python -u tiktok/drill/names.py video "$LIST" out
+      - name: Encrypt + commit (his voice; this repo is public)
+        env:
+          KEY: ${{ secrets.VOICE_REF_KEY }}
+        run: |
+          D="tiktok/drill/out/$(TZ=America/New_York date +%Y-%m-%d)-${{ github.run_id }}-names"
+          mkdir -p "$D"
+          gpg --batch --yes --quiet --pinentry-mode loopback --passphrase "$KEY" --symmetric --cipher-algo AES256 -o "$D/episode.wav.gpg" out/names.wav
+          gpg --batch --yes --quiet --pinentry-mode loopback --passphrase "$KEY" --symmetric --cipher-algo AES256 -o "$D/episode.mp4.gpg" out/names.mp4
+          cp out/names-check.json "$LIST" "$D"/
+          rm -rf out clips enc
+          ! git status --porcelain --untracked-files=all | grep -E '\.(wav|mp4)$' || { echo "plain audio or video in the tree"; exit 1; }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$D"
+          git commit -qm "TikTok names check [skip ci]"
+          for i in 1 2 3 4; do git pull --rebase --autostash -q && git push -q && exit 0; sleep $((i * 10)); done
+          exit 1

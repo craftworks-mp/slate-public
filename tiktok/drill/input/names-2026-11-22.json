@@ -1,0 +1,720 @@
+{
+ "names": [
+  {
+   "n": 1,
+   "name": "Alperen Sengun",
+   "say": null,
+   "sport": "NBA",
+   "days": 13
+  },
+  {
+   "n": 2,
+   "name": "Damian Lillard",
+   "say": null,
+   "sport": "NBA",
+   "days": 13
+  },
+  {
+   "n": 3,
+   "name": "Darius Acuff Jr.",
+   "say": "Darius Acuff Junior",
+   "sport": "NBA",
+   "days": 13
+  },
+  {
+   "n": 4,
+   "name": "Drake Maye",
+   "say": null,
+   "sport": "NFL",
+   "days": 13
+  },
+  {
+   "n": 5,
+   "name": "Giannis Antetokounmpo",
+   "say": null,
+   "sport": "NBA",
+   "days": 13
+  },
+  {
+   "n": 6,
+   "name": "Jamal Murray",
+   "say": null,
+   "sport": "NBA",
+   "days": 13
+  },
+  {
+   "n": 7,
+   "name": "James Cook",
+   "say": null,
+   "sport": "NFL",
+   "days": 13
+  },
+  {
+   "n": 8,
+   "name": "Jayson Tatum",
+   "say": null,
+   "sport": "NBA",
+   "days": 13
+  },
+  {
+   "n": 9,
+   "name": "Karl-Anthony Towns",
+   "say": null,
+   "sport": "NBA",
+   "days": 13
+  },
+  {
+   "n": 10,
+   "name": "Luka Doncic",
+   "say": null,
+   "sport": "NBA",
+   "days": 13
+  },
+  {
+   "n": 11,
+   "name": "Michael Porter Jr.",
+   "say": "Michael Porter Junior",
+   "sport": "NBA",
+   "days": 13
+  },
+  {
+   "n": 12,
+   "name": "Pascal Siakam",
+   "say": null,
+   "sport": "NBA",
+   "days": 13
+  },
+  {
+   "n": 13,
+   "name": "Shai Gilgeous-Alexander",
+   "say": null,
+   "sport": "NBA",
+   "days": 13
+  },
+  {
+   "n": 14,
+   "name": "Victor Wembanyama",
+   "say": null,
+   "sport": "NBA",
+   "days": 13
+  },
+  {
+   "n": 15,
+   "name": "Anthony Davis",
+   "say": null,
+   "sport": "NBA",
+   "days": 12
+  },
+  {
+   "n": 16,
+   "name": "Brock Purdy",
+   "say": null,
+   "sport": "NFL",
+   "days": 12
+  },
+  {
+   "n": 17,
+   "name": "Cooper Flagg",
+   "say": null,
+   "sport": "NBA",
+   "days": 12
+  },
+  {
+   "n": 18,
+   "name": "Daniel Jones",
+   "say": null,
+   "sport": "NFL",
+   "days": 12
+  },
+  {
+   "n": 19,
+   "name": "Darius Garland",
+   "say": null,
+   "sport": "NBA",
+   "days": 12
+  },
+  {
+   "n": 20,
+   "name": "Deni Avdija",
+   "say": null,
+   "sport": "NBA",
+   "days": 12
+  },
+  {
+   "n": 21,
+   "name": "Devin Booker",
+   "say": null,
+   "sport": "NBA",
+   "days": 12
+  },
+  {
+   "n": 22,
+   "name": "Donovan Mitchell",
+   "say": null,
+   "sport": "NBA",
+   "days": 12
+  },
+  {
+   "n": 23,
+   "name": "Geno Smith",
+   "say": null,
+   "sport": "NFL",
+   "days": 12
+  },
+  {
+   "n": 24,
+   "name": "Ja'Marr Chase",
+   "say": null,
+   "sport": "NFL",
+   "days": 12
+  },
+  {
+   "n": 25,
+   "name": "Jalen Brunson",
+   "say": null,
+   "sport": "NBA",
+   "days": 12
+  },
+  {
+   "n": 26,
+   "name": "Joe Burrow",
+   "say": null,
+   "sport": "NFL",
+   "days": 12
+  },
+  {
+   "n": 27,
+   "name": "Jordan Love",
+   "say": null,
+   "sport": "NFL",
+   "days": 12
+  },
+  {
+   "n": 28,
+   "name": "Matthew Stafford",
+   "say": null,
+   "sport": "NFL",
+   "days": 12
+  },
+  {
+   "n": 29,
+   "name": "Ace Bailey",
+   "say": null,
+   "sport": "NBA",
+   "days": 11
+  },
+  {
+   "n": 30,
+   "name": "Bryce Young",
+   "say": null,
+   "sport": "NFL",
+   "days": 11
+  },
+  {
+   "n": 31,
+   "name": "C.J. Stroud",
+   "say": "C J Stroud",
+   "sport": "NFL",
+   "days": 11
+  },
+  {
+   "n": 32,
+   "name": "Cedric Coward",
+   "say": null,
+   "sport": "NBA",
+   "days": 11
+  },
+  {
+   "n": 33,
+   "name": "Christian Watson",
+   "say": null,
+   "sport": "NFL",
+   "days": 11
+  },
+  {
+   "n": 34,
+   "name": "Dak Prescott",
+   "say": null,
+   "sport": "NFL",
+   "days": 11
+  },
+  {
+   "n": 35,
+   "name": "Darryn Peterson",
+   "say": null,
+   "sport": "NBA",
+   "days": 11
+  },
+  {
+   "n": 36,
+   "name": "Davion Mitchell",
+   "say": null,
+   "sport": "NBA",
+   "days": 11
+  },
+  {
+   "n": 37,
+   "name": "Franz Wagner",
+   "say": null,
+   "sport": "NBA",
+   "days": 11
+  },
+  {
+   "n": 38,
+   "name": "Immanuel Quickley",
+   "say": null,
+   "sport": "NBA",
+   "days": 11
+  },
+  {
+   "n": 39,
+   "name": "Jaxon Smith-Njigba",
+   "say": null,
+   "sport": "NFL",
+   "days": 11
+  },
+  {
+   "n": 40,
+   "name": "Julius Randle",
+   "say": null,
+   "sport": "NBA",
+   "days": 11
+  },
+  {
+   "n": 41,
+   "name": "Keyonte George",
+   "say": null,
+   "sport": "NBA",
+   "days": 11
+  },
+  {
+   "n": 42,
+   "name": "Kirk Cousins",
+   "say": null,
+   "sport": "NFL",
+   "days": 11
+  },
+  {
+   "n": 43,
+   "name": "Michael Penix Jr.",
+   "say": "Michael Penix Junior",
+   "sport": "NFL",
+   "days": 11
+  },
+  {
+   "n": 44,
+   "name": "Patrick Mahomes",
+   "say": null,
+   "sport": "NFL",
+   "days": 11
+  },
+  {
+   "n": 45,
+   "name": "Ray Davis",
+   "say": null,
+   "sport": "NFL",
+   "days": 11
+  },
+  {
+   "n": 46,
+   "name": "Stephon Castle",
+   "say": null,
+   "sport": "NBA",
+   "days": 11
+  },
+  {
+   "n": 47,
+   "name": "Trae Young",
+   "say": null,
+   "sport": "NBA",
+   "days": 11
+  },
+  {
+   "n": 48,
+   "name": "Tyler Shough",
+   "say": null,
+   "sport": "NFL",
+   "days": 11
+  },
+  {
+   "n": 49,
+   "name": "Zion Williamson",
+   "say": null,
+   "sport": "NBA",
+   "days": 11
+  },
+  {
+   "n": 50,
+   "name": "Ayo Dosunmu",
+   "say": null,
+   "sport": "NBA",
+   "days": 10
+  },
+  {
+   "n": 51,
+   "name": "Bijan Robinson",
+   "say": null,
+   "sport": "NFL",
+   "days": 10
+  },
+  {
+   "n": 52,
+   "name": "Desmond Bane",
+   "say": null,
+   "sport": "NBA",
+   "days": 10
+  },
+  {
+   "n": 53,
+   "name": "Dillon Brooks",
+   "say": null,
+   "sport": "NBA",
+   "days": 10
+  },
+  {
+   "n": 54,
+   "name": "Drake London",
+   "say": null,
+   "sport": "NFL",
+   "days": 10
+  },
+  {
+   "n": 55,
+   "name": "Drew Lock",
+   "say": null,
+   "sport": "NFL",
+   "days": 10
+  },
+  {
+   "n": 56,
+   "name": "Fred VanVleet",
+   "say": null,
+   "sport": "NBA",
+   "days": 10
+  },
+  {
+   "n": 57,
+   "name": "Isaiah Hartenstein",
+   "say": null,
+   "sport": "NBA",
+   "days": 10
+  },
+  {
+   "n": 58,
+   "name": "Jared Goff",
+   "say": null,
+   "sport": "NFL",
+   "days": 10
+  },
+  {
+   "n": 59,
+   "name": "Jordan Mason",
+   "say": null,
+   "sport": "NFL",
+   "days": 10
+  },
+  {
+   "n": 60,
+   "name": "Josh Allen",
+   "say": null,
+   "sport": "NFL",
+   "days": 10
+  },
+  {
+   "n": 61,
+   "name": "Justin Fields",
+   "say": null,
+   "sport": "NFL",
+   "days": 10
+  },
+  {
+   "n": 62,
+   "name": "Kevin Durant",
+   "say": null,
+   "sport": "NBA",
+   "days": 10
+  },
+  {
+   "n": 63,
+   "name": "Nickeil Alexander-Walker",
+   "say": null,
+   "sport": "NBA",
+   "days": 10
+  },
+  {
+   "n": 64,
+   "name": "Onyeka Okongwu",
+   "say": null,
+   "sport": "NBA",
+   "days": 10
+  },
+  {
+   "n": 65,
+   "name": "RJ Barrett",
+   "say": null,
+   "sport": "NBA",
+   "days": 10
+  },
+  {
+   "n": 66,
+   "name": "Sam Hauser",
+   "say": null,
+   "sport": "NBA",
+   "days": 10
+  },
+  {
+   "n": 67,
+   "name": "Tommy DeVito",
+   "say": null,
+   "sport": "NFL",
+   "days": 10
+  },
+  {
+   "n": 68,
+   "name": "Trevor Lawrence",
+   "say": null,
+   "sport": "NFL",
+   "days": 10
+  },
+  {
+   "n": 69,
+   "name": "Tyrese Maxey",
+   "say": null,
+   "sport": "NBA",
+   "days": 10
+  },
+  {
+   "n": 70,
+   "name": "Yaxel Lendeborg",
+   "say": null,
+   "sport": "NBA",
+   "days": 10
+  },
+  {
+   "n": 71,
+   "name": "Aaron Jones",
+   "say": null,
+   "sport": "NFL",
+   "days": 9
+  },
+  {
+   "n": 72,
+   "name": "Alex Sarr",
+   "say": null,
+   "sport": "NBA",
+   "days": 9
+  },
+  {
+   "n": 73,
+   "name": "Blake Corum",
+   "say": null,
+   "sport": "NFL",
+   "days": 9
+  },
+  {
+   "n": 74,
+   "name": "Cam Ward",
+   "say": null,
+   "sport": "NFL",
+   "days": 9
+  },
+  {
+   "n": 75,
+   "name": "Cameron Boozer",
+   "say": null,
+   "sport": "NBA",
+   "days": 9
+  },
+  {
+   "n": 76,
+   "name": "Chris Olave",
+   "say": null,
+   "sport": "NFL",
+   "days": 9
+  },
+  {
+   "n": 77,
+   "name": "Christian McCaffrey",
+   "say": null,
+   "sport": "NFL",
+   "days": 9
+  },
+  {
+   "n": 78,
+   "name": "DeMario Douglas",
+   "say": null,
+   "sport": "NFL",
+   "days": 9
+  },
+  {
+   "n": 79,
+   "name": "Harrison Barnes",
+   "say": null,
+   "sport": "NBA",
+   "days": 9
+  },
+  {
+   "n": 80,
+   "name": "Jalen Johnson",
+   "say": null,
+   "sport": "NBA",
+   "days": 9
+  },
+  {
+   "n": 81,
+   "name": "James Harden",
+   "say": null,
+   "sport": "NBA",
+   "days": 9
+  },
+  {
+   "n": 82,
+   "name": "Josh Giddey",
+   "say": null,
+   "sport": "NBA",
+   "days": 9
+  },
+  {
+   "n": 83,
+   "name": "Jrue Holiday",
+   "say": null,
+   "sport": "NBA",
+   "days": 9
+  },
+  {
+   "n": 84,
+   "name": "Kyle Allen",
+   "say": null,
+   "sport": "NFL",
+   "days": 9
+  },
+  {
+   "n": 85,
+   "name": "Kyrie Irving",
+   "say": null,
+   "sport": "NBA",
+   "days": 9
+  },
+  {
+   "n": 86,
+   "name": "Meleek Thomas",
+   "say": null,
+   "sport": "NBA",
+   "days": 9
+  },
+  {
+   "n": 87,
+   "name": "Ollie Gordon II",
+   "say": "Ollie Gordon the second",
+   "sport": "NFL",
+   "days": 9
+  },
+  {
+   "n": 88,
+   "name": "Tari Eason",
+   "say": null,
+   "sport": "NBA",
+   "days": 9
+  },
+  {
+   "n": 89,
+   "name": "Tetairoa McMillan",
+   "say": null,
+   "sport": "NFL",
+   "days": 9
+  },
+  {
+   "n": 90,
+   "name": "Tyler Kolek",
+   "say": null,
+   "sport": "NBA",
+   "days": 9
+  },
+  {
+   "n": 91,
+   "name": "Tyus Jones",
+   "say": null,
+   "sport": "NBA",
+   "days": 9
+  },
+  {
+   "n": 92,
+   "name": "VJ Edgecombe",
+   "say": null,
+   "sport": "NBA",
+   "days": 9
+  },
+  {
+   "n": 93,
+   "name": "Zach LaVine",
+   "say": null,
+   "sport": "NBA",
+   "days": 9
+  },
+  {
+   "n": 94,
+   "name": "AJ Dybantsa",
+   "say": null,
+   "sport": "NBA",
+   "days": 8
+  },
+  {
+   "n": 95,
+   "name": "Aaron Rodgers",
+   "say": null,
+   "sport": "NFL",
+   "days": 8
+  },
+  {
+   "n": 96,
+   "name": "Alijah Martin",
+   "say": null,
+   "sport": "NBA",
+   "days": 8
+  },
+  {
+   "n": 97,
+   "name": "Amen Thompson",
+   "say": null,
+   "sport": "NBA",
+   "days": 8
+  },
+  {
+   "n": 98,
+   "name": "Andrew Nembhard",
+   "say": null,
+   "sport": "NBA",
+   "days": 8
+  },
+  {
+   "n": 99,
+   "name": "Bhayshul Tuten",
+   "say": null,
+   "sport": "NFL",
+   "days": 8
+  },
+  {
+   "n": 100,
+   "name": "Bogdan Bogdanovic",
+   "say": null,
+   "sport": "NBA",
+   "days": 8
+  }
+ ],
+ "pools": [
+  "2026-11-09",
+  "2026-11-10",
+  "2026-11-11",
+  "2026-11-12",
+  "2026-11-13",
+  "2026-11-14",
+  "2026-11-15",
+  "2026-11-16",
+  "2026-11-17",
+  "2026-11-18",
+  "2026-11-19",
+  "2026-11-20",
+  "2026-11-21",
+  "2026-11-22"
+ ]
+}
