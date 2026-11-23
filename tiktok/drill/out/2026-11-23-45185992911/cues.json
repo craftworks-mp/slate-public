@@ -1,0 +1,151 @@
+{
+ "post_date": "2026-11-23",
+ "length_s": 61.0,
+ "long_enough": true,
+ "sr": 24000,
+ "render_s": 301,
+ "versions": {
+  "qwen-tts": "0.1.1",
+  "torch": "2.15.0+cpu",
+  "transformers": "4.57.3",
+  "accelerate": "1.12.0"
+ },
+ "sampling": {
+  "temperature": 0.7
+ },
+ "ref_speed": "1",
+ "parts": 3,
+ "final_names": [
+  "LaMelo Ball",
+  "Collin Murray-Boyles",
+  "Quentin Grimes",
+  "Collin Sexton"
+ ],
+ "final_pos": [
+  "G",
+  "F",
+  "G",
+  "G"
+ ],
+ "trial_names": [],
+ "next_last": {
+  "date": "2026-11-23",
+  "id": "2026-11-21-0",
+  "text": "Whose line was forty seven points, six rebounds and three assists?",
+  "answer": "Quentin Grimes",
+  "letter": "C",
+  "game": {
+   "sport": "NBA",
+   "day": "2026-11-17",
+   "team": "LAL",
+   "opp": "CHA",
+   "won": true,
+   "ot": true
+  }
+ },
+ "cues": [
+  {
+   "k": "say",
+   "part": "opener",
+   "text": "Welcome to the Two-Minute Drill. Two questions, ten seconds each.",
+   "start": 0.0,
+   "end": 4.04
+  },
+  {
+   "k": "gap",
+   "s": 0.4,
+   "start": 4.04,
+   "end": 4.44
+  },
+  {
+   "k": "say",
+   "part": "warmup",
+   "text": "Alright, let's warm up. Who averages more points per game this season? Paul George, or Cade Cunningham?",
+   "start": 4.44,
+   "end": 10.86
+  },
+  {
+   "k": "gap",
+   "s": 0.5,
+   "start": 10.86,
+   "end": 11.36
+  },
+  {
+   "k": "say",
+   "part": "warmup",
+   "text": "You've got ten seconds.",
+   "start": 11.36,
+   "end": 13.07
+  },
+  {
+   "k": "clock",
+   "part": "warmup",
+   "s": 10,
+   "count": [
+    "Three.",
+    "Two.",
+    "One."
+   ],
+   "start": 13.07,
+   "end": 23.07
+  },
+  {
+   "k": "say",
+   "part": "warmup",
+   "text": "Time's up. It's Cade Cunningham, at twenty six a game.",
+   "start": 23.07,
+   "end": 27.01
+  },
+  {
+   "k": "gap",
+   "s": 0.6,
+   "start": 27.01,
+   "end": 27.61
+  },
+  {
+   "k": "say",
+   "part": "final",
+   "text": "Now for the one that counts. This one's for you guys to answer down below. Whose line is it? Forty seven points, six rebounds and three assists, last Tuesday. LaMelo Ball, Collin Murray-Boyles, Quentin Grimes, or Collin Sexton?",
+   "start": 27.61,
+   "end": 44.16
+  },
+  {
+   "k": "gap",
+   "s": 0.5,
+   "start": 44.16,
+   "end": 44.66
+  },
+  {
+   "k": "say",
+   "part": "final",
+   "text": "Ten seconds on the clock.",
+   "start": 44.66,
+   "end": 46.42
+  },
+  {
+   "k": "clock",
+   "part": "final",
+   "s": 10,
+   "count": [
+    "Three.",
+    "Two.",
+    "One."
+   ],
+   "hint": {
+    "at": 5,
+    "text": "Hint: he's a guard.",
+    "start": 51.48,
+    "end": 52.53
+   },
+   "start": 46.42,
+   "end": 56.42
+  },
+  {
+   "k": "say",
+   "part": "final",
+   "text": "Time's up. Drop your guess in the comments, and check out our next video for the answer.",
+   "start": 56.42,
+   "end": 61.04
+  }
+ ]
+}

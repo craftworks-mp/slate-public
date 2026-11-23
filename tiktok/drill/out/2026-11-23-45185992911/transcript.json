@@ -1,0 +1,19 @@
+{
+ "text": "Welcome to the two minute drill. Two questions, 10 seconds each. All right, let's warm up. Who averages more points per game this season? Paul George or Cade Cunningham. You've got 10 seconds. Three, two, one, time's up. It's Cade Cunningham at 26 a game. Now for the one that counts. This one's for you guys to answer down below. Whose line is it? 47 points, six rebounds and three assists last Tuesday. Lamello ball, Colin Murray boils, Quentin Grimes or Colin Sexton. 10 seconds on the clock. Henty is a guard. Three, two, one, time's up. Drop your guess in the comments and check out our next video for the answer.",
+ "match": 0.982,
+ "wpm": 192,
+ "missing": [
+  "hint he's"
+ ],
+ "trial_names": {},
+ "whole_file_match": 0.973,
+ "lines": [
+  {
+   "text": "Three. Two. One.",
+   "match": 0.714,
+   "missing": [
+    "hint he's"
+   ]
+  }
+ ]
+}
