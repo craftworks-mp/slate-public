@@ -1,5 +1,5 @@
 {
- "latest": "2026-11-23",
+ "latest": "2026-11-24",
  "days": {
   "2026-11-18": {
    "file": "2026-11-18-4.jpg",
@@ -32,10 +32,16 @@
    "n": 4
   },
   "2026-11-23": {
-   "file": "2026-11-23.jpg",
-   "alt": "Trend Bettors daily model picks for Mon, Nov 23. Main Event: Damian Lillard under 7.5 rebounds + assists (+110); Dog Pound: Toumani Camara under 4.5 rebounds (+106); Heat Check: Julian Champagnie under 13.5 points (-125); Mismatch: Darius Garland under 6.5 assists (-105).",
-   "graded": 0,
+   "file": "2026-11-23-4.jpg",
+   "alt": "Trend Bettors daily model picks for Mon, Nov 23. Main Event: Damian Lillard under 7.5 rebounds + assists (+110), lost; Dog Pound: Toumani Camara under 4.5 rebounds (+106), lost; Heat Check: Julian Champagnie under 13.5 points (-125), lost; Mismatch: Darius Garland under 6.5 assists (-105), lost.",
+   "graded": 4,
    "n": 4
+  },
+  "2026-11-24": {
+   "file": "2026-11-24.jpg",
+   "alt": "Trend Bettors daily model picks for Tue, Nov 24. Main Event: Cooper Flagg under 6.5 rebounds (-108); Heat Check: Daniel Gafford under 16.5 points + rebounds (-109).",
+   "graded": 0,
+   "n": 2
   }
  },
  "w": 1200,
