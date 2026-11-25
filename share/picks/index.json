@@ -1,5 +1,5 @@
 {
- "latest": "2026-11-24",
+ "latest": "2026-11-25",
  "days": {
   "2026-11-18": {
    "file": "2026-11-18-4.jpg",
@@ -38,10 +38,16 @@
    "n": 4
   },
   "2026-11-24": {
-   "file": "2026-11-24.jpg",
-   "alt": "Trend Bettors daily model picks for Tue, Nov 24. Main Event: Cooper Flagg under 6.5 rebounds (-108); Heat Check: Daniel Gafford under 16.5 points + rebounds (-109).",
-   "graded": 0,
+   "file": "2026-11-24-2.jpg",
+   "alt": "Trend Bettors daily model picks for Tue, Nov 24. Main Event: Cooper Flagg under 6.5 rebounds (-108), won; Heat Check: Daniel Gafford under 16.5 points + rebounds (-109), lost.",
+   "graded": 2,
    "n": 2
+  },
+  "2026-11-25": {
+   "file": "2026-11-25.jpg",
+   "alt": "Trend Bettors daily model picks for Wed, Nov 25. Main Event: Mikel Brown Jr. under 23.5 points + rebounds + assists (-107); Dog Pound: Danny Wolf under 1.5 3-pointers (+109); Heat Check: Kenrich Williams under 5.5 rebounds (-136); Mismatch: Cedric Coward under 20.5 points + assists (-107).",
+   "graded": 0,
+   "n": 4
   }
  },
  "w": 1200,
