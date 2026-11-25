@@ -2,77 +2,41 @@
  "breakEven": 0.5238,
  "sports": {
   "NBA": {
-   "date": "2026-11-23",
+   "date": "2026-11-24",
    "all": {
-    "w": 36,
-    "l": 39,
+    "w": 2,
+    "l": 4,
     "p": 0,
-    "winPct": 0.48,
-    "be": 0.521
+    "winPct": 0.3333,
+    "be": 0.5157
    },
    "markets": [
     {
-     "key": "pts",
-     "name": "Points",
-     "w": 7,
-     "l": 10,
-     "p": 0,
-     "winPct": 0.4118,
-     "be": 0.5229
-    },
-    {
      "key": "pr",
      "name": "Pts + Reb",
-     "w": 6,
-     "l": 7,
+     "w": 1,
+     "l": 2,
      "p": 0,
-     "winPct": 0.4615,
-     "be": 0.5237
+     "winPct": 0.3333,
+     "be": 0.52
     },
     {
-     "key": "pra",
-     "name": "Pts + Reb + Ast",
-     "w": 6,
-     "l": 5,
+     "key": "pts",
+     "name": "Points",
+     "w": 0,
+     "l": 2,
      "p": 0,
-     "winPct": 0.5455,
-     "be": 0.5264
-    },
-    {
-     "key": "pa",
-     "name": "Pts + Ast",
-     "w": 6,
-     "l": 4,
-     "p": 0,
-     "winPct": 0.6,
-     "be": 0.5284
-    },
-    {
-     "key": "ra",
-     "name": "Reb + Ast",
-     "w": 4,
-     "l": 6,
-     "p": 0,
-     "winPct": 0.4,
-     "be": 0.5049
+     "winPct": 0.0,
+     "be": 0.5074
     },
     {
      "key": "reb",
      "name": "Rebounds",
-     "w": 5,
-     "l": 5,
+     "w": 1,
+     "l": 0,
      "p": 0,
-     "winPct": 0.5,
-     "be": 0.5168
-    },
-    {
-     "key": "ast",
-     "name": "Assists",
-     "w": 2,
-     "l": 2,
-     "p": 0,
-     "winPct": 0.5,
-     "be": 0.5221
+     "winPct": 1.0,
+     "be": 0.5192
     }
    ]
   },
@@ -98,5 +62,5 @@
    ]
   }
  },
- "updated": "2026-11-25T00:08:21-05:00"
+ "updated": "2026-11-25T00:38:14-05:00"
 }
