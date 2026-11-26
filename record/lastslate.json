@@ -2,54 +2,117 @@
  "breakEven": 0.5238,
  "sports": {
   "NBA": {
-   "date": "2026-11-24",
+   "date": "2026-11-25",
    "all": {
-    "w": 2,
-    "l": 4,
+    "w": 22,
+    "l": 13,
     "p": 0,
-    "winPct": 0.3333,
-    "be": 0.5157
+    "winPct": 0.6286,
+    "be": 0.5258
    },
    "markets": [
     {
      "key": "pr",
      "name": "Pts + Reb",
-     "w": 1,
-     "l": 2,
+     "w": 6,
+     "l": 4,
      "p": 0,
-     "winPct": 0.3333,
-     "be": 0.52
+     "winPct": 0.6,
+     "be": 0.5246
+    },
+    {
+     "key": "pra",
+     "name": "Pts + Reb + Ast",
+     "w": 4,
+     "l": 3,
+     "p": 0,
+     "winPct": 0.5714,
+     "be": 0.5248
     },
     {
      "key": "pts",
      "name": "Points",
-     "w": 0,
+     "w": 5,
+     "l": 1,
+     "p": 0,
+     "winPct": 0.8333,
+     "be": 0.527
+    },
+    {
+     "key": "pa",
+     "name": "Pts + Ast",
+     "w": 4,
      "l": 2,
      "p": 0,
-     "winPct": 0.0,
-     "be": 0.5074
+     "winPct": 0.6667,
+     "be": 0.5233
+    },
+    {
+     "key": "tpm",
+     "name": "3-pointers",
+     "w": 1,
+     "l": 1,
+     "p": 0,
+     "winPct": 0.5,
+     "be": 0.4941
     },
     {
      "key": "reb",
      "name": "Rebounds",
      "w": 1,
+     "l": 1,
+     "p": 0,
+     "winPct": 0.5,
+     "be": 0.5609
+    },
+    {
+     "key": "ast",
+     "name": "Assists",
+     "w": 1,
      "l": 0,
      "p": 0,
      "winPct": 1.0,
-     "be": 0.5192
+     "be": 0.5327
+    },
+    {
+     "key": "ra",
+     "name": "Reb + Ast",
+     "w": 0,
+     "l": 1,
+     "p": 0,
+     "winPct": 0.0,
+     "be": 0.537
     }
    ]
   },
   "NHL": {
-   "date": "2026-11-24",
+   "date": "2026-11-25",
    "all": {
-    "w": 1,
-    "l": 0,
+    "w": 11,
+    "l": 5,
     "p": 0,
-    "winPct": 1.0,
-    "be": 0.7015
+    "winPct": 0.6875,
+    "be": 0.5993
    },
    "markets": [
+    {
+     "key": "a",
+     "name": "Assists",
+     "w": 7,
+     "l": 3,
+     "p": 0,
+     "winPct": 0.7,
+     "be": 0.6303
+    },
+    {
+     "key": "sog",
+     "name": "Shots on goal",
+     "w": 3,
+     "l": 2,
+     "p": 0,
+     "winPct": 0.6,
+     "be": 0.5343
+    },
     {
      "key": "pts",
      "name": "Points",
@@ -57,10 +120,10 @@
      "l": 0,
      "p": 0,
      "winPct": 1.0,
-     "be": 0.7015
+     "be": 0.6154
     }
    ]
   }
  },
- "updated": "2026-11-25T23:38:17-05:00"
+ "updated": "2026-11-26T00:10:44-05:00"
 }
