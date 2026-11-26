@@ -1,5 +1,5 @@
 {
- "latest": "2026-11-25",
+ "latest": "2026-11-26",
  "days": {
   "2026-11-18": {
    "file": "2026-11-18-4.jpg",
@@ -44,10 +44,16 @@
    "n": 2
   },
   "2026-11-25": {
-   "file": "2026-11-25.jpg",
-   "alt": "Trend Bettors daily model picks for Wed, Nov 25. Main Event: Mikel Brown Jr. under 23.5 points + rebounds + assists (-107); Dog Pound: Danny Wolf under 1.5 3-pointers (+109); Heat Check: Kenrich Williams under 5.5 rebounds (-136); Mismatch: Cedric Coward under 20.5 points + assists (-107).",
-   "graded": 0,
+   "file": "2026-11-25-4.jpg",
+   "alt": "Trend Bettors daily model picks for Wed, Nov 25. Main Event: Mikel Brown Jr. under 23.5 points + rebounds + assists (-107), won; Dog Pound: Danny Wolf under 1.5 3-pointers (+109), won; Heat Check: Kenrich Williams under 5.5 rebounds (-136), won; Mismatch: Cedric Coward under 20.5 points + assists (-107), won.",
+   "graded": 4,
    "n": 4
+  },
+  "2026-11-26": {
+   "file": "2026-11-26.jpg",
+   "alt": "Trend Bettors daily model picks for Thu, Nov 26. Main Event: Jahmyr Gibbs under 38.5 RECY (-113); Dog Pound: Rome Odunze over 3.5 REC (+112); Heat Check: Caleb Williams under 22.5 RYD (-115).",
+   "graded": 0,
+   "n": 3
   }
  },
  "w": 1200,
