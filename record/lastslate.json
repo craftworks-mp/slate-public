@@ -123,7 +123,91 @@
      "be": 0.6218
     }
    ]
+  },
+  "NFL": {
+   "date": "2026-11-26",
+   "all": {
+    "w": 20,
+    "l": 19,
+    "p": 0,
+    "winPct": 0.5128,
+    "be": 0.5344
+   },
+   "markets": [
+    {
+     "key": "rec",
+     "name": "Receptions",
+     "w": 8,
+     "l": 5,
+     "p": 0,
+     "winPct": 0.6154,
+     "be": 0.5303
+    },
+    {
+     "key": "recy",
+     "name": "Receiving yards",
+     "w": 6,
+     "l": 4,
+     "p": 0,
+     "winPct": 0.6,
+     "be": 0.5283
+    },
+    {
+     "key": "ryd",
+     "name": "Rushing yards",
+     "w": 3,
+     "l": 2,
+     "p": 0,
+     "winPct": 0.6,
+     "be": 0.5305
+    },
+    {
+     "key": "ratt",
+     "name": "Rush attempts",
+     "w": 2,
+     "l": 2,
+     "p": 0,
+     "winPct": 0.5,
+     "be": 0.5286
+    },
+    {
+     "key": "comp",
+     "name": "Completions",
+     "w": 0,
+     "l": 2,
+     "p": 0,
+     "winPct": 0.0,
+     "be": 0.5344
+    },
+    {
+     "key": "patt",
+     "name": "Pass attempts",
+     "w": 0,
+     "l": 2,
+     "p": 0,
+     "winPct": 0.0,
+     "be": 0.5337
+    },
+    {
+     "key": "rry",
+     "name": "Rush + rec yards",
+     "w": 1,
+     "l": 1,
+     "p": 0,
+     "winPct": 0.5,
+     "be": 0.5316
+    },
+    {
+     "key": "ptd",
+     "name": "Passing TDs",
+     "w": 0,
+     "l": 1,
+     "p": 0,
+     "winPct": 0.0,
+     "be": 0.6997
+    }
+   ]
   }
  },
- "updated": "2026-11-26T23:59:06-05:00"
+ "updated": "2026-11-27T00:08:32-05:00"
 }
