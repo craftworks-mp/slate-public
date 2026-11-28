@@ -1,0 +1,127 @@
+{
+ "post_date": "2026-11-28",
+ "pool_date": "2026-11-27",
+ "warmup": {
+  "sport": "NBA",
+  "type": "trend",
+  "tier": 1,
+  "prompt": "True or false: SAC is 2-5 on the road this season.",
+  "options": [
+   "True",
+   "False"
+  ],
+  "answer": 1,
+  "team": {
+   "a": "SAC",
+   "c": "#5a2d81",
+   "x": "#6a7a82"
+  },
+  "side": "away",
+  "ws": 2,
+  "ls": 5,
+  "id": "2026-11-27-95",
+  "seconds": 15,
+  "real": [
+   1,
+   6
+  ]
+ },
+ "h2h": {
+  "sport": "NBA",
+  "type": "hilo",
+  "tier": 3,
+  "prompt": "Who averages more points per game this season?",
+  "options": [
+   "Donovan Mitchell",
+   "Norman Powell"
+  ],
+  "answer": 0,
+  "stat": "points",
+  "unit": "PTS",
+  "teams": [
+   {
+    "a": "CLE",
+    "c": "#860038",
+    "x": "#bc945c"
+   },
+   {
+    "a": "CHI",
+    "c": "#ce1141",
+    "x": "#000000"
+   }
+  ],
+  "vals": [
+   24.7,
+   20.9
+  ],
+  "id": "2026-11-27-70",
+  "seconds": 15
+ },
+ "final": {
+  "sport": "NBA",
+  "type": "line",
+  "tier": 2,
+  "prompt": "Whose line is it? 27 PTS · 11 REB · 1 AST · 28 MIN on Nov 23.",
+  "options": [
+   "Quentin Grimes",
+   "Cam Spencer",
+   "Myles Turner",
+   "Noa Essengue",
+   "Moritz Wagner",
+   "Luke Kennard"
+  ],
+  "answer": 2,
+  "stats": [
+   {
+    "l": "PTS",
+    "v": 27,
+    "a": 8.2
+   },
+   {
+    "l": "REB",
+    "v": 11,
+    "a": 6.3
+   },
+   {
+    "l": "AST",
+    "v": 1,
+    "a": 2.8
+   },
+   {
+    "l": "MIN",
+    "v": 28,
+    "a": 26.7
+   }
+  ],
+  "when": "Nov 23",
+  "tries": 4,
+  "pos": "C",
+  "hints": {
+   "game": {
+    "a": {
+     "a": "MIL",
+     "c": "#00471b",
+     "x": "#eee1c6"
+    },
+    "h": {
+     "a": "TOR",
+     "c": "#d91244",
+     "x": "#000000"
+    },
+    "sa": 116,
+    "sh": 111,
+    "ot": false
+   },
+   "div": "Central",
+   "team": {
+    "a": "MIL",
+    "c": "#00471b",
+    "x": "#eee1c6"
+   },
+   "opp": "TOR"
+  },
+  "id": "2026-11-27-22",
+  "seconds": 40,
+  "pos_of": {}
+ }
+}
