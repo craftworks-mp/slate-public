@@ -2,191 +2,146 @@
  "breakEven": 0.5238,
  "sports": {
   "NBA": {
-   "date": "2026-11-25",
+   "date": "2026-11-27",
    "all": {
-    "w": 26,
-    "l": 16,
+    "w": 39,
+    "l": 39,
     "p": 0,
-    "winPct": 0.619,
-    "be": 0.5258
+    "winPct": 0.5,
+    "be": 0.5247
    },
    "markets": [
     {
-     "key": "pr",
-     "name": "Pts + Reb",
-     "w": 6,
-     "l": 5,
-     "p": 0,
-     "winPct": 0.5455,
-     "be": 0.5235
-    },
-    {
      "key": "pts",
      "name": "Points",
-     "w": 7,
-     "l": 2,
+     "w": 9,
+     "l": 8,
      "p": 0,
-     "winPct": 0.7778,
-     "be": 0.5263
+     "winPct": 0.5294,
+     "be": 0.5257
     },
     {
      "key": "pa",
      "name": "Pts + Ast",
-     "w": 6,
-     "l": 3,
+     "w": 7,
+     "l": 9,
      "p": 0,
-     "winPct": 0.6667,
-     "be": 0.526
+     "winPct": 0.4375,
+     "be": 0.5255
+    },
+    {
+     "key": "pr",
+     "name": "Pts + Reb",
+     "w": 7,
+     "l": 6,
+     "p": 0,
+     "winPct": 0.5385,
+     "be": 0.5247
     },
     {
      "key": "pra",
      "name": "Pts + Reb + Ast",
-     "w": 4,
-     "l": 3,
+     "w": 5,
+     "l": 8,
      "p": 0,
-     "winPct": 0.5714,
-     "be": 0.5248
+     "winPct": 0.3846,
+     "be": 0.5311
+    },
+    {
+     "key": "ra",
+     "name": "Reb + Ast",
+     "w": 4,
+     "l": 5,
+     "p": 0,
+     "winPct": 0.4444,
+     "be": 0.5281
+    },
+    {
+     "key": "reb",
+     "name": "Rebounds",
+     "w": 4,
+     "l": 2,
+     "p": 0,
+     "winPct": 0.6667,
+     "be": 0.5152
+    },
+    {
+     "key": "ast",
+     "name": "Assists",
+     "w": 2,
+     "l": 1,
+     "p": 0,
+     "winPct": 0.6667,
+     "be": 0.5091
     },
     {
      "key": "tpm",
      "name": "3-pointers",
      "w": 1,
-     "l": 1,
-     "p": 0,
-     "winPct": 0.5,
-     "be": 0.4941
-    },
-    {
-     "key": "reb",
-     "name": "Rebounds",
-     "w": 1,
-     "l": 1,
-     "p": 0,
-     "winPct": 0.5,
-     "be": 0.5609
-    },
-    {
-     "key": "ast",
-     "name": "Assists",
-     "w": 1,
      "l": 0,
      "p": 0,
      "winPct": 1.0,
-     "be": 0.5327
-    },
-    {
-     "key": "ra",
-     "name": "Reb + Ast",
-     "w": 0,
-     "l": 1,
-     "p": 0,
-     "winPct": 0.0,
-     "be": 0.537
+     "be": 0.4854
     }
    ]
   },
   "NHL": {
-   "date": "2026-11-25",
+   "date": "2026-11-27",
    "all": {
-    "w": 16,
-    "l": 7,
+    "w": 4,
+    "l": 4,
     "p": 0,
-    "winPct": 0.6957,
-    "be": 0.597
+    "winPct": 0.5,
+    "be": 0.6077
    },
    "markets": [
     {
      "key": "a",
      "name": "Assists",
-     "w": 10,
-     "l": 4,
-     "p": 0,
-     "winPct": 0.7143,
-     "be": 0.6177
-    },
-    {
-     "key": "sog",
-     "name": "Shots on goal",
-     "w": 3,
-     "l": 3,
-     "p": 0,
-     "winPct": 0.5,
-     "be": 0.5362
-    },
-    {
-     "key": "pts",
-     "name": "Points",
-     "w": 3,
-     "l": 0,
-     "p": 0,
-     "winPct": 1.0,
-     "be": 0.6218
-    }
-   ]
-  },
-  "NFL": {
-   "date": "2026-11-26",
-   "all": {
-    "w": 20,
-    "l": 19,
-    "p": 0,
-    "winPct": 0.5128,
-    "be": 0.5344
-   },
-   "markets": [
-    {
-     "key": "rec",
-     "name": "Receptions",
-     "w": 8,
-     "l": 5,
-     "p": 0,
-     "winPct": 0.6154,
-     "be": 0.5303
-    },
-    {
-     "key": "recy",
-     "name": "Receiving yards",
-     "w": 6,
-     "l": 4,
-     "p": 0,
-     "winPct": 0.6,
-     "be": 0.5283
-    },
-    {
-     "key": "ryd",
-     "name": "Rushing yards",
-     "w": 3,
-     "l": 2,
-     "p": 0,
-     "winPct": 0.6,
-     "be": 0.5305
-    },
-    {
-     "key": "ratt",
-     "name": "Rush attempts",
      "w": 2,
      "l": 2,
      "p": 0,
      "winPct": 0.5,
-     "be": 0.5286
+     "be": 0.6474
     },
     {
-     "key": "comp",
-     "name": "Completions",
-     "w": 0,
+     "key": "sog",
+     "name": "Shots on goal",
+     "w": 2,
      "l": 2,
      "p": 0,
-     "winPct": 0.0,
-     "be": 0.5344
+     "winPct": 0.5,
+     "be": 0.5681
+    }
+   ]
+  },
+  "NFL": {
+   "date": "2026-11-27",
+   "all": {
+    "w": 7,
+    "l": 11,
+    "p": 0,
+    "winPct": 0.3889,
+    "be": 0.5327
+   },
+   "markets": [
+    {
+     "key": "recy",
+     "name": "Receiving yards",
+     "w": 3,
+     "l": 3,
+     "p": 0,
+     "winPct": 0.5,
+     "be": 0.5279
     },
     {
-     "key": "patt",
-     "name": "Pass attempts",
-     "w": 0,
-     "l": 2,
+     "key": "rec",
+     "name": "Receptions",
+     "w": 1,
+     "l": 5,
      "p": 0,
-     "winPct": 0.0,
-     "be": 0.5337
+     "winPct": 0.1667,
+     "be": 0.5347
     },
     {
      "key": "rry",
@@ -195,19 +150,37 @@
      "l": 1,
      "p": 0,
      "winPct": 0.5,
-     "be": 0.5316
+     "be": 0.5305
     },
     {
-     "key": "ptd",
-     "name": "Passing TDs",
+     "key": "ryd",
+     "name": "Rushing yards",
+     "w": 1,
+     "l": 1,
+     "p": 0,
+     "winPct": 0.5,
+     "be": 0.5349
+    },
+    {
+     "key": "patt",
+     "name": "Pass attempts",
+     "w": 1,
+     "l": 0,
+     "p": 0,
+     "winPct": 1.0,
+     "be": 0.5475
+    },
+    {
+     "key": "ratt",
+     "name": "Rush attempts",
      "w": 0,
      "l": 1,
      "p": 0,
      "winPct": 0.0,
-     "be": 0.6997
+     "be": 0.5349
     }
    ]
   }
  },
- "updated": "2026-11-27T23:56:56-05:00"
+ "updated": "2026-11-28T00:08:50-05:00"
 }
