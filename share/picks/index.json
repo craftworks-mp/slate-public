@@ -1,5 +1,5 @@
 {
- "latest": "2026-11-27",
+ "latest": "2026-11-28",
  "days": {
   "2026-11-18": {
    "file": "2026-11-18-4.jpg",
@@ -56,10 +56,16 @@
    "n": 3
   },
   "2026-11-27": {
-   "file": "2026-11-27.jpg",
-   "alt": "Trend Bettors daily model picks for Fri, Nov 27. Main Event: Kris Murray under 11.5 points + rebounds + assists (-109); Main Event: Jaylen Warren under 14.5 RATT (-115); Dog Pound: Mikel Brown Jr. under 6.5 rebounds + assists (+109); Dog Pound: Pat Freiermuth over 2.5 REC (+110); Heat Check: Allen Graves under 10.5 points (-123); Heat Check: Jaylen Waddle under 43.5 RECY (-112); Mismatch: Kingston Flemings under 11.5 points + rebounds (-106).",
-   "graded": 0,
+   "file": "2026-11-27-7.jpg",
+   "alt": "Trend Bettors daily model picks for Fri, Nov 27. Main Event: Kris Murray under 11.5 points + rebounds + assists (-109), lost; Main Event: Jaylen Warren under 14.5 RATT (-115), lost; Dog Pound: Mikel Brown Jr. under 6.5 rebounds + assists (+109), won; Dog Pound: Pat Freiermuth over 2.5 REC (+110), lost; Heat Check: Allen Graves under 10.5 points (-123), won; Heat Check: Jaylen Waddle under 43.5 RECY (-112), lost; Mismatch: Kingston Flemings under 11.5 points + rebounds (-106), won.",
+   "graded": 7,
    "n": 7
+  },
+  "2026-11-28": {
+   "file": "2026-11-28.jpg",
+   "alt": "Trend Bettors daily model picks for Sat, Nov 28. Main Event: Jabari Walker under 15.5 points + rebounds (-102); Dog Pound: Tyrese Maxey under 6.5 assists (+103); Heat Check: Trae Young under 2.5 rebounds (-103); Mismatch: Kentavious Caldwell-Pope under 11.5 points + rebounds (-127).",
+   "graded": 0,
+   "n": 4
   }
  },
  "w": 1200,
