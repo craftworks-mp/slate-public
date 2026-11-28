@@ -124,6 +124,19 @@ def fetch(path=OUT):
     return doc
 
 
+def _fold(s):
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFKD", s) if not unicodedata.combining(c)).lower().strip()
+
+
+def entry(doc, name):
+    """A name's guide entry, matched without accents (the NBA guide writes Dončić, the pools write Doncic)."""
+    if name in doc["names"]:
+        return doc["names"][name]
+    f = _fold(name)
+    return next((v for k, v in doc["names"].items() if _fold(k) == f), None)
+
+
 def _letters(s):
     return re.sub(r"[^a-z]", "", s.lower())
 
@@ -132,6 +145,8 @@ def say_for(name, guide, style="guide"):
     """The spoken form of a name from its guide respelling. A respelling with one word per name part replaces the
     whole name; a shorter one (e.g. 'ni-KEEL' for Nickeil Alexander-Walker) replaces the parts it sounds most like."""
     parts, words = name.split(), guide.split()
+    if len(words) != len(parts) and len(words) == len(name.replace("-", " ").split()):
+        parts = name.replace("-", " ").split()  # Gilgeous-Alexander = GILL-juss AL-eck-zan-der
     if len(words) == len(parts):
         new = dict(enumerate(words))
     else:
@@ -151,7 +166,7 @@ if __name__ == "__main__":
         fetch()
     elif a[:1] == ["say"] and len(a) >= 2:
         doc = json.load(open(OUT))
-        e = doc["names"].get(a[1])
+        e = entry(doc, a[1])
         print(say_for(a[1], e["guide"], a[2] if len(a) > 2 else "guide") if e else f"{a[1]}: no guide entry")
     else:
         sys.exit(__doc__)

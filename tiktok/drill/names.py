@@ -94,7 +94,7 @@ def render(lst, clips, part="0/1"):
     os.makedirs(clips, exist_ok=True)
     v = Voice()
     for it in share(lst["names"], k, n):
-        w = v.sentence(spoken(line(it)))
+        w = v.say(line(it)) if it.get("line") else v.sentence(spoken(line(it)))  # test lines: sentence by sentence, like the Drill
         sf.write(os.path.join(clips, f"{it['n']:03d}.wav"), w, v.sr)
 
 
