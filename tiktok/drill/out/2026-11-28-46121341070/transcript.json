@@ -1,0 +1,19 @@
+{
+ "text": "Welcome back to the two-minute drill. Last time we asked whose line was 47 points, six rebounds, and three assists. The answer was C in the Lakers overtime win over the Hornets on November 17th. All right, let's warm up. True or false, the Kings are two and five on the road this season. You've got five seconds. Three. Two. One. Time's up. False. The Kings are 106 on the road. Next up, who averages more points per game this season? A or B. You've got five seconds. Three. Two. One. Time's up. It's A at 25 a game. Now for the one that counts. This one's for you guys to answer down below. Whose line is it? 27 points, 11 rebounds, and one assist. Last Monday. A, B, C, or D. 10 seconds on the clock. Three. Two. One. Time's up. Drop your guess in the comments and check out our next video for the answer.",
+ "match": 0.994,
+ "wpm": 124,
+ "missing": [
+  "and"
+ ],
+ "trial_names": {},
+ "whole_file_match": 0.994,
+ "lines": [
+  {
+   "text": "Time's up. False. The Kings are one and six on the road.",
+   "match": 0.917,
+   "missing": [
+    "and"
+   ]
+  }
+ ]
+}

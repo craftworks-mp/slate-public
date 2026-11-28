@@ -1,0 +1,15 @@
+{
+ "date": "2026-11-23",
+ "id": "2026-11-21-0",
+ "text": "Whose line was forty seven points, six rebounds and three assists?",
+ "answer": "Quentin Grimes",
+ "letter": "C",
+ "game": {
+  "sport": "NBA",
+  "day": "2026-11-17",
+  "team": "LAL",
+  "opp": "CHA",
+  "won": true,
+  "ot": true
+ }
+}

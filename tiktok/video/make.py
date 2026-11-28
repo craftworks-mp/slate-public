@@ -1,13 +1,13 @@
 """2-Minute Drill video maker (owner OK 11/22 18:5x).
 
     python tiktok/video/make.py RUN_DIR INPUT.json LAST.json|- [--audio episode.wav] [--music MUSIC.json]
-                                [--out episode.mp4] [--stills 1,15.5,...]
+                                [--out episode.mp4] [--stills 1,15.5,...] [--fake]
 
 RUN_DIR holds the run's cues.json (tiktok/drill/render.py). Frames come from one HTML page drawn at every 1/30 s (the
 Board's method, slate-data scripts/social/board.py), then H.264 with the episode audio and an optional music bed per
 part (CC0 tracks, owner 11/22). Everything on screen comes from the episode input and cues.json, so it matches the
-voice: the 4 final names carry A-D badges in the order they're read (the next recap names the letter; on screen only,
-owner 11/22), averages show as whole numbers, and nothing on screen is bet talk or a disclaimer (TikTok shorts rule:
+voice: names show on screen only with letter badges (A/B, then A-D on the final) that pop as the voice says each letter
+(owner 11/27: the voice never says a player's name), averages show as whole numbers, and nothing on screen is bet talk or a disclaimer (TikTok shorts rule:
 the caption carries the disclaimer). Phrase captions follow each line; sentence times come from the exact-zero pauses
 tiktok/voice.py puts between sentences, or from character share when no audio is given (stills).
 """
@@ -119,29 +119,51 @@ def find(cues, part, k, pred=lambda c: True, nth=0):
     return hits[nth]
 
 
+def fake_run(inp, last, wpm=144):
+    """A stand-in cues.json from the script alone, no voice: ~144 words a minute (the clone's pace, 11/22) plus
+    voice.py's sentence pauses. For look rounds (`--fake --stills`) and tests before a render exists."""
+    ep = E.check(E.build(inp, last))
+    cues, at = [], 0.0
+    for st in ep["steps"]:
+        if st["k"] == "say":
+            ss = sentences(st["text"])
+            d = len(st["text"].split()) * 60 / wpm + sum(0.5 if x.endswith("?") else 0.35 for x in ss[:-1])
+        else:
+            d = st["s"]
+        c = {**st, "start": round(at, 2), "end": round(at + d, 2)}
+        if st.get("hint"):
+            h0 = at + st["hint"]["at"] + 0.06
+            c["hint"] = {**st["hint"], "start": round(h0, 2), "end": round(h0 + 1.5, 2)}
+        cues.append(c)
+        at += d
+    return {"post_date": ep["post_date"], "length_s": round(at, 1), "final_names": ep["final_names"],
+            "final_pos": ep["final_pos"], "trial_names": [], "next_last": ep["next_last"], "cues": cues, "fake": True}
+
+
 def plan(run, inp, last, audio=None, sr=None):
     """Everything the page draws, with its times. Refuses an input that doesn't match the run's voice."""
     cues = run["cues"]
     post = date.fromisoformat(inp["post_date"])
     assert run["post_date"] == inp["post_date"], "cues.json and the input are for different episodes"
-    w, f = inp["warmup"], inp["final"]
+    t, w, f = inp["warmup"], inp["h2h"], inp["final"]
     names = run["final_names"]
     assert len(names) == 4 and all(n in f["options"] for n in names), "final names don't match the input"
 
     op = find(cues, "opener", "say")
-    wq = find(cues, "warmup", "say")
-    wc = find(cues, "warmup", "clock")
-    wu = find(cues, "warmup", "say", lambda c: c["text"].startswith("Time's up"))
-    fq = find(cues, "final", "say")
-    ten = lambda c: "ten seconds" in c["text"].lower()  # noqa: E731
-    wr, fr = find(cues, "warmup", "say", ten), find(cues, "final", "say", ten)
-    fc = find(cues, "final", "clock")
-    fu = find(cues, "final", "say", lambda c: c["text"].startswith("Time's up"))
+    ten = lambda c: " seconds" in c["text"].lower() and "Time's up" not in c["text"]  # noqa: E731
+    up = lambda c: c["text"].startswith("Time's up")  # noqa: E731
+    tq, tc, tr, tu = (find(cues, "warmup", "say"), find(cues, "warmup", "clock"), find(cues, "warmup", "say", ten),
+                      find(cues, "warmup", "say", up))
+    hq, hc, hr, hu = (find(cues, "h2h", "say"), find(cues, "h2h", "clock"), find(cues, "h2h", "say", ten),
+                      find(cues, "h2h", "say", up))
+    fq, fc, fr, fu = (find(cues, "final", "say"), find(cues, "final", "clock"), find(cues, "final", "say", ten),
+                      find(cues, "final", "say", up))
     assert bool(last) == op["text"].startswith("Welcome back"), "the opener's voice and the last-answer input disagree"
-    for o in w["options"]:
-        assert o in wq["text"], f"warm-up name {o!r} isn't in the voiced question"
-    for n in names:
-        assert n in fq["text"], f"final name {n!r} isn't in the voiced question"
+    # the voice says letters, never names (owner 11/27): each name pops in as its letter is said
+    assert sentences(hq["text"])[-1] == "A, or B?", "the head-to-head question has to end on its letters"
+    assert sentences(fq["text"])[-1] == "A, B, C, or D?", "the final question has to end on its letters"
+    team = E.TEAMS[t["sport"]][t["team"]["a"]]
+    assert f"the {team} are" in tq["text"], "the true/false team isn't the one the voice reads"
 
     caps = []
     say = [c for c in cues if c["k"] == "say"]
@@ -152,7 +174,7 @@ def plan(run, inp, last, audio=None, sr=None):
             caps += chunks(s, span)
 
     o_ss, o_sp = sentences(op["text"]), sp[id(op)]
-    opener = {"mode": "back" if last else "first", "t0": op["start"], "t1": wq["start"]}
+    opener = {"mode": "back" if last else "first", "t0": op["start"], "t1": tq["start"]}
     if last:
         g = last.get("game")
         teams = E.TEAMS.get(g["sport"], {}) if g else {}
@@ -162,47 +184,54 @@ def plan(run, inp, last, audio=None, sr=None):
             day = date.fromisoformat(g["day"])
             line = f"{E.possessive(teams[g['team']])} {res} the {teams[g['opp']]} · {day.strftime('%a, %b')} {day.day}"
         ask = next((i for i, s in enumerate(o_ss) if s.startswith("Last time")), 1)
-        ans = next((i for i, s in enumerate(o_ss) if s.startswith(("The answer", "It was"))), len(o_ss) - 1)
+        ans = next((i for i, s in enumerate(o_ss) if s.startswith(("The answer", "It was", "Here's who"))), len(o_ss) - 1)
         opener.update({"ask_at": o_sp[ask][0], "answer_at": o_sp[ans][0], "question": last["text"],
                        "letter": last.get("letter", ""), "answer": last["answer"], "game": line})
 
-    wss, wsp = sentences(wq["text"]), sp[id(wq)]
-    a, b = w["options"]
-    last_s = len(wss) - 1
-    warm = {"t0": wq["start"], "prompt_at": wsp[1][0] if len(wsp) > 1 else wsp[0][0],
-            "names_at": [at_char(wss[last_s], wsp[last_s], a), at_char(wss[last_s], wsp[last_s], b)],
-            "clock": [wc["start"], wc["end"]], "ready": wr["start"], "up": wu["start"], "t1": fq["start"],
-            "prompt": w["prompt"],
-            "unit": f"{w['unit']} / GAME", "answer": w["answer"],
-            "opts": [{"name": n, "team": t["a"], "color": t["c"], "ink": on(t["c"]), "val": whole(v)}
-                     for n, t, v in zip(w["options"], w["teams"], w["vals"])]}
+    tss, tsp = sentences(tq["text"]), sp[id(tq)]
+    tf_i = next(i for i, s in enumerate(tss) if s.startswith("True or false"))
+    truth = E.tf_truth(t)
+    tf = {"t0": tq["start"], "prompt_at": tsp[tf_i][0], "cards_at": tsp[tf_i][1], "clock": [tc["start"], tc["end"]],
+          "ready": tr["start"], "up": tu["start"], "t1": hq["start"], "abbr": t["team"]["a"], "team": team,
+          "color": t["team"]["c"], "ink": on(t["team"]["c"]), "shown": f"{t['ws']}-{t['ls']}",
+          "real": f"{t['real'][0]}-{t['real'][1]}", "where": E.WHERE[t["side"]].upper(), "answer": 0 if truth else 1}
+
+    hss, hsp = sentences(hq["text"]), sp[id(hq)]
+    h2h = {"t0": hq["start"], "prompt_at": hsp[1][0] if len(hsp) > 1 else hsp[0][0],
+           "names_at": [at_char(hss[-1], hsp[-1], x) for x in "AB"], "letters": ["A", "B"],
+           "clock": [hc["start"], hc["end"]], "ready": hr["start"], "up": hu["start"], "t1": fq["start"],
+           "prompt": w["prompt"], "unit": f"{w['unit']} / GAME", "answer": w["answer"],
+           "opts": [{"name": n, "team": tm["a"], "color": tm["c"], "ink": on(tm["c"]), "val": whole(v)}
+                    for n, tm, v in zip(w["options"], w["teams"], w["vals"])]}
 
     fss, fsp = sentences(fq["text"]), sp[id(fq)]
-    assert len(fss) >= 3, "the final question needs its ask, stat line and names as separate sentences"
+    assert len(fss) >= 3, "the final question needs its ask, stat line and letters as separate sentences"
     ask_i, stat_i, name_i = len(fss) - 3, len(fss) - 2, len(fss) - 1
     day = E.game_day(f, post)
     hint = fc.get("hint")
     final = {"t0": fq["start"], "ask_at": fsp[ask_i][0], "stat_at": fsp[stat_i][0],
-             "names_at": [at_char(fss[name_i], fsp[name_i], n) for n in names],
+             "names_at": [at_char(fss[name_i], fsp[name_i], x) for x in "ABCD"],
              "clock": [fc["start"], fc["end"]], "ready": fr["start"], "up": fu["start"], "t1": fu["end"],
              "stats": [{"v": whole(s["v"]), "l": s["l"]} for s in f["stats"]],
              "date": f"{day.strftime('%a, %b')} {day.day}", "names": names, "letters": list("ABCD"),
              "hint": ({"t0": hint.get("start", fc["start"] + hint["at"]), "text": hint["text"].replace("Hint: ", "")
                        .rstrip(".")} if hint else None)}
     dur = round(cues[-1]["end"], 2)
-    return {"dur": dur, "fps": FPS, "caps": caps, "opener": opener, "warm": warm, "final": final, 
+    return {"dur": dur, "fps": FPS, "caps": caps, "opener": opener, "tf": tf, "warm": h2h, "final": final,
             # captions step aside while a timer is up (its "ten seconds" line to Time's up) and on the end card,
             # which says the closing line on screen
-            "clocks": [[wr["start"], wc["end"]], [fr["start"], fc["end"]], [fu["start"], dur + 1]]}
+            "clocks": [[tr["start"], tc["end"]], [hr["start"], hc["end"]], [fr["start"], fc["end"]], [fu["start"], dur + 1]]}
 
 
 def screen_text(D):
     """Every string the page can draw, for the tests (bet words, names, numbers)."""
-    out = ["2-Minute Drill", "Two questions", "Ten seconds each", "Warm-up", "Your call", "Seconds left", "Whose line is it?", "Last time", "The answer", "Time's up", "Comment A, B, C or D",
-           END_LINE, "@TrendBettorsHQ", "Hint"]
-    o, w, f = D["opener"], D["warm"], D["final"]
+    out = ["2-Minute Drill", "Three questions", "Beat the clock", "Warm-up", "Head to head", "Your call", "Seconds left",
+           "True or false", "True", "False", "Whose line is it?", "Last time", "The answer", "Time's up",
+           "Comment A, B, C or D", END_LINE, "@TrendBettorsHQ", "Hint"]
+    o, t, w, f = D["opener"], D["tf"], D["warm"], D["final"]
     out += [c["text"] for c in D["caps"]]
     out += [o.get("question", ""), o.get("answer", ""), o.get("game", ""), w["prompt"], w["unit"]]
+    out += [t["abbr"], t["team"], t["shown"], t["real"], t["where"]]
     out += [x["name"] for x in w["opts"]] + [x["val"] for x in w["opts"]] + [x["team"] for x in w["opts"]]
     out += f["names"] + [s["v"] + " " + s["l"] for s in f["stats"]] + [f["date"]] + ([f["hint"]["text"]] if f["hint"] else [])
     return [s for s in out if s]
@@ -233,6 +262,11 @@ body{{width:{W}px;height:{H}px;background:{BG};color:{INK};overflow:hidden;font-
 .card .nm{{padding:22px 26px 0;font-family:Shoulders;font-weight:900;font-size:76px;line-height:.92;text-transform:uppercase}}
 .card .v{{position:absolute;left:26px;bottom:22px;font-family:Shoulders;font-weight:900;font-size:120px;line-height:.8}}
 .card .u{{position:absolute;right:22px;bottom:26px;font-weight:600;font-size:28px;color:{MUTED}}}
+.card .lt{{display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;margin-right:20px;font-size:48px;letter-spacing:0;clip-path:polygon(0 0,100% 0,calc(100% - 10px) 100%,0 100%)}}
+.tcard{{height:300px;border-radius:6px;overflow:hidden;background:#17171B}}
+.tcard .band{{height:76px;display:flex;align-items:center;padding:0 26px;font-family:Shoulders;font-weight:900;font-size:50px;letter-spacing:3px}}
+.tcard .nm{{font-family:Shoulders;font-weight:900;line-height:.9;text-transform:uppercase}}
+.tfc{{position:absolute;top:0;width:420px;height:200px;border-radius:6px;background:#17171B;display:flex;align-items:center;justify-content:center;font-family:Shoulders;font-weight:900;font-size:120px;text-transform:uppercase}}
 .or{{position:absolute;left:398px;width:70px;height:70px;top:165px;z-index:2;border-radius:50%;background:{BG};display:flex;align-items:center;justify-content:center;font-weight:900;font-style:italic;font-size:34px;color:{MUTED}}}
 .tile{{flex:1;height:200px;background:#17171B;border-radius:6px;display:flex;flex-direction:column;justify-content:center;align-items:center}}
 .tile .v{{font-family:Shoulders;font-weight:900;font-size:128px;line-height:.85}} .tile .l{{font-weight:900;font-size:32px;letter-spacing:3px;color:{MUTED}}}
@@ -252,8 +286,8 @@ const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const fit = (name, room, most) => Math.min(most, Math.floor(room / (0.47 * Math.max(...name.split(' ').map(x => x.length)))));
 const pop = (t, t0, d = 0.35) => { const k = E((t - t0) / d); return `opacity:${k};transform:translateY(${(1 - k) * 36}px)`; };
 function bar(t, c, top) {
-  const left = Math.max(0, Math.min(10, c[1] - t)), on = t >= c[0], n = on ? Math.ceil(left - 1e-6) : 10;
-  const frac = on ? left / 10 : 1, hot = on && left <= 3, col = hot ? '#FF5C5C' : '__BLUE__';
+  const L = Math.round(c[1] - c[0]), left = Math.max(0, Math.min(L, c[1] - t)), on = t >= c[0], n = on ? Math.ceil(left - 1e-6) : L;
+  const frac = on ? left / L : 1, hot = on && left <= 3, col = hot ? '#FF5C5C' : '__BLUE__';
   const pulse = hot ? 1 + 0.06 * Math.max(0, 1 - ((c[1] - t) % 1) * 3) : 1;
   return `<div class='a L' style='top:${top}px;height:170px;display:flex;align-items:center;gap:28px'>`
     + `<div style='flex:none;width:150px;height:170px;display:flex;align-items:center;justify-content:center'><span class='big' style='line-height:1;font-size:${170 * pulse}px;transform:translateY(${__DY__ * 170 * pulse}px);color:${hot ? '#FF5C5C' : '__INK__'}'>${n}</span></div>`
@@ -267,7 +301,7 @@ function opener(t) {
   const o = D.opener; let h = '';
   if (o.mode === 'first' || t < o.ask_at) {
     h += `<div class='a L big' style='top:420px;font-size:200px;${pop(t, o.t0, .5)}'>2-Minute<br>Drill</div>`
-       + `<div class='a L' style='top:820px;font-weight:900;font-style:italic;font-size:64px;${pop(t, o.t0 + .4, .5)}'>Two questions.<br><span style='color:__GREEN__'>Ten seconds each.</span></div>`;
+       + `<div class='a L' style='top:820px;font-weight:900;font-style:italic;font-size:64px;${pop(t, o.t0 + .4, .5)}'>Three questions.<br><span style='color:__GREEN__'>Beat the clock.</span></div>`;
     return h;
   }
   h += `<div class='a L' style='top:250px'><span class='chip' style='background:__BLUE__;color:__INK__'>Last time</span></div>`
@@ -280,8 +314,32 @@ function opener(t) {
   }
   return h;
 }
+function tf(t) {
+  const q = D.tf; let h = `<div class='a L' style='top:236px'><span class='chip' style='background:__BLUE__;color:__INK__'>Warm-up</span></div>`;
+  if (t < q.prompt_at) return h;
+  const rev = t >= q.up, fs = Math.min(110, Math.floor(440 / (0.47 * q.team.length)));
+  const rec = !rev ? `<div class='big' style='font-size:170px'>${esc(q.shown)}</div>`
+    : q.answer === 1 ? `<div class='big' style='font-size:64px;color:__MUTED__;text-decoration:line-through'>${esc(q.shown)}</div><div class='big' style='font-size:170px;color:__GREEN__;${pop(t, q.up + .2)}'>${esc(q.real)}</div>`
+    : `<div class='big' style='font-size:170px;color:__GREEN__'>${esc(q.real)}</div>`;
+  h += `<div class='a L big' style='top:322px;font-size:96px;${pop(t, q.prompt_at)}'>True or false</div>`
+     + `<div class='a L tcard' style='top:436px;${pop(t, q.prompt_at + .25)}'><div class='band' style='background:${q.color};color:${q.ink}'>${esc(q.abbr)}</div>`
+     + `<div class='a nm' style='left:26px;top:112px;font-size:${fs}px'>${esc(q.team)}</div>`
+     + `<div class='a mut' style='left:26px;bottom:26px;font-size:32px;letter-spacing:3px;font-weight:900'>${esc(q.where)}</div>`
+     + `<div class='a' style='right:30px;bottom:18px;text-align:right'>${rec}</div></div>`;
+  if (t >= q.cards_at) {
+    h += `<div class='a L' style='top:770px;height:200px'>`;
+    ['True', 'False'].forEach((x, i) => {
+      const win = i === q.answer, dim = rev && !win ? 'opacity:.35;' : '';
+      h += `<div class='tfc' style='left:${i ? 446 : 0}px;${dim}${rev && win ? 'box-shadow:0 0 0 6px __GREEN__;' : ''}${pop(t, q.cards_at + i * .12, .3)}'>${x}</div>`;
+    });
+    h += `</div>`;
+  }
+  if (t >= q.ready && !rev) h += `<div style='${pop(t, q.ready, .3)}'>` + bar(t, q.clock, 1185) + `</div>`;
+  if (rev) h += `<div class='a L big' style='top:1185px;text-align:center;font-size:150px;color:__GREEN__;${pop(t, q.up, .3)}'>Time's up</div>`;
+  return h;
+}
 function warm(t) {
-  const w = D.warm; let h = `<div class='a L' style='top:236px'><span class='chip' style='background:__BLUE__;color:__INK__'>Warm-up</span></div>`;
+  const w = D.warm; let h = `<div class='a L' style='top:236px'><span class='chip' style='background:__BLUE__;color:__INK__'>Head to head</span></div>`;
   if (t >= w.prompt_at) h += `<div class='a L q' style='top:330px;${pop(t, w.prompt_at)}'>${esc(w.prompt)}</div>`;
   const rev = t >= w.up;
   h += `<div class='a L' style='top:610px;height:400px'>`;
@@ -289,7 +347,7 @@ function warm(t) {
     if (t < w.names_at[i]) return;
     const win = i === w.answer, dim = rev && !win ? 'opacity:.35;' : '';
     h += `<div class='card' style='left:${i ? 446 : 0}px;${dim}${rev && win ? `box-shadow:0 0 0 6px ${o.color};` : ''}'><div style='${pop(t, w.names_at[i], .3)}'>`
-       + `<div class='band' style='background:${o.color};color:${o.ink}'>${esc(o.team)}</div><div class='nm' style='font-size:${fit(o.name, 368, 76)}px'>${esc(o.name).replace(' ', '<br>')}</div></div>`
+       + `<div class='band' style='background:${o.color};color:${o.ink}'><span class='lt' style='background:${o.ink};color:${o.color}'>${w.letters[i]}</span>${esc(o.team)}</div><div class='nm' style='font-size:${fit(o.name, 368, 76)}px'>${esc(o.name).replace(' ', '<br>')}</div></div>`
        + (rev ? `<div class='v' style='color:${win ? '__INK__' : '__MUTED__'};${pop(t, w.up + (win ? .15 : .45))}'>${esc(o.val)}</div><div class='u' style='${pop(t, w.up + .3)}'>${esc(w.unit)}</div>` : '')
        + `</div>`;
   });
@@ -329,7 +387,7 @@ function caption(t) {
 }
 function draw(t) {
   let h = header(t);
-  if (t < D.warm.t0) h += opener(t); else if (t < D.final.t0) h += warm(t); else h += fin(t);
+  if (t < D.tf.t0) h += opener(t); else if (t < D.warm.t0) h += tf(t); else if (t < D.final.t0) h += warm(t); else h += fin(t);
   // content sits 90 px lower than the Board's grid: TikTok's Following / For You tabs cover the top ~150 px
   document.body.innerHTML = `<div class='a' style='left:0;right:0;top:90px'>${h}</div>` + caption(t);
 }
@@ -376,9 +434,11 @@ def decode(path, sr=48000):
 
 
 def sections(D):
-    """(part, start, end, loop) for the music bed: opener, question, clock, reveal (one-shot stings)."""
-    w, f = D["warm"], D["final"]
-    return [("opener", 0, w["t0"], True), ("question", w["t0"], w["clock"][0], True),
+    """(part, start, end, loop) for the music bed: opener, question, clock, reveal (one-shot stings), per round."""
+    q, w, f = D["tf"], D["warm"], D["final"]
+    return [("opener", 0, q["t0"], True), ("question", q["t0"], q["clock"][0], True),
+            ("clock", q["clock"][0], q["clock"][1], True), ("reveal", q["up"], w["t0"], False),
+            ("question", w["t0"], w["clock"][0], True),
             ("clock", w["clock"][0], w["clock"][1], True), ("reveal", w["up"], f["t0"], False),
             ("question", f["t0"], f["clock"][0], True), ("clock", f["clock"][0], f["clock"][1], True),
             ("reveal", f["up"], D["dur"], False)]
@@ -489,10 +549,16 @@ def main(argv):
             i = a.index(k)
             opt[k] = a[i + 1]
             del a[i:i + 2]
+    fake = "--fake" in a
+    if fake:
+        a.remove("--fake")
     run_dir, inp_path, last_path = a[:3]
-    run = json.load(open(os.path.join(run_dir, "cues.json")))
     inp = json.load(open(inp_path))
     last = None if last_path in ("", "-") else json.load(open(last_path))
+    if fake:  # no render yet: times from the script alone (look rounds only, never a post)
+        os.makedirs(run_dir, exist_ok=True)
+        json.dump(fake_run(inp, last), open(os.path.join(run_dir, "cues.json"), "w"), indent=1)
+    run = json.load(open(os.path.join(run_dir, "cues.json")))
     audio = sr = None
     if opt.get("--audio"):
         import soundfile as sf
