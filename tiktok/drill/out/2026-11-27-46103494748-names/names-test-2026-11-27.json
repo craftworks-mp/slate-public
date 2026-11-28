@@ -1,0 +1,70 @@
+{
+ "names": [
+  {
+   "name": "A1 · Sengun / Antetokounmpo",
+   "sport": "Style A (guide)",
+   "line": "Who averages more points per game this season? al-pah-ron shen-gün, or YAHN-iss ah-dedo-KOON-bo?",
+   "n": 1,
+   "days": 0,
+   "say": null
+  },
+  {
+   "name": "A2 · Avdija / Okongwu",
+   "sport": "Style A (guide)",
+   "line": "Who averages more points per game this season? Denny AHV-dee-uh, or own-YEH-kuh oh-KONG-wu?",
+   "n": 2,
+   "days": 0,
+   "say": null
+  },
+  {
+   "name": "A3 · Dosunmu / Gilgeous-Alexander",
+   "sport": "Style A (guide)",
+   "line": "Who averages more points per game this season? EYE-o Doe-SOO-mu, or shay GILL-juss AL-eck-zan-der?",
+   "n": 3,
+   "days": 0,
+   "say": null
+  },
+  {
+   "name": "B1 · Sengun / Antetokounmpo",
+   "sport": "Style B (plain)",
+   "line": "Who averages more points per game this season? Alpahron Shengün, or Yahniss Ahdedokoonbo?",
+   "n": 4,
+   "days": 0,
+   "say": null
+  },
+  {
+   "name": "B2 · Avdija / Okongwu",
+   "sport": "Style B (plain)",
+   "line": "Who averages more points per game this season? Denny Ahvdeeuh, or Ownyehkuh Ohkongwu?",
+   "n": 5,
+   "days": 0,
+   "say": null
+  },
+  {
+   "name": "B3 · Dosunmu / Gilgeous-Alexander",
+   "sport": "Style B (plain)",
+   "line": "Who averages more points per game this season? Eyeo Doesoomu, or Shay Gilljuss Aleckzander?",
+   "n": 6,
+   "days": 0,
+   "say": null
+  },
+  {
+   "name": "P1 · Lillard / Murray / Tatum / Brunson",
+   "sport": "Plain names",
+   "line": "Whose line was thirty one points and nine assists? Damian Lillard, Jamal Murray, Jayson Tatum, or Jalen Brunson?",
+   "n": 7,
+   "days": 0,
+   "say": null
+  },
+  {
+   "name": "P2 · Cook / Burrow",
+   "sport": "Plain names",
+   "line": "Who averages more yards per game this season? James Cook, or Joe Burrow?",
+   "n": 8,
+   "days": 0,
+   "say": null
+  }
+ ],
+ "pools": [],
+ "note": "11/27 pronunciation test (owner OK 22:2x): styles A/B on NBA guide names + plain names in Drill-shaped lines"
+}

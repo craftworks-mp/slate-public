@@ -1,0 +1,98 @@
+{
+ "names": [
+  {
+   "name": "A1 \u00b7 Sengun / Antetokounmpo",
+   "sport": "Style A (guide)",
+   "line": "Who averages more points per game this season? al-pah-ron shen-g\u00fcn, or YAHN-iss ah-dedo-KOON-bo?",
+   "n": 1,
+   "days": 0,
+   "say": null,
+   "missing": true,
+   "pass": false
+  },
+  {
+   "name": "A2 \u00b7 Avdija / Okongwu",
+   "sport": "Style A (guide)",
+   "line": "Who averages more points per game this season? Denny AHV-dee-uh, or own-YEH-kuh oh-KONG-wu?",
+   "n": 2,
+   "days": 0,
+   "say": null,
+   "missing": true,
+   "pass": false
+  },
+  {
+   "name": "A3 \u00b7 Dosunmu / Gilgeous-Alexander",
+   "sport": "Style A (guide)",
+   "line": "Who averages more points per game this season? EYE-o Doe-SOO-mu, or shay GILL-juss AL-eck-zan-der?",
+   "n": 3,
+   "days": 0,
+   "say": null,
+   "t0": 0.0,
+   "t1": 6.82,
+   "heard": "Who averages more points per game this season?  Ayo Dosumu or Shay Giljuss Alexander.",
+   "pass": null
+  },
+  {
+   "name": "B1 \u00b7 Sengun / Antetokounmpo",
+   "sport": "Style B (plain)",
+   "line": "Who averages more points per game this season? Alpahron Sheng\u00fcn, or Yahniss Ahdedokoonbo?",
+   "n": 4,
+   "days": 0,
+   "say": null,
+   "t0": 7.42,
+   "t1": 14.15,
+   "heard": "Who averages more points per game this season?  Alperon, Shanguin, or Yannis, Adedokunbo",
+   "pass": null
+  },
+  {
+   "name": "B2 \u00b7 Avdija / Okongwu",
+   "sport": "Style B (plain)",
+   "line": "Who averages more points per game this season? Denny Ahvdeeuh, or Ownyehkuh Ohkongwu?",
+   "n": 5,
+   "days": 0,
+   "say": null,
+   "t0": 14.75,
+   "t1": 21.0,
+   "heard": "Who averages more points per game this season?  Denny Avdi or Onyaku Okonwoo",
+   "pass": null
+  },
+  {
+   "name": "B3 \u00b7 Dosunmu / Gilgeous-Alexander",
+   "sport": "Style B (plain)",
+   "line": "Who averages more points per game this season? Eyeo Doesoomu, or Shay Gilljuss Aleckzander?",
+   "n": 6,
+   "days": 0,
+   "say": null,
+   "t0": 21.6,
+   "t1": 28.19,
+   "heard": "Who averages more points per game this season?  Io Dizumu or Shay Gilgis Alexander",
+   "pass": null
+  },
+  {
+   "name": "P1 \u00b7 Lillard / Murray / Tatum / Brunson",
+   "sport": "Plain names",
+   "line": "Whose line was thirty one points and nine assists? Damian Lillard, Jamal Murray, Jayson Tatum, or Jalen Brunson?",
+   "n": 7,
+   "days": 0,
+   "say": null,
+   "t0": 28.79,
+   "t1": 36.35,
+   "heard": "whose line was 31 points and 9 assists.  Damien Lillard, Jamal Murray, Jason Tatum, or Jalen Brunson.",
+   "pass": null
+  },
+  {
+   "name": "P2 \u00b7 Cook / Burrow",
+   "sport": "Plain names",
+   "line": "Who averages more yards per game this season? James Cook, or Joe Burrow?",
+   "n": 8,
+   "days": 0,
+   "say": null,
+   "t0": 36.95,
+   "t1": 41.82,
+   "heard": "Who averages more yards per game this season?  James Cook or Joe Burrow",
+   "pass": null
+  }
+ ],
+ "passed": 0,
+ "total": 8
+}
