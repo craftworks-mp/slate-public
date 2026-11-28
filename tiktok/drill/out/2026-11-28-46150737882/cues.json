@@ -1,0 +1,190 @@
+{
+ "post_date": "2026-11-28",
+ "length_s": 80.6,
+ "long_enough": true,
+ "sr": 24000,
+ "render_s": 271,
+ "versions": {
+  "qwen-tts": "0.1.1",
+  "torch": "2.15.0+cpu",
+  "transformers": "4.57.3",
+  "accelerate": "1.12.0"
+ },
+ "sampling": {
+  "temperature": 0.7
+ },
+ "ref_speed": "1",
+ "parts": 3,
+ "final_names": [
+  "Quentin Grimes",
+  "Cam Spencer",
+  "Myles Turner",
+  "Noa Essengue"
+ ],
+ "final_pos": [
+  "G",
+  "G",
+  "C",
+  null
+ ],
+ "trial_names": [],
+ "next_last": {
+  "date": "2026-11-28",
+  "id": "2026-11-27-22",
+  "text": "Whose line was twenty seven points, eleven rebounds and one assist?",
+  "answer": "Myles Turner",
+  "letter": "C",
+  "game": {
+   "sport": "NBA",
+   "day": "2026-11-23",
+   "team": "MIL",
+   "opp": "TOR",
+   "won": true,
+   "ot": false
+  }
+ },
+ "cues": [
+  {
+   "k": "say",
+   "part": "opener",
+   "text": "Welcome back to the Two-Minute Drill. Last time, we asked: whose line was forty seven points, six rebounds and three assists? The answer was C, in the Lakers' overtime win over the Hornets on November seventeenth.",
+   "start": 0.0,
+   "end": 13.89
+  },
+  {
+   "k": "gap",
+   "s": 0.9,
+   "start": 13.89,
+   "end": 14.79
+  },
+  {
+   "k": "say",
+   "part": "warmup",
+   "text": "Alright, let's warm up. True or false: the Kings are two and five on the road this season.",
+   "start": 14.79,
+   "end": 19.63
+  },
+  {
+   "k": "gap",
+   "s": 0.5,
+   "start": 19.63,
+   "end": 20.13
+  },
+  {
+   "k": "say",
+   "part": "warmup",
+   "text": "You've got five seconds.",
+   "start": 20.13,
+   "end": 21.46
+  },
+  {
+   "k": "clock",
+   "part": "warmup",
+   "s": 5,
+   "count": [
+    "Three.",
+    "Two.",
+    "One."
+   ],
+   "start": 21.46,
+   "end": 26.46
+  },
+  {
+   "k": "say",
+   "part": "warmup",
+   "text": "Time's up. False. The Kings are one and six on the road.",
+   "start": 26.46,
+   "end": 31.08
+  },
+  {
+   "k": "gap",
+   "s": 0.6,
+   "start": 31.08,
+   "end": 31.68
+  },
+  {
+   "k": "say",
+   "part": "h2h",
+   "text": "Next up. Who averages more points per game this season? A, or B?",
+   "start": 31.68,
+   "end": 38.22
+  },
+  {
+   "k": "gap",
+   "s": 0.5,
+   "start": 38.22,
+   "end": 38.72
+  },
+  {
+   "k": "say",
+   "part": "h2h",
+   "text": "You've got five seconds.",
+   "start": 38.72,
+   "end": 40.05
+  },
+  {
+   "k": "clock",
+   "part": "h2h",
+   "s": 5,
+   "count": [
+    "Three.",
+    "Two.",
+    "One."
+   ],
+   "start": 40.05,
+   "end": 45.05
+  },
+  {
+   "k": "say",
+   "part": "h2h",
+   "text": "Time's up. It's A, at twenty five a game.",
+   "start": 45.05,
+   "end": 49.49
+  },
+  {
+   "k": "gap",
+   "s": 0.6,
+   "start": 49.49,
+   "end": 50.09
+  },
+  {
+   "k": "say",
+   "part": "final",
+   "text": "Now for the one that counts. This one's for you guys to answer down below. Whose line is it? Twenty seven points, eleven rebounds and one assist, last Monday. A, B, C, or D?",
+   "start": 50.09,
+   "end": 63.69
+  },
+  {
+   "k": "gap",
+   "s": 0.5,
+   "start": 63.69,
+   "end": 64.19
+  },
+  {
+   "k": "say",
+   "part": "final",
+   "text": "Ten seconds on the clock.",
+   "start": 64.19,
+   "end": 65.95
+  },
+  {
+   "k": "clock",
+   "part": "final",
+   "s": 10,
+   "count": [
+    "Three.",
+    "Two.",
+    "One."
+   ],
+   "start": 65.95,
+   "end": 75.95
+  },
+  {
+   "k": "say",
+   "part": "final",
+   "text": "Time's up. Drop your guess in the comments, and check out our next video for the answer.",
+   "start": 75.95,
+   "end": 80.57
+  }
+ ]
+}
