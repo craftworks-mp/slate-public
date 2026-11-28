@@ -16,6 +16,12 @@ def test_say_as():
     assert N.line("A.J. Brown") == "Next up, A J Brown."  # no period left inside, so the line stays one sentence
 
 
+
+def test_line_items_read_as_written():
+    it = {"n": 1, "name": "A: Okongwu", "line": "Who averages more, own-YEH-kuh oh-KONG-wu, or Trae Young?"}
+    assert N.line(it) == it["line"]
+    assert N.share([it], 0, 1) == [it]
+
 def test_heard_right():
     assert N.heard_right("Michael Porter Jr.", "Next up, Michael Porter Junior.")
     assert N.heard_right("Michael Porter Jr.", "Next up, Michael Porter Jr.")

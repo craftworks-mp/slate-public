@@ -42,7 +42,10 @@ def say_as(name):
 
 
 def line(it):
-    """The carrier line for a batch entry (or a bare name)."""
+    """The carrier line for a batch entry (or a bare name). An entry with its own `line` (the 11/27 pronunciation
+    test: names inside Drill-shaped lines) is read as written."""
+    if isinstance(it, dict) and it.get("line"):
+        return it["line"]
     if isinstance(it, str):
         it = {"name": it, "say": say_as(it)}
     return f"Next up, {it.get('say') or it['name']}."
@@ -80,7 +83,7 @@ def share(items, k, n):
     for it in sorted(items, key=lambda x: -len(x["name"])):
         i = loads.index(min(loads))
         parts[i].append(it)
-        loads[i] += len(it["name"]) + 9
+        loads[i] += len(line(it))
     return sorted(parts[k], key=lambda x: x["n"])
 
 
@@ -122,8 +125,8 @@ def stitch(lst, clips, out, transcribe=None):
             continue
         a, b = int(max(0, c["t0"] - 0.15) * sr), int((c["t1"] + 0.15) * sr)
         c["heard"] = transcribe(audio[a:b], sr).strip()
-        c["pass"] = heard_right(c, c["heard"])
-    res = {"names": cues, "passed": sum(c["pass"] for c in cues), "total": len(cues)}
+        c["pass"] = None if c.get("line") else heard_right(c, c["heard"])  # test lines: ear only
+    res = {"names": cues, "passed": sum(bool(c["pass"]) for c in cues), "total": len(cues)}
     json.dump(res, open(os.path.join(out, "names-check.json"), "w"), indent=1)
     print(f"words check: {res['passed']} of {res['total']} names heard as written")
     for c in cues:
@@ -174,7 +177,7 @@ def card(it, total, path):
     center(f"{it['n']} of {total}", 620, 150, (91, 124, 255))
     center(it["name"], 840, 130, (242, 242, 245))
     center(it["sport"], 1040, 70, (140, 146, 160))
-    if not it.get("pass", True):
+    if it.get("pass", True) is False:
         center(f"check heard: {it.get('heard') or '(nothing)'}", 1200, 56, (255, 150, 90))
     im.save(path)
 
