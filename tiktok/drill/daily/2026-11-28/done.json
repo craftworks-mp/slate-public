@@ -1,0 +1,23 @@
+{
+ "ok": true,
+ "why": [],
+ "run": "46150737882",
+ "dir": "tiktok/drill/out/2026-11-28-46150737882",
+ "length_s": 80.6,
+ "words": 0.994,
+ "next_last": {
+  "date": "2026-11-28",
+  "id": "2026-11-27-22",
+  "text": "Whose line was twenty seven points, eleven rebounds and one assist?",
+  "answer": "Myles Turner",
+  "letter": "C",
+  "game": {
+   "sport": "NBA",
+   "day": "2026-11-23",
+   "team": "MIL",
+   "opp": "TOR",
+   "won": true,
+   "ot": false
+  }
+ }
+}
