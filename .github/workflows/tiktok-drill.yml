@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       input:
-        description: 'Episode input JSON (2 questions from a past day''s pool)'
+        description: 'Episode input JSON (3 questions from a past day''s pool)'
         default: 'tiktok/drill/input/sample.json'
       last:
         description: 'Last Drill answer JSON (- = the very first episode)'
@@ -209,7 +209,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          # the run's own branch, newest commit (main for daily runs): it holds the audio the stitch job just committed
+          ref: ${{ github.ref_name }}
           sparse-checkout: tiktok
       - name: Decrypt the episode audio (first, so a missing secret or folder fails in seconds)
         env:

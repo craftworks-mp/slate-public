@@ -3,6 +3,31 @@
  "pool_date": "2026-11-21",
  "warmup": {
   "sport": "NBA",
+  "type": "trend",
+  "tier": 1,
+  "prompt": "True or false: PHI is 7-1 on the road this season.",
+  "options": [
+   "True",
+   "False"
+  ],
+  "answer": 0,
+  "team": {
+   "a": "PHI",
+   "c": "#1d428a",
+   "x": "#e01234"
+  },
+  "side": "away",
+  "ws": 7,
+  "ls": 1,
+  "id": "2026-11-21-86",
+  "seconds": 15,
+  "real": [
+   7,
+   1
+  ]
+ },
+ "h2h": {
+  "sport": "NBA",
   "type": "hilo",
   "tier": 2,
   "prompt": "Who averages more points per game this season?",
@@ -36,7 +61,7 @@
   "sport": "NBA",
   "type": "line",
   "tier": 1,
-  "prompt": "Whose line is it? 47 PTS \u00b7 6 REB \u00b7 3 AST \u00b7 42 MIN on Nov 17.",
+  "prompt": "Whose line is it? 47 PTS · 6 REB · 3 AST · 42 MIN on Nov 17.",
   "options": [
    "Kevin Huerter",
    "LaMelo Ball",
@@ -105,8 +130,5 @@
    "Collin Sexton": "G",
    "Kevin Huerter": "G"
   }
- },
- "trial_names": [
-  "Collin Murray-Boyles"
- ]
+ }
 }

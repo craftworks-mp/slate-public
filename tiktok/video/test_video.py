@@ -1,5 +1,6 @@
 """Video maker checks, no browser or voice model needed: python tiktok/video/test_video.py
-Fixtures: the cues of two real renders (recap mock run 45081924498, hint run 45078461763) with their inputs."""
+Runs: stand-in cues from the script alone (make.fake_run) for the two sample inputs, until a 3-question render's
+cues replace them."""
 import copy
 import json
 import os
@@ -14,10 +15,10 @@ import music  # noqa: E402
 
 DRILL_IN = os.path.join(os.path.dirname(HERE), "drill", "input")
 load = lambda p: json.load(open(p))  # noqa: E731
-RECAP = (load(os.path.join(HERE, "fixtures", "recap-cues.json")), load(os.path.join(DRILL_IN, "sample.json")),
-         load(os.path.join(DRILL_IN, "sample-last.json")))
-HINT = (load(os.path.join(HERE, "fixtures", "hint-cues.json")), load(os.path.join(DRILL_IN, "ab-hint.json")),
-        load(os.path.join(DRILL_IN, "sample-last.json")))
+LAST = load(os.path.join(DRILL_IN, "sample-last.json"))
+SAMPLE, AB = load(os.path.join(DRILL_IN, "sample.json")), load(os.path.join(DRILL_IN, "ab-hint.json"))
+RECAP = (M.fake_run(SAMPLE, LAST), SAMPLE, LAST)
+HINT = (M.fake_run(AB, LAST), AB, LAST)
 
 
 def raises(fn, *a):
@@ -33,8 +34,12 @@ def test_letters_follow_the_voice():
         D = M.plan(run, inp, last)
         f = D["final"]
         assert f["names"] == run["final_names"] and f["letters"] == list("ABCD")
-        # read in order, so the badges pop in order
+        # read in order, so the badges pop in order, all before the clock (the voice says letters, not names)
         assert f["names_at"] == sorted(f["names_at"]) and f["t0"] <= f["names_at"][0] < f["clock"][0]
+        w = D["warm"]
+        assert w["letters"] == ["A", "B"] and w["t0"] <= w["names_at"][0] < w["names_at"][1] < w["clock"][0]
+        q = D["tf"]
+        assert q["prompt_at"] < q["cards_at"] < q["ready"] < q["clock"][0] < q["up"] < q["t1"] == w["t0"]
         # the recap's letter is the one this episode's answer gets next time
         if "letter" in run["next_last"]:  # saved since 0f30b83 (the hint run predates it)
             assert run["next_last"]["letter"] == "ABCD"[f["names"].index(run["next_last"]["answer"])]
@@ -44,8 +49,12 @@ def test_screen_matches_the_input():
     run, inp, last = RECAP
     D = M.plan(run, inp, last)
     w = D["warm"]
-    assert [o["val"] for o in w["opts"]] == [str(round(v)) for v in inp["warmup"]["vals"]]  # 19.9 -> 20, 25.8 -> 26
-    assert [o["team"] for o in w["opts"]] == [t["a"] for t in inp["warmup"]["teams"]]
+    assert [o["val"] for o in w["opts"]] == [str(round(v)) for v in inp["h2h"]["vals"]]  # 19.9 -> 20, 25.8 -> 26
+    assert [o["team"] for o in w["opts"]] == [t["a"] for t in inp["h2h"]["teams"]]
+    q = D["tf"]
+    assert (q["team"], q["abbr"], q["shown"], q["real"], q["where"], q["answer"]) == (
+        "Bucks", "MIL", "2-7", "1-8", "AT HOME", 1)
+    assert M.plan(*HINT)["tf"]["answer"] == 0 and M.plan(*HINT)["tf"]["real"] == "7-1"
     assert [s["v"] + s["l"] for s in D["final"]["stats"]] == [f"{s['v']}{s['l']}" for s in inp["final"]["stats"]]
     assert D["final"]["date"] == "Tue, Nov 17" and D["opener"]["letter"] == "C"
     assert D["opener"]["game"] == "Sixers' win over the Nets · Mon, Nov 16"
@@ -66,7 +75,9 @@ def test_hint_shows_at_its_cue():
     h = M.plan(run, inp, last)["final"]["hint"]
     clock = next(c for c in run["cues"] if c["k"] == "clock" and c["part"] == "final")
     assert h == {"t0": clock["hint"]["start"], "text": "he's a guard"}
-    assert M.plan(*RECAP)["final"]["hint"] is None
+    nfl = copy.deepcopy(inp)
+    nfl["final"]["sport"] = "NFL"
+    assert M.plan(M.fake_run(nfl, last), nfl, last)["final"]["hint"] is None, "NFL stat lines show it"
 
 
 def test_refuses_a_mismatched_input():
@@ -75,8 +86,12 @@ def test_refuses_a_mismatched_input():
     gone["final"]["options"].remove(run["final_names"][0])
     assert raises(M.plan, run, gone, last)  # a voiced final name the input doesn't have
     swap = copy.deepcopy(inp)
-    swap["warmup"]["options"][0] = "Jalen Brunson"
-    assert raises(M.plan, run, swap, last)  # a warm-up name the voice never said
+    swap["warmup"]["team"] = {"a": "BOS", "c": "#008348", "x": "#ffffff"}
+    assert raises(M.plan, run, swap, last)  # a true/false team the voice never said
+    letters = copy.deepcopy(run)
+    hq = next(c for c in letters["cues"] if c.get("part") == "h2h" and c["k"] == "say")
+    hq["text"] = hq["text"].replace("A, or B?", "Cade Cunningham, or Paul George?")
+    assert raises(M.plan, letters, inp, last)  # the voice has to say the letters
     assert raises(M.plan, run, inp, None)  # the voice says "Welcome back", so the recap input is needed
     other = copy.deepcopy(inp)
     other["post_date"] = "2026-11-23"
@@ -143,7 +158,7 @@ def test_bed_ducks_under_the_voice():
     quiet = np.abs(b[int(6 * sr):int(7 * sr), 0]).max()
     talk = np.abs(b[int(3 * sr):int(3.5 * sr), 0]).max()
     assert talk < quiet * 0.45, (talk, quiet)  # ~9 dB down while he talks
-    assert np.abs(b[int(D["warm"]["t0"] * sr) + sr:, 0]).max() == 0  # no other part picked: silence after the opener
+    assert np.abs(b[int(D["tf"]["t0"] * sr) + sr:, 0]).max() == 0  # no other part picked: silence after the opener
 
 
 if __name__ == "__main__":

@@ -3,6 +3,31 @@
  "pool_date": "2026-11-21",
  "warmup": {
   "sport": "NBA",
+  "type": "trend",
+  "tier": 1,
+  "prompt": "True or false: MIL is 2-7 at home this season.",
+  "options": [
+   "True",
+   "False"
+  ],
+  "answer": 1,
+  "team": {
+   "a": "MIL",
+   "c": "#00471b",
+   "x": "#eee1c6"
+  },
+  "side": "home",
+  "ws": 2,
+  "ls": 7,
+  "id": "2026-11-21-87",
+  "seconds": 15,
+  "real": [
+   1,
+   8
+  ]
+ },
+ "h2h": {
+  "sport": "NBA",
   "type": "hilo",
   "tier": 2,
   "prompt": "Who averages more points per game this season?",
@@ -36,7 +61,7 @@
   "sport": "NBA",
   "type": "line",
   "tier": 1,
-  "prompt": "Whose line is it? 47 PTS \u00b7 6 REB \u00b7 3 AST \u00b7 42 MIN on Nov 17.",
+  "prompt": "Whose line is it? 47 PTS · 6 REB · 3 AST · 42 MIN on Nov 17.",
   "options": [
    "Kevin Huerter",
    "LaMelo Ball",
